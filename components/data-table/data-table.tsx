@@ -1,0 +1,165 @@
+"use client";
+
+// Shared paginated table, used by every module. Per ARCHITECTURE.md §5: an
+// actual <table> at md: and above, a stacked card-per-row list below md --
+// wide tables are unusable as literal tables on a phone screen.
+
+import * as React from "react";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+
+export interface DataTableColumn<T> {
+  key: string;
+  header: string;
+  render: (row: T) => React.ReactNode;
+  className?: string;
+  // Omit from the mobile card view (e.g. an id column that's redundant there).
+  hideOnCard?: boolean;
+}
+
+interface DataTableProps<T> {
+  columns: DataTableColumn<T>[];
+  data: T[];
+  rowKey: (row: T) => React.Key;
+  actions?: (row: T) => React.ReactNode;
+  isLoading?: boolean;
+  emptyMessage?: string;
+  page?: number;
+  totalPages?: number;
+  onPageChange?: (page: number) => void;
+}
+
+export function DataTable<T>({
+  columns,
+  data,
+  rowKey,
+  actions,
+  isLoading,
+  emptyMessage = "No records found.",
+  page,
+  totalPages,
+  onPageChange,
+}: DataTableProps<T>) {
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center gap-2 py-12 text-sm text-muted-foreground">
+        <Loader2 className="size-4 animate-spin" />
+        Loading...
+      </div>
+    );
+  }
+
+  if (data.length === 0) {
+    return (
+      <Card>
+        <CardContent className="py-8 text-center text-sm text-muted-foreground">
+          {emptyMessage}
+        </CardContent>
+      </Card>
+    );
+  }
+
+  const showPagination =
+    typeof page === "number" &&
+    typeof totalPages === "number" &&
+    totalPages > 1 &&
+    onPageChange;
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Card list -- below md: */}
+      <div className="flex flex-col gap-3 md:hidden">
+        {data.map((row) => (
+          <Card key={rowKey(row)}>
+            <CardContent className="flex flex-col gap-2">
+              {columns
+                .filter((c) => !c.hideOnCard)
+                .map((col) => (
+                  <div key={col.key} className="flex items-center justify-between gap-3 text-sm">
+                    <span className="text-muted-foreground">{col.header}</span>
+                    <span className="text-right font-medium">{col.render(row)}</span>
+                  </div>
+                ))}
+              {actions && (
+                <div className="mt-2 flex justify-end gap-2 border-t pt-2">
+                  {actions(row)}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        ))}
+      </div>
+
+      {/* Real table -- md: and above */}
+      <div className="hidden rounded-xl ring-1 ring-foreground/10 md:block">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {columns.map((col) => (
+                <TableHead key={col.key} className={col.className}>
+                  {col.header}
+                </TableHead>
+              ))}
+              {actions && <TableHead className="text-right">Actions</TableHead>}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {data.map((row) => (
+              <TableRow key={rowKey(row)}>
+                {columns.map((col) => (
+                  <TableCell key={col.key} className={col.className}>
+                    {col.render(row)}
+                  </TableCell>
+                ))}
+                {actions && (
+                  <TableCell className="text-right">
+                    <div className="flex justify-end gap-1">{actions(row)}</div>
+                  </TableCell>
+                )}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+
+      {showPagination && (
+        <div className="flex items-center justify-between gap-2 pt-1">
+          <span className="text-sm text-muted-foreground">
+            Page {page! + 1} of {totalPages}
+          </span>
+          <div className="flex gap-2">
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-11"
+              disabled={page === 0}
+              onClick={() => onPageChange!(page! - 1)}
+              aria-label="Previous page"
+            >
+              <ChevronLeft className="size-4" />
+            </Button>
+            <Button
+              variant="outline"
+              size="icon"
+              className="size-11"
+              disabled={page! + 1 >= totalPages!}
+              onClick={() => onPageChange!(page! + 1)}
+              aria-label="Next page"
+            >
+              <ChevronRight className="size-4" />
+            </Button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
