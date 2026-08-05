@@ -43,38 +43,43 @@ async function handle(
   request: NextRequest,
   ctx: { params: Promise<{ path: string[] }> }
 ): Promise<NextResponse> {
-  const { path } = await ctx.params;
+  try {
+    const { path } = await ctx.params;
 
-  let accessToken = await getAccessToken();
-  if (!accessToken) {
+    let accessToken = await getAccessToken();
+    if (!accessToken) {
+      const refreshed = await refreshAccessToken();
+      if (!refreshed.ok) return NextResponse.json(
+        { success: false, error: { code: "UNAUTHORIZED", message: "Not authenticated" } },
+        { status: 401 }
+      );
+      accessToken = refreshed.accessToken;
+    }
+
+    let erpResponse = await forward(request, path, accessToken);
+
+    if (erpResponse.status === 401) {
+      const refreshed = await refreshAccessToken();
+      if (refreshed.ok) {
+        accessToken = refreshed.accessToken;
+        erpResponse = await forward(request, path, accessToken);
+      }
+    }
+
+    const responseBody = await erpResponse.arrayBuffer();
+    return new NextResponse(responseBody, {
+      status: erpResponse.status,
+      headers: {
+        "Content-Type": erpResponse.headers.get("content-type") ?? "application/json",
+      },
+    });
+  } catch (error) {
+    console.error("Backend proxy error:", error);
     return NextResponse.json(
-      { success: false, error: { code: "UNAUTHORIZED", message: "Not authenticated" } },
-      { status: 401 }
+      { success: false, error: { code: "PROXY_ERROR", message: error instanceof Error ? error.message : "Internal proxy error" } },
+      { status: 500 }
     );
   }
-
-  let erpResponse = await forward(request, path, accessToken);
-
-  // erp's JwtFilter re-validates on every request (confirmed in the
-  // production readiness audit), so a 401 here can legitimately mean the
-  // access token expired mid-session, not just bad credentials. Try exactly
-  // one silent refresh-and-retry before surfacing the 401 to the client --
-  // screens should never need to think about token expiry themselves.
-  if (erpResponse.status === 401) {
-    const refreshed = await refreshAccessToken();
-    if (refreshed.ok) {
-      accessToken = refreshed.accessToken;
-      erpResponse = await forward(request, path, accessToken);
-    }
-  }
-
-  const responseBody = await erpResponse.arrayBuffer();
-  return new NextResponse(responseBody, {
-    status: erpResponse.status,
-    headers: {
-      "Content-Type": erpResponse.headers.get("content-type") ?? "application/json",
-    },
-  });
 }
 
 export {

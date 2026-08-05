@@ -1,8 +1,9 @@
 "use client";
 
 import * as React from "react";
+import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CreditCard, Loader2, Plus, RotateCcw, ShoppingBag, Users } from "lucide-react";
+import { CreditCard, Loader2, MessageSquare, Plus, RotateCcw, ShoppingBag, Store, Users } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient, ApiRequestError, type PagedResult } from "@/lib/api-client";
 import { localDateInputValue } from "@/lib/date";
@@ -19,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { WhatsAppConfigDialog } from "@/components/settings/whatsapp-config-dialog";
 
 type Sellable = { productId:number; variantId:number|null; label:string };
 type Action = "customer"|"invoice"|"payment"|"return"|null;
@@ -34,6 +36,7 @@ export function SalesClient(){
   const [detail,setDetail]=React.useState<SalesInvoice|SalesReturn|null>(null);
   const [ledgerCustomer,setLedgerCustomer]=React.useState<Customer|null>(null);
   const [wishlistCustomer,setWishlistCustomer]=React.useState<Customer|null>(null);
+  const [isWaConfigOpen, setIsWaConfigOpen] = React.useState(false);
   const customers=useQuery({queryKey:["sales","customers"],queryFn:()=>apiClient.get<PagedResult<Customer>>("sales/customers?page=0&size=100")});
   const invoices=useQuery({queryKey:["sales","invoices"],queryFn:()=>apiClient.get<PagedResult<SalesInvoice>>("sales/invoices?page=0&size=100")});
   const returns=useQuery({queryKey:["sales","returns"],queryFn:()=>apiClient.get<PagedResult<SalesReturn>>("sales/returns?page=0&size=100")});
@@ -53,7 +56,18 @@ export function SalesClient(){
   return <div className="flex flex-col gap-5">
     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
       <div><h1 className="text-2xl font-semibold">Sales</h1><p className="text-sm text-muted-foreground">Sell by exact SKU, collect payments, manage customers, and restore stock through controlled returns.</p></div>
-      <div className="flex flex-wrap gap-2"><Button variant="outline" onClick={()=>{setSelectedCustomer(null);setAction("customer")}}><Users/>New customer</Button><Button onClick={()=>setAction("invoice")}><ShoppingBag/>New sale</Button></div>
+      <div className="flex flex-wrap gap-2">
+        <Button variant="outline" onClick={() => setIsWaConfigOpen(true)} className="gap-1.5 text-emerald-600 dark:text-emerald-400 border-emerald-200">
+          <MessageSquare className="h-4 w-4" /> WhatsApp Config
+        </Button>
+        <Link href="/sales/pos" target="_blank" rel="noopener noreferrer">
+          <Button variant="outline" className="gap-1.5 font-bold border-primary text-primary hover:bg-primary/10">
+            <Store className="h-4 w-4" /> Open POS Terminal
+          </Button>
+        </Link>
+        <Button variant="outline" onClick={()=>{setSelectedCustomer(null);setAction("customer")}}><Users/>New customer</Button>
+        <Button onClick={()=>setAction("invoice")}><ShoppingBag/>New sale</Button>
+      </div>
     </div>
     <div className="grid gap-3 sm:grid-cols-3"><Metric label="Today’s sales" value={money.format(todaySales)}/><Metric label="Receivables" value={money.format(due)} warn={due>0}/><Metric label="Active customers" value={String(c.length)}/></div>
     <Tabs defaultValue="invoices"><TabsList className="flex h-auto flex-wrap"><TabsTrigger value="invoices">Invoices</TabsTrigger><TabsTrigger value="customers">Customers</TabsTrigger><TabsTrigger value="returns">Returns</TabsTrigger><TabsTrigger value="payments">Payments</TabsTrigger></TabsList>
@@ -77,6 +91,7 @@ export function SalesClient(){
     <DetailDialog value={detail} customer={detail?c.find(x=>x.id===detail.customerId):undefined} close={()=>setDetail(null)}/>
     <LedgerDialog customer={ledgerCustomer} close={()=>setLedgerCustomer(null)}/>
     <WishlistDialog customer={wishlistCustomer} sellables={sellables.data??[]} close={()=>setWishlistCustomer(null)}/>
+    <WhatsAppConfigDialog open={isWaConfigOpen} onOpenChange={setIsWaConfigOpen} />
   </div>;
 }
 

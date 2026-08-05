@@ -13,11 +13,50 @@ import { NextRequest, NextResponse } from "next/server";
 // of being redirected client-side first.
 const PUBLIC_ROUTES = ["/login", "/forgot-password"];
 const ACCESS_TOKEN_COOKIE = "fiyora_erp_at";
+const REFRESH_TOKEN_COOKIE = "fiyora_erp_rt";
+const ERP_API_URL = process.env.ERP_API_URL ?? "http://localhost:8080";
+
+function tokenIsUsable(token: string | undefined) {
+  if (!token) return false;
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1].replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof payload.exp === "number" && payload.exp * 1000 > Date.now() + 30_000;
+  } catch { return false; }
+}
+
+async function refreshForNavigation(request: NextRequest) {
+  const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
+  if (!refreshToken) return null;
+  const response = await fetch(`${ERP_API_URL}/api/v1/auth/refresh-token`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refreshToken }), cache: "no-store" });
+  if (!response.ok) return null;
+  const body = await response.json();
+  if (!body.success) return null;
+  return body.data as { accessToken: string; refreshToken: string };
+}
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const hasSession = request.cookies.has(ACCESS_TOKEN_COOKIE);
+  const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
+  let hasSession = tokenIsUsable(accessToken);
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
+
+  if (!hasSession && request.cookies.has(REFRESH_TOKEN_COOKIE)) {
+    const tokens = await refreshForNavigation(request);
+    if (tokens) {
+      hasSession = true;
+      const requestHeaders = new Headers(request.headers);
+      const cookie = request.cookies.getAll().filter((item) => item.name !== ACCESS_TOKEN_COOKIE && item.name !== REFRESH_TOKEN_COOKIE).map((item) => `${item.name}=${item.value}`);
+      cookie.push(`${ACCESS_TOKEN_COOKIE}=${tokens.accessToken}`, `${REFRESH_TOKEN_COOKIE}=${tokens.refreshToken}`);
+      requestHeaders.set("cookie", cookie.join("; "));
+      const next = isPublicRoute
+        ? NextResponse.redirect(new URL("/dashboard", request.url))
+        : NextResponse.next({ request: { headers: requestHeaders } });
+      const options = { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax" as const, path: "/", maxAge: 60 * 60 * 24 * 7 };
+      next.cookies.set(ACCESS_TOKEN_COOKIE, tokens.accessToken, options);
+      next.cookies.set(REFRESH_TOKEN_COOKIE, tokens.refreshToken, options);
+      return next;
+    }
+  }
 
   if (!hasSession && !isPublicRoute && pathname !== "/") {
     return NextResponse.redirect(new URL("/login", request.url));

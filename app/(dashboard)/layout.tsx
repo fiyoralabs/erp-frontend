@@ -3,6 +3,10 @@ import { serverApiGet } from "@/lib/server-api";
 import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { Topbar } from "@/components/layout/topbar";
 import type { CurrentUser } from "@/lib/types/user";
+import { getCurrentPermissions } from "@/lib/authorization";
+import type { Location } from "@/lib/types/master";
+
+type WorkingLocationContext = { activeLocation: Location | null; allowedLocations: Location[]; locationRequired: boolean };
 
 export default async function DashboardLayout({
   children,
@@ -13,6 +17,12 @@ export default async function DashboardLayout({
   // proxy.ts only did an optimistic cookie-presence check before this.
   const session = await verifySession();
   const user = await serverApiGet<CurrentUser>("users/me");
+  const permissions = await getCurrentPermissions();
+  const locationContext = await serverApiGet<WorkingLocationContext>("users/me/context") ?? {
+    activeLocation: null,
+    allowedLocations: [],
+    locationRequired: true,
+  };
 
   return (
     <div className="flex min-h-screen w-full">
@@ -21,7 +31,7 @@ export default async function DashboardLayout({
         <div className="flex h-14 items-center border-b px-4 font-semibold">
           Fiyora ERP
         </div>
-        <SidebarNav />
+        <SidebarNav permissions={permissions} />
       </aside>
 
       <div className="flex flex-1 flex-col min-w-0">
@@ -29,6 +39,8 @@ export default async function DashboardLayout({
           userName={user?.fullName ?? session.sub}
           userEmail={user?.email ?? session.sub}
           companyLabel={`Company #${session.companyId}`}
+          permissions={permissions}
+          locationContext={locationContext}
         />
         <main className="flex-1 p-4 sm:p-6">{children}</main>
       </div>

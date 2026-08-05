@@ -27,6 +27,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { loginSchema, type LoginInput } from "@/lib/validation/auth";
+import { landingPath } from "@/lib/permissions";
 
 export function LoginForm() {
   const router = useRouter();
@@ -54,7 +55,7 @@ export function LoginForm() {
       }
 
       toast.success("Welcome back");
-      router.push("/dashboard");
+      router.push(landingPath(Array.isArray(body.permissions) ? body.permissions : []));
       router.refresh();
     } catch {
       toast.error("Could not reach the server. Please try again.");

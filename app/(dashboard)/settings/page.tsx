@@ -2,6 +2,8 @@ import Link from "next/link";
 import { UserCircle, Users, ShieldCheck, KeyRound, Monitor } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { getCurrentPermissions } from "@/lib/authorization";
+import { hasAnyPermission } from "@/lib/permissions";
 
 const sections = [
   {
@@ -10,6 +12,7 @@ const sections = [
     icon: UserCircle,
     description: "Your name, phone, and role",
     implemented: true,
+    requiredPermissions: [] as string[],
   },
   {
     title: "Users",
@@ -17,6 +20,7 @@ const sections = [
     icon: Users,
     description: "Manage employee accounts",
     implemented: true,
+    requiredPermissions: ["USER_VIEW"],
   },
   {
     title: "Roles & Permissions",
@@ -24,6 +28,7 @@ const sections = [
     icon: ShieldCheck,
     description: "Configure access control",
     implemented: true,
+    requiredPermissions: ["ROLE_VIEW"],
   },
   {
     title: "API Keys",
@@ -31,6 +36,7 @@ const sections = [
     icon: KeyRound,
     description: "Manage integration credentials",
     implemented: true,
+    requiredPermissions: ["API_KEY_VIEW"],
   },
   {
     title: "Sessions",
@@ -38,10 +44,14 @@ const sections = [
     icon: Monitor,
     description: "Active logins and devices",
     implemented: true,
+    requiredPermissions: ["SESSION_VIEW"],
   },
 ];
 
-export default function SettingsPage() {
+export default async function SettingsPage() {
+  const permissions = await getCurrentPermissions();
+  const visibleSections = sections.filter((section) =>
+    section.requiredPermissions.length === 0 || hasAnyPermission(permissions, section.requiredPermissions));
   return (
     <div className="flex flex-col gap-4">
       <div>
@@ -52,7 +62,7 @@ export default function SettingsPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-3">
-        {sections.map((section) => {
+        {visibleSections.map((section) => {
           const Icon = section.icon;
           const card = (
             <Card

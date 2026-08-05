@@ -137,7 +137,13 @@ export interface Location {
   state: string | null;
   country: string | null;
   postalCode: string | null;
+  gstin?: string | null;
+  upiId?: string | null;
+  bankName?: string | null;
+  bankAccountNo?: string | null;
+  bankIfsc?: string | null;
   isDefault: boolean;
+  isUserDefault?: boolean | null;
   isActive: boolean;
   createdAt: string;
 }

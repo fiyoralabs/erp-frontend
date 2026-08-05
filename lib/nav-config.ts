@@ -21,18 +21,20 @@ export interface NavItem {
   // currently-built phase render as disabled/"coming soon" rather than
   // linking to a 404, so the nav is honest about what's actually usable.
   implemented: boolean;
+  requiredPermissions?: readonly string[];
+  permissionMode?: "any" | "all";
 }
 
 export const navItems: NavItem[] = [
-  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, implemented: true },
-  { title: "Master Data", href: "/master", icon: Database, implemented: true },
-  { title: "Products", href: "/products", icon: Package, implemented: true },
-  { title: "Inventory", href: "/inventory", icon: Warehouse, implemented: true },
-  { title: "Purchases", href: "/purchases", icon: ShoppingCart, implemented: true },
-  { title: "Sales", href: "/sales", icon: Receipt, implemented: true },
-  { title: "Expenses", href: "/expenses", icon: Wallet, implemented: true },
-  { title: "Finance", href: "/finance", icon: Landmark, implemented: true },
-  { title: "Reports", href: "/reports", icon: BarChart3, implemented: true },
-  { title: "Audit Log", href: "/audit", icon: ScrollText, implemented: true },
-  { title: "Settings", href: "/settings", icon: Settings, implemented: true },
+  { title: "Dashboard", href: "/dashboard", icon: LayoutDashboard, implemented: true, requiredPermissions: ["REPORT_SALES_VIEW", "REPORT_PURCHASE_VIEW", "REPORT_EXPENSE_VIEW"], permissionMode: "all" },
+  { title: "Master Data", href: "/master", icon: Database, implemented: true, requiredPermissions: ["MASTER_VIEW"] },
+  { title: "Products", href: "/products", icon: Package, implemented: true, requiredPermissions: ["PRODUCT_VIEW"] },
+  { title: "Inventory", href: "/inventory", icon: Warehouse, implemented: true, requiredPermissions: ["INVENTORY_VIEW"] },
+  { title: "Purchases", href: "/purchases", icon: ShoppingCart, implemented: true, requiredPermissions: ["PURCHASE_VIEW"] },
+  { title: "Sales", href: "/sales", icon: Receipt, implemented: true, requiredPermissions: ["SALES_VIEW"] },
+  { title: "Expenses", href: "/expenses", icon: Wallet, implemented: true, requiredPermissions: ["EXPENSE_VIEW"] },
+  { title: "Finance", href: "/finance", icon: Landmark, implemented: true, requiredPermissions: ["FINANCE_VIEW"] },
+  { title: "Reports", href: "/reports", icon: BarChart3, implemented: true, requiredPermissions: ["REPORT_SALES_VIEW", "REPORT_PURCHASE_VIEW", "REPORT_INVENTORY_VIEW", "REPORT_CUSTOMER_VIEW", "REPORT_SUPPLIER_VIEW", "REPORT_EXPENSE_VIEW", "REPORT_FINANCIAL_VIEW"] },
+  { title: "Audit Log", href: "/audit", icon: ScrollText, implemented: true, requiredPermissions: ["AUDIT_VIEW"] },
+  { title: "Settings", href: "/settings", icon: Settings, implemented: true, requiredPermissions: ["USER_VIEW", "ROLE_VIEW", "API_KEY_VIEW", "SESSION_VIEW"] },
 ];

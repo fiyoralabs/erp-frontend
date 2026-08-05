@@ -4,13 +4,16 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { navItems } from "@/lib/nav-config";
+import { hasAllPermissions, hasAnyPermission } from "@/lib/permissions";
 
-export function SidebarNav({ onNavigate }: { onNavigate?: () => void }) {
+export function SidebarNav({ permissions, onNavigate }: { permissions: readonly string[]; onNavigate?: () => void }) {
   const pathname = usePathname();
 
   return (
     <nav className="flex flex-col gap-1 p-3">
-      {navItems.map((item) => {
+      {navItems.filter((item) => !item.requiredPermissions || (item.permissionMode === "all"
+        ? hasAllPermissions(permissions, item.requiredPermissions)
+        : hasAnyPermission(permissions, item.requiredPermissions))).map((item) => {
         const isActive =
           pathname === item.href || pathname.startsWith(`${item.href}/`);
         const Icon = item.icon;

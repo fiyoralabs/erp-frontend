@@ -35,6 +35,7 @@ import { ComboboxField } from "@/components/shared/combobox-field";
 import { apiClient, ApiRequestError } from "@/lib/api-client";
 import { barcodeSchema, type BarcodeFormValues } from "@/lib/validation/product";
 import { BARCODE_TYPES, type Barcode, type Product, type Variant } from "@/lib/types/product";
+import { BarcodeLabelPrinter } from "@/components/products/barcode-label-printer";
 
 const emptyValues: BarcodeFormValues = { barcode: "", barcodeType: "PRIMARY" };
 const barcodeTypeOptions = BARCODE_TYPES.map((t) => ({ value: t, label: t }));
@@ -120,6 +121,8 @@ export function ProductBarcodesTab({ productId }: { productId: number }) {
           Add barcode
         </Button>
       </div>
+
+      {productQuery.data && barcodes.length > 0 && <BarcodeLabelPrinter product={productQuery.data} variants={variantsQuery.data ?? []} barcodes={barcodes} />}
 
       {barcodes.length === 0 ? (
         <Card>

@@ -20,27 +20,34 @@ interface SessionTokens {
 }
 
 export async function setSessionCookies(tokens: SessionTokens): Promise<void> {
-  const cookieStore = await cookies();
-  const isProd = process.env.NODE_ENV === "production";
+  try {
+    const cookieStore = await cookies();
+    const isProd = process.env.NODE_ENV === "production";
 
-  cookieStore.set(ACCESS_TOKEN_COOKIE, tokens.accessToken, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: "lax",
-    path: "/",
-    maxAge: tokens.expiresIn,
-  });
+    cookieStore.set(ACCESS_TOKEN_COOKIE, tokens.accessToken, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: "lax",
+      path: "/",
+      // Keep the expired JWT available until the refresh token expires. The
+      // route proxy can then detect expiry and rotate the 7-day refresh token
+      // before Server Components run. Expiry is still enforced by ERP.
+      maxAge: 60 * 60 * 24 * 7,
+    });
 
-  // Refresh token cookie outlives the access token (erp: 7 days) so the
-  // proxy route can silently mint a new access token after the first one
-  // expires without forcing a re-login.
-  cookieStore.set(REFRESH_TOKEN_COOKIE, tokens.refreshToken, {
-    httpOnly: true,
-    secure: isProd,
-    sameSite: "lax",
-    path: "/",
-    maxAge: 60 * 60 * 24 * 7,
-  });
+    // Refresh token cookie outlives the access token (erp: 7 days) so the
+    // proxy route can silently mint a new access token after the first one
+    // expires without forcing a re-login.
+    cookieStore.set(REFRESH_TOKEN_COOKIE, tokens.refreshToken, {
+      httpOnly: true,
+      secure: isProd,
+      sameSite: "lax",
+      path: "/",
+      maxAge: 60 * 60 * 24 * 7,
+    });
+  } catch {
+    // Ignore cookie store mutation errors if called during Server Component render pass
+  }
 }
 
 export async function getAccessToken(): Promise<string | undefined> {
@@ -54,9 +61,13 @@ export async function getRefreshToken(): Promise<string | undefined> {
 }
 
 export async function clearSessionCookies(): Promise<void> {
-  const cookieStore = await cookies();
-  cookieStore.delete(ACCESS_TOKEN_COOKIE);
-  cookieStore.delete(REFRESH_TOKEN_COOKIE);
+  try {
+    const cookieStore = await cookies();
+    cookieStore.delete(ACCESS_TOKEN_COOKIE);
+    cookieStore.delete(REFRESH_TOKEN_COOKIE);
+  } catch {
+    // Ignore cookie store mutation errors if called during Server Component render pass
+  }
 }
 
 const ERP_API_URL = process.env.ERP_API_URL ?? "http://localhost:8080";

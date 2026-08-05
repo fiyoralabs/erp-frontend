@@ -40,6 +40,7 @@ export interface ProductSummary {
   brandName: string | null;
   code: string;
   name: string;
+  primaryImageUrl: string | null;
   hasVariants: boolean;
   isActive: boolean;
 }
@@ -67,7 +68,11 @@ export interface VariantAttributeValue {
 export interface ProductImage {
   id: number;
   productId: number;
+  variantId: number | null;
   imageUrl: string;
+  originalFileName: string | null;
+  contentType: string | null;
+  fileSize: number | null;
   displayOrder: number;
   isPrimary: boolean;
   createdAt: string | null;

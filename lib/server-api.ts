@@ -1,5 +1,5 @@
 import "server-only";
-import { getAccessToken } from "@/lib/auth";
+import { getAccessToken, refreshAccessToken } from "@/lib/auth";
 import type { ApiResponse, ApiError } from "@/lib/api-client";
 
 const ERP_API_URL = process.env.ERP_API_URL ?? "http://localhost:8080";
@@ -9,13 +9,28 @@ const ERP_API_URL = process.env.ERP_API_URL ?? "http://localhost:8080";
 // can't reach erp directly without CORS; server-side code has no such
 // restriction). Same response-envelope handling as lib/api-client.ts.
 export async function serverApiGet<T>(path: string): Promise<T | null> {
-  const token = await getAccessToken();
-  if (!token) return null;
+  let token = await getAccessToken();
+  if (!token) {
+    const refreshed = await refreshAccessToken();
+    if (!refreshed.ok) return null;
+    token = refreshed.accessToken;
+  }
 
-  const response = await fetch(`${ERP_API_URL}/api/v1/${path}`, {
+  let response = await fetch(`${ERP_API_URL}/api/v1/${path}`, {
     headers: { Authorization: `Bearer ${token}` },
     cache: "no-store",
   });
+
+  if (response.status === 401) {
+    const refreshed = await refreshAccessToken();
+    if (refreshed.ok) {
+      token = refreshed.accessToken;
+      response = await fetch(`${ERP_API_URL}/api/v1/${path}`, {
+        headers: { Authorization: `Bearer ${token}` },
+        cache: "no-store",
+      });
+    }
+  }
 
   const body = (await response.json()) as ApiResponse<T>;
   if (!response.ok || !body.success) {

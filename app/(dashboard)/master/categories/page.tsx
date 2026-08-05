@@ -40,6 +40,7 @@ import { buildTree, collectAllIds, collectDescendantIds, filterTree } from "@/li
 import { apiClient, ApiRequestError, type PagedResult } from "@/lib/api-client";
 import { categorySchema, type CategoryFormValues } from "@/lib/validation/master";
 import type { Category } from "@/lib/types/master";
+import { categoryHierarchy } from "@/lib/category-hierarchy";
 
 const NO_PARENT = "__none__";
 
@@ -199,12 +200,12 @@ export default function CategoriesPage() {
     return collectDescendantIds(allCategories, (c) => c.parentCategoryId, editingId);
   }, [editingId, allCategories]);
 
-  const parentOptions = allCategories.filter((c) => !excludedParentIds.has(c.id));
+  const parentOptions = categoryHierarchy(allCategories).filter(({ category }) => !excludedParentIds.has(category.id));
   // Select.Value only shows the item's label instead of the raw id when
   // Select.Root gets this `items` map -- see products-list-client.tsx.
   const parentItems = {
     [NO_PARENT]: "None (top-level)",
-    ...Object.fromEntries(parentOptions.map((c) => [String(c.id), `${c.name} (${c.code})`])),
+    ...Object.fromEntries(parentOptions.map(({ category, label }) => [String(category.id), `${label} (${category.code})`])),
   };
 
   return (
@@ -346,9 +347,9 @@ export default function CategoriesPage() {
                           </SelectTrigger>
                           <SelectContent>
                             <SelectItem value={NO_PARENT}>None (top-level)</SelectItem>
-                            {parentOptions.map((cat) => (
+                            {parentOptions.map(({ category: cat, label }) => (
                               <SelectItem key={cat.id} value={String(cat.id)}>
-                                {cat.name} ({cat.code})
+                                {label} ({cat.code})
                               </SelectItem>
                             ))}
                           </SelectContent>
