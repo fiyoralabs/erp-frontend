@@ -324,7 +324,7 @@ export function CreateReturnClient() {
                           type="number"
                           min="0"
                           max={line.maxReturnableQty}
-                          step="1"
+                          step="any"
                           disabled={isFullyReturned}
                           value={line.returnQty || ""}
                           onChange={(e) => handleReturnQtyChange(idx, Number(e.target.value))}

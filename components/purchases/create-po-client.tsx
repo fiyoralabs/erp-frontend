@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft, Check, Grid, Loader2, Plus, Search, ShoppingBag, Trash2 } from "lucide-react";
 import { toast } from "sonner";
@@ -45,7 +45,11 @@ const err = (e: unknown) => (e instanceof ApiRequestError || e instanceof Error 
 
 export function CreatePOClient() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const qc = useQueryClient();
+
+  const paramSupplierId = searchParams.get("supplierId");
+  const paramProductId = searchParams.get("productId");
 
   const [supplierId, setSupplierId] = React.useState<string>("");
   const [locationId, setLocationId] = React.useState<string>("");
@@ -71,6 +75,36 @@ export function CreatePOClient() {
       setLocationId(String(activeLocation.id));
     }
   }, [activeLocation, locationId]);
+
+  // Pre-select supplier and product from URL search params
+  React.useEffect(() => {
+    if (paramSupplierId && !supplierId) {
+      setSupplierId(paramSupplierId);
+    }
+  }, [paramSupplierId, supplierId]);
+
+  React.useEffect(() => {
+    if (paramProductId && productsQuery.data?.content && lineItems.length === 0) {
+      const targetProd = productsQuery.data.content.find((p) => String(p.id) === paramProductId);
+      if (targetProd) {
+        setLineItems([
+          {
+            id: crypto.randomUUID(),
+            productId: targetProd.id,
+            productVariantId: null,
+            productName: targetProd.name,
+            variantName: null,
+            sku: targetProd.code,
+            primaryImageUrl: targetProd.primaryImageUrl,
+            orderedQuantity: 10,
+            unitPrice: 0,
+            discountAmount: 0,
+            taxPercentage: 0,
+          },
+        ]);
+      }
+    }
+  }, [paramProductId, productsQuery.data, lineItems.length]);
 
   // Submit Mutation
   const createPOMutation = useMutation({
@@ -182,7 +216,7 @@ export function CreatePOClient() {
             {/* Supplier */}
             <div className="space-y-1.5">
               <Label htmlFor="supplier">Supplier *</Label>
-              <Select value={supplierId} onValueChange={(val) => setSupplierId(val || "")}>
+              <Select items={Object.fromEntries(suppliers.map((s) => [String(s.id), `${s.name} (${s.code})`]))} value={supplierId} onValueChange={(val) => setSupplierId(val || "")}>
                 <SelectTrigger id="supplier">
                   <SelectValue placeholder="Select supplier" />
                 </SelectTrigger>
@@ -199,7 +233,7 @@ export function CreatePOClient() {
             {/* Store Location */}
             <div className="space-y-1.5">
               <Label htmlFor="location">Store Location *</Label>
-              <Select value={locationId} onValueChange={(val) => setLocationId(val || "")}>
+              <Select items={Object.fromEntries(locations.map((loc) => [String(loc.id), `${loc.name}${loc.id === activeLocation?.id ? " (Current Active Store)" : ""}`]))} value={locationId} onValueChange={(val) => setLocationId(val || "")}>
                 <SelectTrigger id="location">
                   <SelectValue placeholder="Select store location" />
                 </SelectTrigger>
@@ -297,10 +331,10 @@ export function CreatePOClient() {
                         <TableCell className="text-right">
                           <Input
                             type="number"
-                            min="1"
-                            step="1"
+                            min="0.001"
+                            step="any"
                             value={item.orderedQuantity}
-                            onChange={(e) => handleUpdateLine(item.id, "orderedQuantity", Math.max(1, Number(e.target.value)))}
+                            onChange={(e) => handleUpdateLine(item.id, "orderedQuantity", Math.max(0.001, Number(e.target.value)))}
                             className="w-24 text-right ml-auto"
                           />
                         </TableCell>
@@ -435,7 +469,7 @@ function ProductCatalogModal({
           {/* Category Filter Pills / Dropdown */}
           <div className="flex items-center gap-2 w-full sm:w-auto">
             <Label className="text-xs shrink-0 font-medium">Category:</Label>
-            <Select value={selectedCategory} onValueChange={(val) => setSelectedCategory(val || "ALL")}>
+            <Select items={Object.fromEntries([["ALL", "All Categories"], ...categories.map((c) => [String(c.id), c.name])])} value={selectedCategory} onValueChange={(val) => setSelectedCategory(val || "ALL")}>
               <SelectTrigger className="w-full sm:w-[220px]">
                 <SelectValue placeholder="All Categories" />
               </SelectTrigger>

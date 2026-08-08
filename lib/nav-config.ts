@@ -11,6 +11,7 @@ import {
   BarChart3,
   ScrollText,
   Settings,
+  Users,
 } from "lucide-react";
 
 export interface NavItem {
@@ -23,6 +24,10 @@ export interface NavItem {
   implemented: boolean;
   requiredPermissions?: readonly string[];
   permissionMode?: "any" | "all";
+  // Nested sub-items (e.g. CRM's Leads/Contacts/Accounts/...). First
+  // 2-level menu in this app -- SidebarNav renders these as a collapsible
+  // group instead of a single link.
+  items?: readonly NavItem[];
 }
 
 export const navItems: NavItem[] = [
@@ -32,6 +37,26 @@ export const navItems: NavItem[] = [
   { title: "Inventory", href: "/inventory", icon: Warehouse, implemented: true, requiredPermissions: ["INVENTORY_VIEW"] },
   { title: "Purchases", href: "/purchases", icon: ShoppingCart, implemented: true, requiredPermissions: ["PURCHASE_VIEW"] },
   { title: "Sales", href: "/sales", icon: Receipt, implemented: true, requiredPermissions: ["SALES_VIEW"] },
+  {
+    title: "CRM",
+    href: "/crm",
+    icon: Users,
+    implemented: true,
+    requiredPermissions: ["CRM_DASHBOARD_VIEW", "LEAD_VIEW", "OPPORTUNITY_VIEW", "ACCOUNT_VIEW", "CONTACT_VIEW"],
+    items: [
+      { title: "Dashboard", href: "/crm", icon: LayoutDashboard, implemented: true, requiredPermissions: ["CRM_DASHBOARD_VIEW"] },
+      { title: "Leads", href: "/crm/leads", icon: Users, implemented: true, requiredPermissions: ["LEAD_VIEW"] },
+      { title: "Contacts", href: "/crm/contacts", icon: Users, implemented: true, requiredPermissions: ["CONTACT_VIEW"] },
+      { title: "Accounts", href: "/crm/accounts", icon: Users, implemented: true, requiredPermissions: ["ACCOUNT_VIEW"] },
+      { title: "Opportunities", href: "/crm/opportunities", icon: Users, implemented: true, requiredPermissions: ["OPPORTUNITY_VIEW"] },
+      { title: "Pipeline", href: "/crm/pipeline", icon: Users, implemented: true, requiredPermissions: ["OPPORTUNITY_VIEW"] },
+      { title: "Activities", href: "/crm/activities", icon: Users, implemented: true, requiredPermissions: ["ACTIVITY_VIEW"] },
+      { title: "Tasks", href: "/crm/tasks", icon: Users, implemented: true, requiredPermissions: ["ACTIVITY_VIEW"] },
+      { title: "Campaigns", href: "/crm/campaigns", icon: Users, implemented: true, requiredPermissions: ["CAMPAIGN_VIEW"] },
+      { title: "Reports", href: "/crm/reports", icon: BarChart3, implemented: true, requiredPermissions: ["CRM_REPORT_VIEW"] },
+      { title: "Settings", href: "/crm/settings", icon: Settings, implemented: true, requiredPermissions: ["CRM_SETTINGS_MANAGE"] },
+    ],
+  },
   { title: "Expenses", href: "/expenses", icon: Wallet, implemented: true, requiredPermissions: ["EXPENSE_VIEW"] },
   { title: "Finance", href: "/finance", icon: Landmark, implemented: true, requiredPermissions: ["FINANCE_VIEW"] },
   { title: "Reports", href: "/reports", icon: BarChart3, implemented: true, requiredPermissions: ["REPORT_SALES_VIEW", "REPORT_PURCHASE_VIEW", "REPORT_INVENTORY_VIEW", "REPORT_CUSTOMER_VIEW", "REPORT_SUPPLIER_VIEW", "REPORT_EXPENSE_VIEW", "REPORT_FINANCIAL_VIEW"] },

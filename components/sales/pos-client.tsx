@@ -12,7 +12,6 @@ import {
   CreditCard,
   Download,
   Loader2,
-  MessageSquare,
   Minus,
   Package,
   Plus,
@@ -48,8 +47,7 @@ import {
 } from "@/components/ui/dialog";
 import { apiClient, PagedResult } from "@/lib/api-client";
 import type { Location } from "@/lib/types/master";
-import type { ProductSummary, Variant } from "@/lib/types/product";
-import { WhatsAppConfigDialog } from "@/components/settings/whatsapp-config-dialog";
+import type { ProductSummary, Variant, Barcode as ProductBarcode } from "@/lib/types/product";
 
 interface Customer {
   id: number;
@@ -72,6 +70,7 @@ interface SellableItem {
   name: string;
   variantName?: string | null;
   sku: string;
+  barcodes: string[];
   price: number;
   pricesByList?: PriceMap;
   imageUrl?: string | null;
@@ -112,6 +111,7 @@ interface SalesInvoiceResult {
 export function POSClient() {
   const router = useRouter();
   const queryClient = useQueryClient();
+  const barcodeInputRef = React.useRef<HTMLInputElement | null>(null);
 
   // Active Location & Context
   const contextQuery = useQuery({
@@ -151,9 +151,6 @@ export function POSClient() {
   const [tenderedCash, setTenderedCash] = React.useState("");
   const [discountInput, setDiscountInput] = React.useState("");
 
-  // WhatsApp Config Dialog
-  const [isWaConfigOpen, setIsWaConfigOpen] = React.useState(false);
-
   // Invoice Result Modal
   const [postedInvoice, setPostedInvoice] = React.useState<SalesInvoiceResult | null>(null);
   const [isSendingWa, setIsSendingWa] = React.useState(false);
@@ -191,14 +188,32 @@ export function POSClient() {
     }
   }, [storePriceLists, selectedPriceListId]);
 
-  // 2. Fetch Sellable Products with photos and price list prices
+  // 2. Fetch Sellable Products with photos, barcodes, location stock and price list prices
   const sellablesQuery = useQuery({
-    queryKey: ["sales", "pos-sellables"],
+    queryKey: ["sales", "pos-sellables", activeLocation?.id],
     queryFn: async () => {
       const p = await apiClient.get<PagedResult<ProductSummary>>("products?page=0&size=100");
+      const activeProds = p.content.filter((x) => x.isActive);
+
+      // Fetch stock for active store location if available
+      let stockMap = new Map<string, number>();
+      if (activeLocation?.id) {
+        try {
+          const stockRes = await apiClient.get<any[]>(`inventory?locationId=${activeLocation.id}`);
+          if (Array.isArray(stockRes)) {
+            for (const s of stockRes) {
+              const key = `${s.productId}:${s.productVariantId ?? "base"}`;
+              stockMap.set(key, s.availableQuantity ?? s.quantityOnHand ?? 0);
+            }
+          }
+        } catch (e) {
+          // ignore
+        }
+      }
+
       const items: SellableItem[] = [];
 
-      for (const prod of p.content.filter((x) => x.isActive)) {
+      for (const prod of activeProds) {
         let pricesByList: PriceMap = {};
         try {
           const pricesRes = await apiClient.get<any[]>(`products/prices/product/${prod.id}`);
@@ -213,10 +228,28 @@ export function POSClient() {
           // ignore
         }
 
+        // Fetch barcodes for product
+        let productBarcodes: ProductBarcode[] = [];
+        try {
+          const bRes = await apiClient.get<ProductBarcode[]>(`products/${prod.id}/barcodes`);
+          if (Array.isArray(bRes)) {
+            productBarcodes = bRes;
+          }
+        } catch (e) {
+          // ignore
+        }
+
         if (prod.hasVariants) {
           const variants = await apiClient.get<Variant[]>(`products/${prod.id}/variants`);
           for (const v of variants.filter((x) => x.isActive)) {
             const basePrice = (v as any).retailPrice || (prod as any).basePrice || 0;
+            const variantBarcodes = productBarcodes.filter((b) => b.variantId === v.id).map((b) => b.barcode);
+            const parentBarcodes = productBarcodes.filter((b) => b.variantId === null).map((b) => b.barcode);
+            const allBarcodes = variantBarcodes.length > 0 ? variantBarcodes : parentBarcodes;
+
+            const stockKey = `${prod.id}:${v.id}`;
+            const availQty = stockMap.has(stockKey) ? stockMap.get(stockKey) : 50;
+
             items.push({
               productId: prod.id,
               variantId: v.id,
@@ -224,25 +257,31 @@ export function POSClient() {
               name: prod.name,
               variantName: v.variantName,
               sku: v.sku || prod.code,
+              barcodes: allBarcodes,
               price: basePrice,
               pricesByList,
               imageUrl: prod.primaryImageUrl,
-              stockQty: 50,
+              stockQty: availQty,
               taxPercentage: 18,
             });
           }
         } else {
           const basePrice = (prod as any).basePrice || 0;
+          const allBarcodes = productBarcodes.map((b) => b.barcode);
+          const stockKey = `${prod.id}:base`;
+          const availQty = stockMap.has(stockKey) ? stockMap.get(stockKey) : 50;
+
           items.push({
             productId: prod.id,
             variantId: null,
             code: prod.code,
             name: prod.name,
             sku: prod.code,
+            barcodes: allBarcodes,
             price: basePrice,
             pricesByList,
             imageUrl: prod.primaryImageUrl,
-            stockQty: 50,
+            stockQty: availQty,
             taxPercentage: 18,
           });
         }
@@ -297,7 +336,8 @@ export function POSClient() {
           x.name.toLowerCase().includes(s) ||
           x.sku.toLowerCase().includes(s) ||
           x.code.toLowerCase().includes(s) ||
-          (x.variantName && x.variantName.toLowerCase().includes(s))
+          (x.variantName && x.variantName.toLowerCase().includes(s)) ||
+          (x.barcodes && x.barcodes.some((b) => b.toLowerCase().includes(s)))
       );
     }
     return items;
@@ -336,28 +376,64 @@ export function POSClient() {
     [getEffectivePrice, selectedPriceListId]
   );
 
-  // Handle Barcode / SKU Scan
+  // Process Barcode Scan (Exact Barcode Matching)
+  const processBarcodeScan = React.useCallback(
+    (scannedString: string) => {
+      const query = scannedString.trim();
+      if (!query || !sellablesQuery.data) return false;
+
+      // 1. Search exact barcode match first (preserving leading zeroes, string exact match)
+      let match = sellablesQuery.data.find(
+        (x) => x.barcodes && x.barcodes.some((b) => b === query)
+      );
+
+      // 2. Fallback to exact SKU or code match
+      if (!match) {
+        match = sellablesQuery.data.find(
+          (x) =>
+            x.sku === query ||
+            x.code === query ||
+            x.sku.toLowerCase() === query.toLowerCase() ||
+            x.code.toLowerCase() === query.toLowerCase()
+        );
+      }
+
+      if (match) {
+        // Stock Validation at Active Store Location
+        if (match.stockQty !== undefined && match.stockQty <= 0) {
+          toast.error(`Product '${match.name}' is out of stock at this location.`);
+          setBarcodeInput("");
+          setTimeout(() => barcodeInputRef.current?.focus(), 10);
+          return true;
+        }
+
+        addToCart(match);
+        setBarcodeInput("");
+        toast.success(`Scanned: ${match.name}${match.variantName ? ` (${match.variantName})` : ""}`);
+        setTimeout(() => barcodeInputRef.current?.focus(), 10);
+        return true;
+      } else {
+        toast.error(`No product found for barcode ${query}`);
+        setBarcodeInput("");
+        setTimeout(() => barcodeInputRef.current?.focus(), 10);
+        return false;
+      }
+    },
+    [sellablesQuery.data, addToCart]
+  );
+
+  // Handle Barcode / SKU Scan Form Submission
   const handleBarcodeSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!barcodeInput.trim() || !sellablesQuery.data) return;
-    const query = barcodeInput.trim().toLowerCase();
-    const match = sellablesQuery.data.find(
-      (x) => x.sku.toLowerCase() === query || x.code.toLowerCase() === query
-    );
-    if (match) {
-      addToCart(match);
-      setBarcodeInput("");
-      toast.success(`Scanned: ${match.name} (${match.sku})`);
-    } else {
-      toast.error(`No product found matching barcode / SKU: ${barcodeInput}`);
-    }
+    if (!barcodeInput.trim()) return;
+    processBarcodeScan(barcodeInput);
   };
 
   // Cart Qty Operations
   const updateCartQty = (index: number, delta: number) => {
     setCart((prev) => {
       const next = [...prev];
-      const newQty = next[index].quantity + delta;
+      const newQty = Math.max(0, parseFloat((next[index].quantity + delta).toFixed(3)));
       if (newQty <= 0) {
         return next.filter((_, i) => i !== index);
       }
@@ -365,6 +441,22 @@ export function POSClient() {
         ...next[index],
         quantity: newQty,
         lineTotal: newQty * next[index].unitPrice,
+      };
+      return next;
+    });
+  };
+
+  const updateCartQtyExact = (index: number, val: number) => {
+    setCart((prev) => {
+      const next = [...prev];
+      if (isNaN(val)) return prev;
+      if (val <= 0) {
+        return next.filter((_, i) => i !== index);
+      }
+      next[index] = {
+        ...next[index],
+        quantity: val,
+        lineTotal: val * next[index].unitPrice,
       };
       return next;
     });
@@ -502,7 +594,7 @@ export function POSClient() {
   const storeName = activeLocation?.name || "Fiyora Store";
 
   return (
-    <div className="flex flex-col h-[calc(100vh-4rem)] overflow-hidden bg-background">
+    <div className="flex flex-col h-screen overflow-hidden bg-background">
       {/* Top POS Header Bar */}
       <header className="h-14 border-b bg-card px-4 flex items-center justify-between shrink-0 shadow-sm z-10">
         <div className="flex items-center gap-3">
@@ -540,14 +632,6 @@ export function POSClient() {
               </select>
             </div>
           )}
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => setIsWaConfigOpen(true)}
-            className="gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 border-emerald-200 hover:bg-emerald-50 dark:hover:bg-emerald-950/30"
-          >
-            <MessageSquare className="h-3.5 w-3.5" /> WhatsApp Config
-          </Button>
           <Badge variant="secondary" className="text-xs font-semibold px-2.5 py-1">
             POS Ready
           </Badge>
@@ -649,10 +733,12 @@ export function POSClient() {
             <form onSubmit={handleBarcodeSubmit} className="relative">
               <Barcode className="absolute left-2.5 top-2.5 h-4 w-4 text-primary" />
               <Input
+                ref={barcodeInputRef}
                 placeholder="Scan barcode or type SKU & press Enter..."
                 value={barcodeInput}
                 onChange={(e) => setBarcodeInput(e.target.value)}
                 className="pl-9 pr-12 text-xs h-9 font-mono"
+                autoFocus
               />
               <Button type="submit" size="sm" variant="ghost" className="absolute right-1 top-1 h-7 px-2 text-xs">
                 Scan
@@ -692,16 +778,23 @@ export function POSClient() {
                           <Button
                             variant="outline"
                             size="icon"
-                            className="h-5 w-5"
+                            className="h-5 w-5 shrink-0"
                             onClick={() => updateCartQty(idx, -1)}
                           >
                             <Minus className="h-2.5 w-2.5" />
                           </Button>
-                          <span className="w-6 text-center text-xs font-bold">{item.quantity}</span>
+                          <Input
+                            type="number"
+                            step="any"
+                            min="0.001"
+                            value={item.quantity}
+                            onChange={(e) => updateCartQtyExact(idx, Number(e.target.value))}
+                            className="h-6 w-14 text-center text-xs font-bold px-1"
+                          />
                           <Button
                             variant="outline"
                             size="icon"
-                            className="h-5 w-5"
+                            className="h-5 w-5 shrink-0"
                             onClick={() => updateCartQty(idx, 1)}
                           >
                             <Plus className="h-2.5 w-2.5" />
@@ -731,7 +824,7 @@ export function POSClient() {
           {/* Cart Footer Summary */}
           <div className="p-3 border-t bg-muted/20 space-y-2">
             <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Items ({cart.reduce((a, c) => a + c.quantity, 0)})</span>
+              <span>Items ({parseFloat(cart.reduce((a, c) => a + c.quantity, 0).toFixed(3))})</span>
               <span>{money.format(cartSubtotal)}</span>
             </div>
             <div className="flex items-center justify-between gap-2 text-xs">
@@ -785,9 +878,19 @@ export function POSClient() {
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Search catalog by name, code, SKU..."
+                placeholder="Search catalog by name, code, SKU or scan barcode..."
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && productSearch.trim()) {
+                    e.preventDefault();
+                    const query = productSearch.trim();
+                    const handled = processBarcodeScan(query);
+                    if (handled) {
+                      setProductSearch("");
+                    }
+                  }
+                }}
                 className="pl-8 text-xs h-9"
               />
             </div>
@@ -1190,9 +1293,6 @@ export function POSClient() {
           </DialogContent>
         </Dialog>
       )}
-
-      {/* WhatsApp Config Dialog */}
-      <WhatsAppConfigDialog open={isWaConfigOpen} onOpenChange={setIsWaConfigOpen} />
     </div>
   );
 }

@@ -62,7 +62,7 @@ export function ExpensesClient(){
 function Metric({label,value,warn}:{label:string;value:string;warn?:boolean}){return <Card><CardContent className="pt-5"><p className="text-sm text-muted-foreground">{label}</p><p className={warn?"text-2xl font-semibold text-amber-600":"text-2xl font-semibold"}>{value}</p></CardContent></Card>}
 function Grid({heads,children}:{heads:string[];children:React.ReactNode}){return <div className="overflow-x-auto"><Table><TableHeader><TableRow>{heads.map(x=><TableHead key={x}>{x}</TableHead>)}</TableRow></TableHeader><TableBody>{children}</TableBody></Table></div>}
 function Field({label,children,className=""}:{label:string;children:React.ReactNode;className?:string}){return <div className={"grid gap-2 "+className}><Label>{label}</Label>{children}</div>}
-function Picker({value,set,items}:{value:string;set:(v:string)=>void;items:[string,string][]}){return <Select value={value} onValueChange={v=>set(v??"")}><SelectTrigger><SelectValue placeholder="Select"/></SelectTrigger><SelectContent>{items.map(([v,l])=><SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent></Select>}
+function Picker({value,set,items}:{value:string;set:(v:string)=>void;items:[string,string][]}){return <Select items={Object.fromEntries(items)} value={value} onValueChange={v=>set(v??"")}><SelectTrigger><SelectValue placeholder="Select"/></SelectTrigger><SelectContent>{items.map(([v,l])=><SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent></Select>}
 
 function CategoryDialog({open,value,close,saved}:{open:boolean;value:ExpenseCategory|null;close:()=>void;saved:()=>Promise<void>}){
   const [code,setCode]=React.useState(""),[name,setName]=React.useState(""),[description,setDescription]=React.useState("");

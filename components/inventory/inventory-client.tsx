@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { AlertTriangle, ArrowRight, Check, ChevronsUpDown, ClipboardCheck, History, Loader2, PackagePlus, Plus, Search, Trash2, Truck, Warehouse } from "lucide-react";
+import Link from "next/link";
+import { AlertTriangle, ArrowRight, Check, ChevronsUpDown, ClipboardCheck, History, Loader2, PackagePlus, Plus, Search, ShoppingBag, Trash2, Truck, Warehouse } from "lucide-react";
 import { toast } from "sonner";
 
 import { apiClient, ApiRequestError, type PagedResult } from "@/lib/api-client";
@@ -58,6 +59,15 @@ export function InventoryClient() {
   const transfersQuery = useQuery({ queryKey: ["inventory", "transfers", activeLocation?.id], enabled: !!activeLocation, queryFn: () => apiClient.get<StockTransfer[]>(`inventory/transfers?locationId=${activeLocation!.id}`) });
   const adjustmentsQuery = useQuery({ queryKey: ["inventory", "adjustments", activeLocation?.id], enabled: !!activeLocation, queryFn: () => apiClient.get<StockAdjustment[]>(`inventory/adjustments?locationId=${activeLocation!.id}`) });
   const expenseCategoriesQuery = useQuery({ queryKey: ["expense", "categories", "inventory"], queryFn: () => apiClient.get<PagedResult<ExpenseCategory>>("expense-categories?page=0&size=100") });
+  const purchaseOrdersQuery = useQuery({
+    queryKey: ["purchase", "orders", "inventory-lookup"],
+    queryFn: async () => {
+      const res = await apiClient.get<any>("purchases/orders");
+      return Array.isArray(res) ? res : res.content ?? [];
+    },
+  });
+
+  const [lowStockSearch, setLowStockSearch] = React.useState("");
 
   const refresh = () => Promise.all([qc.invalidateQueries({ queryKey: ["inventory", "stock"] }), qc.invalidateQueries({ queryKey: ["inventory", "transfers"] }), qc.invalidateQueries({ queryKey: ["inventory", "adjustments"] })]);
   const activeLocations = (locationsQuery.data?.content ?? []).filter((l) => l.isActive);
@@ -68,6 +78,23 @@ export function InventoryClient() {
   const totalOnHand = stock.reduce((sum, item) => sum + item.quantityOnHand, 0);
   const totalAvailable = stock.reduce((sum, item) => sum + item.availableQuantity, 0);
   const productCount = new Set(stock.map((item) => item.productId)).size;
+
+  const lowStockItems = React.useMemo(() => {
+    let items = stock.filter((s) => s.quantityOnHand < 20);
+    if (lowStockSearch.trim()) {
+      const q = lowStockSearch.trim().toLowerCase();
+      items = items.filter(
+        (s) =>
+          s.productName.toLowerCase().includes(q) ||
+          (s.sku && s.sku.toLowerCase().includes(q)) ||
+          (s.productCode && s.productCode.toLowerCase().includes(q)) ||
+          (s.variantName && s.variantName.toLowerCase().includes(q))
+      );
+    }
+    return items.sort((a, b) => a.quantityOnHand - b.quantityOnHand);
+  }, [stock, lowStockSearch]);
+
+  const itemsBelow20Count = React.useMemo(() => stock.filter((s) => s.quantityOnHand < 20).length, [stock]);
 
   return <div className="flex flex-col gap-5">
     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
@@ -89,7 +116,14 @@ export function InventoryClient() {
     </div>
 
     <Tabs defaultValue="stock">
-      <TabsList><TabsTrigger value="stock">Stock</TabsTrigger><TabsTrigger value="transfers">Transfers {pending.length > 0 && <Badge className="ml-1">{pending.length}</Badge>}</TabsTrigger><TabsTrigger value="adjustments">Adjustments</TabsTrigger></TabsList>
+      <TabsList>
+        <TabsTrigger value="stock">Stock</TabsTrigger>
+        <TabsTrigger value="transfers">Transfers {pending.length > 0 && <Badge className="ml-1">{pending.length}</Badge>}</TabsTrigger>
+        <TabsTrigger value="adjustments">Adjustments</TabsTrigger>
+        <TabsTrigger value="low-stock">
+          Low Stock {itemsBelow20Count > 0 && <Badge variant="outline" className="ml-1 border-amber-300 text-amber-700">{itemsBelow20Count}</Badge>}
+        </TabsTrigger>
+      </TabsList>
       <TabsContent value="stock" className="mt-4">
         <Card><CardHeader><div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between"><div><CardTitle>{activeLocation ? `Stock at ${activeLocation.name}` : "Store inventory"}</CardTitle><CardDescription>Search a product or SKU to see exact on-hand, reserved and sellable quantities.</CardDescription></div>{lowStock>0&&<Badge variant="outline" className="w-fit border-amber-300 text-amber-700">{lowStock} at reorder level</Badge>}</div></CardHeader><CardContent>
           <div className="mb-4">
@@ -150,6 +184,135 @@ export function InventoryClient() {
       <TabsContent value="adjustments" className="mt-4"><Card><CardHeader><CardTitle>Stock adjustments</CardTitle><CardDescription>Every count correction is recorded with a reason. Losses remain available for controlled write-off.</CardDescription></CardHeader><CardContent><div className="overflow-x-auto"><Table><TableHeader><TableRow><TableHead>Reference</TableHead><TableHead>Location</TableHead><TableHead>Type</TableHead><TableHead>Reason</TableHead><TableHead>Status</TableHead><TableHead /></TableRow></TableHeader><TableBody>
         {adjustmentsQuery.isLoading ? <LoadingRow cols={6} /> : (adjustmentsQuery.data ?? []).length === 0 ? <EmptyRow cols={6} text="No adjustments yet." /> : (adjustmentsQuery.data ?? []).map((a) => <TableRow key={a.id}><TableCell className="font-medium">{a.adjustmentNumber}</TableCell><TableCell>{a.locationName}</TableCell><TableCell><Badge variant="outline">{a.adjustmentType}</Badge></TableCell><TableCell className="max-w-72 truncate">{a.reason}</TableCell><TableCell><Status value={a.status} /></TableCell><TableCell className="text-right"><Button size="sm" variant="outline" onClick={() => setAdjustmentDetail(a)}>View</Button></TableCell></TableRow>)}
       </TableBody></Table></div></CardContent></Card></TabsContent>
+      <TabsContent value="low-stock" className="mt-4">
+        <Card>
+          <CardHeader>
+            <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <CardTitle>{activeLocation ? `Low Stock at ${activeLocation.name}` : "Low Stock"}</CardTitle>
+                <CardDescription>Products with fewer than 20 units currently in stock.</CardDescription>
+              </div>
+              {itemsBelow20Count > 0 && (
+                <Badge variant="outline" className="w-fit border-amber-300 text-amber-700">
+                  {itemsBelow20Count} item{itemsBelow20Count === 1 ? "" : "s"} below 20 units
+                </Badge>
+              )}
+            </div>
+          </CardHeader>
+          <CardContent>
+            <div className="mb-4">
+              <div className="relative">
+                <Search className="absolute left-3 top-2.5 size-4 text-muted-foreground" />
+                <Input
+                  className="pl-9"
+                  placeholder="Search low stock product or SKU..."
+                  value={lowStockSearch}
+                  onChange={(e) => setLowStockSearch(e.target.value)}
+                />
+              </div>
+            </div>
+            <div className="overflow-x-auto">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Item & Variant</TableHead>
+                    <TableHead>Status</TableHead>
+                    <TableHead>Recent Supplier & Price</TableHead>
+                    <TableHead className="text-right">On hand</TableHead>
+                    <TableHead className="text-right">Reserved</TableHead>
+                    <TableHead className="text-right">Available</TableHead>
+                    <TableHead className="text-right">Quick Actions</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {stockQuery.isLoading ? (
+                    <LoadingRow cols={7} />
+                  ) : lowStockItems.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="h-32 text-center text-muted-foreground">
+                        <div className="flex flex-col items-center justify-center gap-1">
+                          <p className="font-medium text-foreground">No low stock products</p>
+                          <p className="text-xs text-muted-foreground">
+                            {lowStockSearch.trim()
+                              ? "No low stock products match your search query."
+                              : "All products at this location currently have 20 or more units in stock."}
+                          </p>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    lowStockItems.map((s) => {
+                      const key = itemKey(s.productId, s.productVariantId);
+                      const isOut = s.quantityOnHand === 0 || s.availableQuantity <= 0;
+
+                      // Lookup recent purchase order for this product
+                      const pos = (purchaseOrdersQuery.data ?? []) as any[];
+                      const latestPO = pos
+                        .filter((po) => po.lines && po.lines.some((l: any) => Number(l.productId) === Number(s.productId)))
+                        .sort((a, b) => new Date(b.orderDate).getTime() - new Date(a.orderDate).getTime())[0];
+                      const lastLine = latestPO?.lines.find((l: any) => Number(l.productId) === Number(s.productId));
+                      const lastPrice = lastLine?.unitPrice ?? lastLine?.purchasePrice;
+
+                      return (
+                        <TableRow key={`low-${s.locationId}-${key}`}>
+                          <TableCell className="font-medium">
+                            <div className="flex flex-col gap-0.5">
+                              <span>{s.productName}</span>
+                              <span className="text-xs text-muted-foreground flex items-center gap-1">
+                                {s.variantName ? <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">{s.variantName}</Badge> : null}
+                                <span>SKU: {s.sku ?? s.productCode}</span>
+                              </span>
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            {s.quantityOnHand === 0 ? (
+                              <Badge variant="destructive" className="text-[10px]">Out of Stock</Badge>
+                            ) : (
+                              <Badge variant="outline" className="border-amber-400 text-amber-700 text-[10px]">Low Stock</Badge>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-xs">
+                            {latestPO ? (
+                              <div className="flex flex-col">
+                                <span className="font-medium">{latestPO.supplierName}</span>
+                                <span className="text-[10px] text-muted-foreground">
+                                  {lastPrice ? `${money.format(lastPrice)}/unit` : "—"} • {latestPO.orderDate}
+                                </span>
+                              </div>
+                            ) : (
+                              <span className="text-muted-foreground font-italic text-[11px]">No purchase record</span>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-right tabular-nums font-medium">{qty(s.quantityOnHand)}</TableCell>
+                          <TableCell className="text-right tabular-nums">{qty(s.reservedQuantity)}</TableCell>
+                          <TableCell className="text-right font-semibold tabular-nums">
+                            <span className={s.quantityOnHand === 0 ? "text-red-600" : "text-amber-600"}>{qty(s.availableQuantity)}</span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-1">
+                              <Link href={`/purchases/new?supplierId=${latestPO ? latestPO.supplierId : ""}&productId=${s.productId}`}>
+                                <Button size="sm" variant="default" className="h-8 text-xs gap-1 bg-amber-600 hover:bg-amber-700 text-white" title="Create a new Purchase Order for this item">
+                                  <ShoppingBag className="size-3.5" /> Order
+                                </Button>
+                              </Link>
+                              <Button size="sm" variant="outline" className="h-8 text-xs gap-1" disabled={s.availableQuantity <= 0} onClick={() => setDialogState({ kind: "transfer", presetItemKey: key })} title="Transfer this item to another store">
+                                <Truck className="size-3.5" /> Transfer
+                              </Button>
+                              <Button size="sm" variant="outline" className="h-8 text-xs gap-1" onClick={() => setDialogState({ kind: "adjustment", presetItemKey: key })} title="Adjust count or record loss for this item">
+                                <ClipboardCheck className="size-3.5" /> Adjust
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })
+                  )}
+                </TableBody>
+              </Table>
+            </div>
+          </CardContent>
+        </Card>
+      </TabsContent>
     </Tabs>
 
     <OperationDialog

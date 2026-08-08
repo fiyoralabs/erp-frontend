@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CreditCard, Loader2, MessageSquare, Plus, RotateCcw, ShoppingBag, Store, Users } from "lucide-react";
+import { CreditCard, Loader2, MessageSquare, Plus, RotateCcw, Store, Users } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient, ApiRequestError, type PagedResult } from "@/lib/api-client";
 import { localDateInputValue } from "@/lib/date";
@@ -21,6 +21,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { WhatsAppConfigDialog } from "@/components/settings/whatsapp-config-dialog";
+import { CustomerCrmDialog } from "@/components/crm/customer-360/customer-crm-dialog";
 
 type Sellable = { productId:number; variantId:number|null; label:string };
 type Action = "customer"|"invoice"|"payment"|"return"|null;
@@ -36,6 +37,7 @@ export function SalesClient(){
   const [detail,setDetail]=React.useState<SalesInvoice|SalesReturn|null>(null);
   const [ledgerCustomer,setLedgerCustomer]=React.useState<Customer|null>(null);
   const [wishlistCustomer,setWishlistCustomer]=React.useState<Customer|null>(null);
+  const [crmCustomerId,setCrmCustomerId]=React.useState<number|null>(null);
   const [isWaConfigOpen, setIsWaConfigOpen] = React.useState(false);
   const customers=useQuery({queryKey:["sales","customers"],queryFn:()=>apiClient.get<PagedResult<Customer>>("sales/customers?page=0&size=100")});
   const invoices=useQuery({queryKey:["sales","invoices"],queryFn:()=>apiClient.get<PagedResult<SalesInvoice>>("sales/invoices?page=0&size=100")});
@@ -66,16 +68,15 @@ export function SalesClient(){
           </Button>
         </Link>
         <Button variant="outline" onClick={()=>{setSelectedCustomer(null);setAction("customer")}}><Users/>New customer</Button>
-        <Button onClick={()=>setAction("invoice")}><ShoppingBag/>New sale</Button>
       </div>
     </div>
     <div className="grid gap-3 sm:grid-cols-3"><Metric label="Today’s sales" value={money.format(todaySales)}/><Metric label="Receivables" value={money.format(due)} warn={due>0}/><Metric label="Active customers" value={String(c.length)}/></div>
     <Tabs defaultValue="invoices"><TabsList className="flex h-auto flex-wrap"><TabsTrigger value="invoices">Invoices</TabsTrigger><TabsTrigger value="customers">Customers</TabsTrigger><TabsTrigger value="returns">Returns</TabsTrigger><TabsTrigger value="payments">Payments</TabsTrigger></TabsList>
-      <Tab value="invoices" title="Sales invoices" desc="Posted sales immediately deduct stock and create receivables." action={due>0?<Button variant="outline" onClick={()=>setAction("payment")}><CreditCard/>Record payment</Button>:undefined}>
+      <Tab value="invoices" title="Sales invoices" desc="Posted sales immediately deduct stock and create receivables." action={<div className="flex flex-wrap items-center gap-2"><Button onClick={() => setAction("invoice")} className="gap-1.5"><Plus className="h-4 w-4" />New invoice</Button>{due > 0 && <Button variant="outline" onClick={() => setAction("payment")} className="gap-1.5"><CreditCard className="h-4 w-4" />Record payment</Button>}</div>}>
         <Grid heads={["Invoice","Date","Customer","Status","Total","Balance",""]}>{inv.map(x=><TableRow key={x.id}><TableCell className="font-medium">{x.invoiceNumber}</TableCell><TableCell>{x.invoiceDate}</TableCell><TableCell>{c.find(y=>y.id===x.customerId)?.name??`Customer #${x.customerId}`}</TableCell><TableCell><Status value={x.status}/></TableCell><TableCell>{money.format(x.totalAmount)}</TableCell><TableCell className="font-medium">{money.format(x.balanceAmount)}</TableCell><TableCell><Button size="sm" variant="outline" onClick={()=>setDetail(x)}>View</Button></TableCell></TableRow>)}</Grid>
       </Tab>
       <Tab value="customers" title="Customers" desc="Profiles, credit terms, wishlist, and independently calculated ledger.">
-        <Grid heads={["Code","Customer","Type","Credit limit","Lifetime sales","Status",""]}>{c.map(x=><TableRow key={x.id}><TableCell>{x.code}</TableCell><TableCell className="font-medium">{x.name}<span className="block text-xs text-muted-foreground">{x.phone||x.email||"No contact"}</span></TableCell><TableCell>{x.customerType}</TableCell><TableCell>{money.format(x.creditLimit)}</TableCell><TableCell>{money.format(x.totalPurchaseAmount)}</TableCell><TableCell><Status value="ACTIVE"/></TableCell><TableCell><div className="flex flex-wrap gap-1"><Button size="sm" variant="outline" onClick={()=>{setSelectedCustomer(x);setAction("customer")}}>Edit</Button><Button size="sm" variant="outline" onClick={()=>setLedgerCustomer(x)}>Ledger</Button><Button size="sm" variant="outline" onClick={()=>setWishlistCustomer(x)}>Wishlist</Button></div></TableCell></TableRow>)}</Grid>
+        <Grid heads={["Code","Customer","Type","Credit limit","Lifetime sales","Status",""]}>{c.map(x=><TableRow key={x.id}><TableCell>{x.code}</TableCell><TableCell className="font-medium">{x.name}<span className="block text-xs text-muted-foreground">{x.phone||x.email||"No contact"}</span></TableCell><TableCell>{x.customerType}</TableCell><TableCell>{money.format(x.creditLimit)}</TableCell><TableCell>{money.format(x.totalPurchaseAmount)}</TableCell><TableCell><Status value="ACTIVE"/></TableCell><TableCell><div className="flex flex-wrap gap-1"><Button size="sm" variant="outline" onClick={()=>{setSelectedCustomer(x);setAction("customer")}}>Edit</Button><Button size="sm" variant="outline" onClick={()=>setLedgerCustomer(x)}>Ledger</Button><Button size="sm" variant="outline" onClick={()=>setWishlistCustomer(x)}>Wishlist</Button><Button size="sm" variant="outline" onClick={()=>setCrmCustomerId(x.id)}>CRM</Button></div></TableCell></TableRow>)}</Grid>
       </Tab>
       <Tab value="returns" title="Sales returns" desc="Return quantities are validated against the invoice and tracked goods are added back to Inventory." action={<Button variant="outline" onClick={()=>setAction("return")}><RotateCcw/>New return</Button>}>
         <Grid heads={["Return","Invoice","Date","Total","Receivable","Customer credit",""]}>{ret.map(x=><TableRow key={x.id}><TableCell className="font-medium">{x.returnNumber}</TableCell><TableCell>{inv.find(i=>i.id===x.invoiceId)?.invoiceNumber??`#${x.invoiceId}`}</TableCell><TableCell>{x.returnDate}</TableCell><TableCell>{money.format(x.totalAmount)}</TableCell><TableCell>{money.format(x.receivableAppliedAmount)}</TableCell><TableCell>{money.format(x.creditAmount)}</TableCell><TableCell><Button size="sm" variant="outline" onClick={()=>setDetail(x)}>View</Button></TableCell></TableRow>)}</Grid>
@@ -92,6 +93,7 @@ export function SalesClient(){
     <LedgerDialog customer={ledgerCustomer} close={()=>setLedgerCustomer(null)}/>
     <WishlistDialog customer={wishlistCustomer} sellables={sellables.data??[]} close={()=>setWishlistCustomer(null)}/>
     <WhatsAppConfigDialog open={isWaConfigOpen} onOpenChange={setIsWaConfigOpen} />
+    <CustomerCrmDialog customerId={crmCustomerId} close={()=>setCrmCustomerId(null)} />
   </div>;
 }
 
@@ -100,7 +102,7 @@ function Status({value}:{value:string}){return <Badge variant={["PAID","POSTED",
 function Tab({value,title,desc,action,children}:{value:string;title:string;desc:string;action?:React.ReactNode;children:React.ReactNode}){return <TabsContent value={value} className="mt-4"><Card><CardHeader className="flex-row items-start justify-between gap-3"><div><CardTitle>{title}</CardTitle><CardDescription>{desc}</CardDescription></div>{action}</CardHeader><CardContent>{children}</CardContent></Card></TabsContent>}
 function Grid({heads,children}:{heads:string[];children:React.ReactNode}){return <div className="overflow-x-auto"><Table><TableHeader><TableRow>{heads.map(h=><TableHead key={h}>{h}</TableHead>)}</TableRow></TableHeader><TableBody>{children}</TableBody></Table></div>}
 function Field({label,children,className=""}:{label:string;children:React.ReactNode;className?:string}){return <div className={"grid gap-2 "+className}><Label>{label}</Label>{children}</div>}
-function Picker({value,set,items,placeholder="Select"}:{value:string;set:(v:string)=>void;items:[string,string][];placeholder?:string}){return <Select value={value} onValueChange={v=>set(v??"")}><SelectTrigger><SelectValue placeholder={placeholder}/></SelectTrigger><SelectContent>{Object.fromEntries(items) && items.map(([v,l])=><SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent></Select>}
+function Picker({value,set,items,placeholder="Select"}:{value:string;set:(v:string)=>void;items:[string,string][];placeholder?:string}){return <Select items={Object.fromEntries(items)} value={value} onValueChange={v=>set(v??"")}><SelectTrigger className="w-full h-9"><SelectValue placeholder={placeholder}/></SelectTrigger><SelectContent>{items.map(([v,l])=><SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent></Select>}
 function Footer({busy,close,label="Post"}:{busy:boolean;close:()=>void;label?:string}){return <DialogFooter><Button variant="outline" onClick={close}>Cancel</Button><Button type="submit" disabled={busy}>{busy&&<Loader2 className="animate-spin"/>}{label}</Button></DialogFooter>}
 
 function CustomerDialog({open,customer,priceLists,locations,close,saved}:{open:boolean;customer:Customer|null;priceLists:PriceList[];locations:Location[];close:()=>void;saved:()=>Promise<void>}){
@@ -122,7 +124,7 @@ function InvoiceDialog({open,customers,locations,methods,sellables,close,saved}:
   const [customer,setCustomer]=React.useState(""),[location,setLocation]=React.useState(""),[date,setDate]=React.useState(today()),[due,setDue]=React.useState(today()),[remarks,setRemarks]=React.useState("");
   const [lines,setLines]=React.useState([{item:"",quantity:"1",price:"",discount:"0"}]);
   const [payment,setPayment]=React.useState({method:"",amount:"",reference:""});
-  React.useEffect(()=>{if(open){setCustomer("");setLocation("");setDate(today());setDue(today());setRemarks("");setLines([{item:"",quantity:"1",price:"",discount:"0"}]);setPayment({method:"",amount:"",reference:""})}},[open]);
+  React.useEffect(()=>{if(open){setCustomer("");setLocation(locations.length>0?String(locations[0].id):"");setDate(today());setDue(today());setRemarks("");setLines([{item:"",quantity:"1",price:"",discount:"0"}]);setPayment({method:"",amount:"",reference:""})}},[open]);
   const mutation=useMutation({mutationFn:()=>apiClient.post<SalesInvoice>("sales/invoices",{customerId:Number(customer),locationId:Number(location),invoiceDate:date,dueDate:due,remarks,lines:lines.map(l=>{const s=sellables.find(x=>itemKey(x.productId,x.variantId)===l.item);if(!s)throw new Error("Select every SKU");return{productId:s.productId,productVariantId:s.variantId,quantity:Number(l.quantity),sellingPrice:l.price?Number(l.price):null,discountPercentage:Number(l.discount)}}),payments:payment.amount?[{paymentMethodCode:payment.method,amount:Number(payment.amount),paymentDate:date,referenceNumber:payment.reference||null}]:[]}),onSuccess:async x=>{toast.success(`${x.invoiceNumber} posted — tracked stock reduced`);await saved()},onError:e=>toast.error(message(e))});
   return <Dialog open={open} onOpenChange={v=>{if(!v)close()}}><DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-4xl"><form onSubmit={e=>{e.preventDefault();mutation.mutate()}}><DialogHeader><DialogTitle>New sales invoice</DialogTitle><DialogDescription>Prices and taxes resolve from the customer/location price list. Selling price is only an explicit override.</DialogDescription></DialogHeader><div className="my-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
     <Field label="Customer"><Picker value={customer} set={setCustomer} items={customers.map(x=>[String(x.id),`${x.name} (${x.code})`])}/></Field><Field label="Selling location"><Picker value={location} set={setLocation} items={locations.map(x=>[String(x.id),x.name])}/></Field><Field label="Invoice date"><Input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field><Field label="Due date"><Input type="date" value={due} onChange={e=>setDue(e.target.value)}/></Field>

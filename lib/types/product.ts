@@ -7,7 +7,27 @@
 // in this module 500'd whenever the caller omitted an optional field.
 // Both fixed and re-verified live before this file was written.
 
-export type ProductType = "SIMPLE" | "VARIANT";
+export type ProductType = "SIMPLE" | "VARIANT" | "SET";
+
+export interface SetSizeComposition {
+  size: string;
+  quantity: number;
+}
+
+export interface ProductSet {
+  id?: number;
+  productId?: number;
+  colour: string;
+  setName: string;
+  sku: string;
+  barcode?: string | null;
+  piecesPerSet: number;
+  sizeComposition: SetSizeComposition[];
+  costPrice: number;
+  sellingPrice: number;
+  mrp?: number | null;
+  openingSets?: number;
+}
 
 export interface Product {
   id: number;

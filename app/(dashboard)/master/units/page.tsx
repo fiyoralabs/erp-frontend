@@ -24,7 +24,7 @@ const fields: CrudFieldConfig<UnitFormValues>[] = [
   { name: "code", label: "Code", type: "text", placeholder: "KG", disabledOnEdit: true },
   { name: "name", label: "Name", type: "text", placeholder: "Kilogram" },
   { name: "symbol", label: "Symbol", type: "text", placeholder: "kg" },
-  { name: "decimalPrecision", label: "Decimal Precision", type: "number" },
+  { name: "decimalPrecision", label: "Decimal Precision (e.g. 2 for KG, 0 for Piece/PCS)", type: "number", step: "1" },
   { name: "isDefault", label: "Set as default unit", type: "checkbox" },
 ];
 
@@ -40,7 +40,7 @@ export default function UnitsPage() {
   return (
     <MasterCrudPage<Unit, UnitFormValues>
       title="Units of Measure"
-      description="Units used across products (Kg, Litre, Box, Nos, etc.)."
+      description="Units used across products. Weight and liquid units (e.g., Kg, Litre) support decimal quantities, whereas count units (e.g., Piece, PCS, Box, Nos) use 0 decimals."
       apiPath="master/units"
       queryKey="units"
       columns={columns}
