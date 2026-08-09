@@ -1,208 +1,268 @@
 "use client";
 
 import * as React from "react";
-import { useQuery } from "@tanstack/react-query";
-import { Layers, Package, Tag, Barcode as BarcodeIcon } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Layers, Plus, Trash2, Loader2, Check } from "lucide-react";
+import { toast } from "sonner";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Badge } from "@/components/ui/badge";
 import { apiClient } from "@/lib/api-client";
-import type { Product, Variant, Barcode, Price } from "@/lib/types/product";
-import type { InventoryStock } from "@/lib/types/inventory";
+import type { Product, Variant } from "@/lib/types/product";
 
-const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
+export type CustomSetItem = {
+  id?: number;
+  productId: number;
+  productVariantId?: number | null;
+  quantity: number;
+};
+
+export type CustomSet = {
+  id?: number;
+  productId: number;
+  name: string;
+  code: string;
+  description?: string | null;
+  isActive?: boolean;
+  items: CustomSetItem[];
+};
 
 export function ProductSetTab({ product }: { product: Product }) {
+  const queryClient = useQueryClient();
+  const [isOpen, setIsOpen] = React.useState(false);
+  const [editingSet, setEditingSet] = React.useState<CustomSet | null>(null);
+  const [setName, setSetName] = React.useState("");
+  const [setCode, setSetCode] = React.useState("");
+  const [description, setDescription] = React.useState("");
+  const [variantQtys, setVariantQtys] = React.useState<Record<number, number>>({});
+
+  const customSetsQuery = useQuery({
+    queryKey: ["product-sets", "product", product.id],
+    queryFn: () => apiClient.get<CustomSet[]>(`product-sets?productId=${product.id}`),
+  });
+
   const variantsQuery = useQuery({
     queryKey: ["products", product.id, "variants"],
     queryFn: () => apiClient.get<Variant[]>(`products/${product.id}/variants`),
   });
 
-  const barcodesQuery = useQuery({
-    queryKey: ["products", product.id, "barcodes"],
-    queryFn: () => apiClient.get<Barcode[]>(`products/${product.id}/barcodes`),
-  });
-
-  const pricesQuery = useQuery({
-    queryKey: ["products", "prices", "product", product.id],
-    queryFn: () => apiClient.get<Price[]>(`products/prices/product/${product.id}`),
-  });
-
-  const stockQuery = useQuery({
-    queryKey: ["inventory", "stock", "product", product.id],
-    queryFn: () => apiClient.get<InventoryStock[]>(`inventory?search=${encodeURIComponent(product.code)}`),
-  });
-
   const variants = variantsQuery.data ?? [];
-  const barcodes = barcodesQuery.data ?? [];
-  const prices = pricesQuery.data ?? [];
-  const stock = stockQuery.data ?? [];
+  const customSets = customSetsQuery.data ?? [];
 
-  // Parse Set Variants
-  const setVariants = React.useMemo(() => {
-    return variants.map((v) => {
-      let colour = "Default";
-      let setName = v.variantName;
-      let piecesPerSet = 1;
-      let composition: { size: string; qty: number }[] = [];
+  const handleOpenNew = () => {
+    setEditingSet(null);
+    setSetName("");
+    setSetCode(`${product.code}-SET-${customSets.length + 1}`);
+    setDescription("");
+    const initialMap: Record<number, number> = {};
+    for (const v of variants) {
+      initialMap[v.id] = 1;
+    }
+    setVariantQtys(initialMap);
+    setIsOpen(true);
+  };
 
-      for (const attr of v.attributeValues ?? []) {
-        if (attr.attributeName === "Colour") colour = attr.value;
-        if (attr.attributeName === "Set Name") setName = attr.value;
-        if (attr.attributeName === "Pieces Per Set") piecesPerSet = Number(attr.value) || 1;
-        if (attr.attributeName === "Set Composition") {
-          try {
-            composition = JSON.parse(attr.value);
-          } catch (e) {
-            // fallback
-          }
-        }
+  const handleEdit = (set: CustomSet) => {
+    setEditingSet(set);
+    setSetName(set.name);
+    setSetCode(set.code);
+    setDescription(set.description ?? "");
+    const map: Record<number, number> = {};
+    for (const v of variants) {
+      const match = set.items.find((i) => i.productVariantId === v.id);
+      map[v.id] = match ? match.quantity : 0;
+    }
+    setVariantQtys(map);
+    setIsOpen(true);
+  };
+
+  const saveMutation = useMutation({
+    mutationFn: async () => {
+      if (!setName.trim() || !setCode.trim()) {
+        throw new Error("Set name and code are required");
+      }
+      const setItems = Object.entries(variantQtys)
+        .map(([vIdStr, qty]) => ({
+          productId: product.id,
+          productVariantId: Number(vIdStr),
+          quantity: qty,
+        }))
+        .filter((i) => i.quantity > 0);
+
+      if (setItems.length === 0) {
+        throw new Error("Set must include at least 1 unit in quantity breakdown");
       }
 
-      // Barcode for this set variant
-      const setBarcode = barcodes.find((b) => b.variantId === v.id)?.barcode ?? "—";
-      // Selling price for this set variant
-      const setPriceObj = prices.find((p) => p.variantId === v.id);
-      const sellingPrice = setPriceObj?.sellingPrice ?? 0;
-      const costPrice = setPriceObj?.costPrice ?? 0;
-
-      // Calculate Stock for this Set
-      const variantStockObj = stock.find((s) => s.productVariantId === v.id);
-      const availableSets = variantStockObj?.availableQuantity ?? 10;
-      const totalPieces = availableSets * piecesPerSet;
-
-      return {
-        id: v.id,
-        sku: v.sku,
-        colour,
-        setName,
-        piecesPerSet,
-        composition,
-        setBarcode,
-        sellingPrice,
-        costPrice,
-        availableSets,
-        totalPieces,
+      const body = {
+        productId: product.id,
+        name: setName.trim(),
+        code: setCode.trim(),
+        description: description.trim() || null,
+        isActive: true,
+        items: setItems,
       };
-    });
-  }, [variants, barcodes, prices, stock]);
 
-  if (variantsQuery.isLoading) {
-    return <div className="p-8 text-center text-sm text-muted-foreground">Loading set configuration...</div>;
-  }
+      if (editingSet?.id) {
+        return apiClient.put<CustomSet>(`product-sets/${editingSet.id}`, body);
+      }
+      return apiClient.post<CustomSet>("product-sets", body);
+    },
+    onSuccess: () => {
+      toast.success(editingSet ? "Custom Set updated" : "Custom Set created");
+      setIsOpen(false);
+      queryClient.invalidateQueries({ queryKey: ["product-sets", "product", product.id] });
+    },
+    onError: (e: any) => toast.error(e.message || "Failed to save Custom Set"),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiClient.delete(`product-sets/${id}`),
+    onSuccess: () => {
+      toast.success("Custom Set deleted");
+      queryClient.invalidateQueries({ queryKey: ["product-sets", "product", product.id] });
+    },
+  });
 
   return (
     <div className="flex flex-col gap-6">
       <Card className="border-primary/30">
-        <CardHeader>
-          <CardTitle className="text-base font-semibold flex items-center gap-2 text-primary">
-            <Layers className="h-5 w-5" /> Product Set Overview
-          </CardTitle>
-          <CardDescription>
-            This product is configured as a <strong>Set Product</strong>. Each Set contains a fixed size composition of the same colour.
-          </CardDescription>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <div>
+            <CardTitle className="text-base font-semibold flex items-center gap-2 text-primary">
+              <Layers className="h-5 w-5" /> Configured Custom Sets
+            </CardTitle>
+            <CardDescription>
+              Define custom variant quantity packs for <strong>{product.name}</strong> to use in POS sales and purchasing.
+            </CardDescription>
+          </div>
+          <Button onClick={handleOpenNew} size="sm" className="gap-1.5">
+            <Plus className="h-4 w-4" /> + Add Custom Set
+          </Button>
         </CardHeader>
         <CardContent>
-          <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-            <div className="p-3.5 rounded-lg border bg-muted/20">
-              <span className="text-xs text-muted-foreground block">Product Code:</span>
-              <strong className="text-sm font-mono">{product.code}</strong>
+          {customSetsQuery.isLoading ? (
+            <div className="p-8 text-center text-sm text-muted-foreground flex items-center justify-center gap-2">
+              <Loader2 className="h-4 w-4 animate-spin" /> Loading custom sets...
             </div>
-            <div className="p-3.5 rounded-lg border bg-muted/20">
-              <span className="text-xs text-muted-foreground block">Configured Colour Sets:</span>
-              <strong className="text-sm">{setVariants.length} Sets</strong>
+          ) : customSets.length === 0 ? (
+            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+              No Custom Sets created for this product yet. Click <strong>+ Add Custom Set</strong> above to create one!
             </div>
-            <div className="p-3.5 rounded-lg border bg-muted/20">
-              <span className="text-xs text-muted-foreground block">Product Type:</span>
-              <Badge variant="default" className="text-xs mt-0.5">
-                Set Product
-              </Badge>
-            </div>
-          </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Set Code</TableHead>
+                  <TableHead>Set Name</TableHead>
+                  <TableHead>Total Pcs/Set</TableHead>
+                  <TableHead>Variant Composition Breakdown</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {customSets.map((set) => {
+                  const totalPcs = set.items.reduce((sum, item) => sum + item.quantity, 0);
+                  const breakdown = set.items
+                    .map((item) => {
+                      const variant = variants.find((v) => v.id === item.productVariantId);
+                      return `${variant?.variantName || variant?.sku || `Variant #${item.productVariantId}`}: ${item.quantity} pcs`;
+                    })
+                    .join(" • ");
+
+                  return (
+                    <TableRow key={set.id}>
+                      <TableCell className="font-mono font-bold text-xs">{set.code}</TableCell>
+                      <TableCell className="font-semibold">{set.name}</TableCell>
+                      <TableCell className="font-bold text-primary">{totalPcs} pcs</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{breakdown}</TableCell>
+                      <TableCell className="text-right space-x-1">
+                        <Button variant="outline" size="sm" onClick={() => handleEdit(set)}>
+                          Edit
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => set.id && deleteMutation.mutate(set.id)}
+                        >
+                          <Trash2 className="h-4 w-4 text-destructive" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
-      {/* Colour Set Cards */}
-      {setVariants.length === 0 ? (
-        <Card>
-          <CardContent className="p-8 text-center text-muted-foreground text-xs">No Colour Sets configured for this product.</CardContent>
-        </Card>
-      ) : (
-        setVariants.map((sv) => (
-          <Card key={sv.id}>
-            <CardHeader className="py-3 px-4 bg-muted/20 border-b flex flex-row items-center justify-between">
-              <div>
-                <CardTitle className="text-base font-bold flex items-center gap-2">
-                  <span className="h-3 w-3 rounded-full bg-primary inline-block" />
-                  {sv.setName} ({sv.colour})
-                </CardTitle>
-                <CardDescription className="text-xs">
-                  Set SKU: <strong className="font-mono text-foreground">{sv.sku}</strong> • Barcode: <strong className="font-mono text-foreground">{sv.setBarcode}</strong>
-                </CardDescription>
-              </div>
-              <Badge variant="outline" className="text-xs font-bold border-primary text-primary">
-                {sv.piecesPerSet} Pieces / Set
-              </Badge>
-            </CardHeader>
-            <CardContent className="p-4 space-y-4">
-              {/* Summary Stats Grid */}
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-card p-3 rounded-lg border text-xs">
-                <div>
-                  <span className="text-muted-foreground block">Selling Price:</span>
-                  <strong className="text-sm font-bold text-emerald-600">{money.format(sv.sellingPrice)} / Set</strong>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Cost Price:</span>
-                  <strong className="text-sm font-semibold">{money.format(sv.costPrice)} / Set</strong>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Available Sets:</span>
-                  <strong className="text-sm font-bold text-primary">{sv.availableSets} Complete Sets</strong>
-                </div>
-                <div>
-                  <span className="text-muted-foreground block">Total Physical Pieces:</span>
-                  <strong className="text-sm font-bold text-foreground">{sv.totalPieces} Pieces</strong>
-                </div>
-              </div>
+      <Dialog open={isOpen} onOpenChange={setIsOpen}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>{editingSet ? "Edit Custom Set" : "Create Custom Set"}</DialogTitle>
+            <DialogDescription>
+              Configure variant quantities for <strong>{product.name}</strong> in this Set.
+            </DialogDescription>
+          </DialogHeader>
 
-              {/* Size Composition Table */}
-              <div className="space-y-2">
-                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Size Composition Breakdown</div>
-                <div className="overflow-x-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead>Size</TableHead>
-                        <TableHead className="text-center">Qty Per Set</TableHead>
-                        <TableHead className="text-right">Units Per 1 Set</TableHead>
-                        <TableHead className="text-right">Available in Stock ({sv.availableSets} Sets)</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {sv.composition.length === 0 ? (
-                        <TableRow>
-                          <TableCell colSpan={4} className="h-16 text-center text-xs text-muted-foreground">
-                            Standard Size Composition (S:1, M:1, L:1, XL:1)
-                          </TableCell>
-                        </TableRow>
-                      ) : (
-                        sv.composition.map((cObj, idx) => (
-                          <TableRow key={idx}>
-                            <TableCell className="font-bold text-xs">{cObj.size}</TableCell>
-                            <TableCell className="text-center font-bold text-xs">{cObj.qty} Pc</TableCell>
-                            <TableCell className="text-right text-xs text-muted-foreground">{cObj.qty} unit(s)</TableCell>
-                            <TableCell className="text-right font-bold text-xs text-emerald-600">{cObj.qty * sv.availableSets} units</TableCell>
-                          </TableRow>
-                        ))
-                      )}
-                    </TableBody>
-                  </Table>
-                </div>
+          <div className="space-y-4 py-2">
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Set Code *</Label>
+                <Input value={setCode} onChange={(e) => setSetCode(e.target.value)} placeholder="SET-FULL" />
               </div>
-            </CardContent>
-          </Card>
-        ))
-      )}
+              <div className="space-y-1">
+                <Label className="text-xs">Set Name *</Label>
+                <Input value={setName} onChange={(e) => setSetName(e.target.value)} placeholder="Full Size Pack" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-xs font-semibold">Variant Quantities Per Set</Label>
+              <div className="border rounded-lg p-3 space-y-2 max-h-60 overflow-y-auto">
+                {variants.length === 0 ? (
+                  <div className="text-xs text-muted-foreground">This product has no variants. Set will use 1 base unit.</div>
+                ) : (
+                  variants.map((v) => (
+                    <div key={v.id} className="flex items-center justify-between border-b pb-2 text-xs">
+                      <div>
+                        <span className="font-bold">{v.variantName || v.sku}</span>
+                        <span className="block text-[10px] text-muted-foreground font-mono">{v.sku}</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <Input
+                          type="number"
+                          min="0"
+                          value={variantQtys[v.id] ?? 0}
+                          onChange={(e) => {
+                            const qty = Math.max(0, Number(e.target.value) || 0);
+                            setVariantQtys((prev) => ({ ...prev, [v.id]: qty }));
+                          }}
+                          className="w-20 h-8 text-xs text-right"
+                        />
+                        <span className="text-muted-foreground text-[11px]">pcs</span>
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}>
+              {saveMutation.isPending ? <Loader2 className="animate-spin h-4 w-4" /> : <Check className="h-4 w-4" />}
+              Save Custom Set
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

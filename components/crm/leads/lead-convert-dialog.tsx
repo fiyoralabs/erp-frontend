@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { apiClient, ApiRequestError } from "@/lib/api-client";
 import type { Lead, LeadConvertResult, Pipeline } from "@/lib/types/crm";
+import { UserSelect } from "@/components/crm/shared/user-select";
 
 interface ConvertForm {
   createAccount: boolean;
@@ -158,8 +159,8 @@ export function LeadConvertDialog({ open, onOpenChange, lead }: { open: boolean;
                   <Input type="date" {...form.register("expectedCloseDate")} />
                 </div>
                 <div>
-                  <label className="text-xs text-muted-foreground">Assigned User ID</label>
-                  <Input type="number" {...form.register("assignedUserId", { valueAsNumber: true })} />
+                  <label className="text-xs text-muted-foreground">Assigned Salesperson</label>
+                  <UserSelect value={form.watch("assignedUserId")} onChange={(v) => form.setValue("assignedUserId", v)} />
                 </div>
               </div>
             </div>

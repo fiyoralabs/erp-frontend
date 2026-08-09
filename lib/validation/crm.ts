@@ -164,7 +164,7 @@ export type FollowUpFormValues = z.infer<typeof followUpSchema>;
 
 export const campaignSchema = z.object({
   name: z.string().min(1, "Name is required").max(200),
-  type: z.enum(["EMAIL", "SOCIAL_MEDIA", "ADVERTISEMENT", "EVENT", "REFERRAL", "WHATSAPP", "OTHER"]),
+  type: z.enum(["EMAIL", "SOCIAL_MEDIA", "ADVERTISEMENT", "EVENT", "REFERRAL", "WHATSAPP", "DIGITAL", "OTHER"]),
   status: z.enum(["PLANNED", "ACTIVE", "COMPLETED", "CANCELLED"]).optional(),
   startDate: z.string().optional().or(z.literal("")),
   endDate: z.string().optional().or(z.literal("")),

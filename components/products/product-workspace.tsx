@@ -58,7 +58,7 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
   const router = useRouter();
 
   // Product Selection Type
-  const [productKind, setProductKind] = React.useState<ProductType>("SIMPLE");
+  const [productKind, setProductKind] = React.useState<"SIMPLE" | "VARIANT">("SIMPLE");
 
   const [form, setForm] = React.useState({
     code: "",
@@ -79,22 +79,6 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
   const [prices, setPrices] = React.useState<Record<string, Money>>({});
   const [files, setFiles] = React.useState<File[]>([]);
 
-  // Set Product Configuration State
-  const [colorSets, setColorSets] = React.useState<SetColorEntry[]>([
-    {
-      id: crypto.randomUUID(),
-      colour: "Black",
-      setName: "Black Set",
-      sku: "",
-      barcode: "",
-      costPrice: "",
-      sellingPrice: "",
-      mrp: "",
-      openingSets: "10",
-      sizes: JSON.parse(JSON.stringify(DEFAULT_SIZES)),
-    },
-  ]);
-
   const categories = useQuery({ queryKey: ["master", "categories", "product-workspace"], queryFn: () => apiClient.get<PagedResult<Category>>("master/categories?page=0&size=100") });
   const units = useQuery({ queryKey: ["master", "units", "product-workspace"], queryFn: () => apiClient.get<PagedResult<Unit>>("master/units?page=0&size=100") });
   const brands = useQuery({ queryKey: ["master", "brands", "product-workspace"], queryFn: () => apiClient.get<PagedResult<Brand>>("master/brands?page=0&size=100") });
@@ -114,18 +98,6 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
   React.useEffect(() => {
     setForm((f) => ({ ...f, hasVariants: productKind !== "SIMPLE" }));
   }, [productKind]);
-
-  // Update SKUs for Colour Sets when product code changes
-  React.useEffect(() => {
-    if (productKind === "SET" && form.code.trim()) {
-      setColorSets((sets) =>
-        sets.map((s) => ({
-          ...s,
-          sku: s.sku || `${form.code.trim()}-${skuPart(s.colour || "SET")}-SET`,
-        }))
-      );
-    }
-  }, [form.code, productKind]);
 
   React.useEffect(() => {
     setSelected({});
@@ -164,62 +136,13 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
     });
   }
 
-  // Set Product Helpers
-  const addColourSet = () => {
-    const nextColour = colorSets.length === 1 ? "Blue" : colorSets.length === 2 ? "White" : `Color ${colorSets.length + 1}`;
-    const codePrefix = form.code.trim() || "SKU";
-    setColorSets((prev) => [
-      ...prev,
-      {
-        id: crypto.randomUUID(),
-        colour: nextColour,
-        setName: `${nextColour} Set`,
-        sku: `${codePrefix}-${skuPart(nextColour)}-SET`,
-        barcode: "",
-        costPrice: prev[0]?.costPrice ?? "",
-        sellingPrice: prev[0]?.sellingPrice ?? "",
-        mrp: prev[0]?.mrp ?? "",
-        openingSets: "10",
-        sizes: JSON.parse(JSON.stringify(DEFAULT_SIZES)),
-      },
-    ]);
-  };
-
-  const removeColourSet = (index: number) => {
-    if (colorSets.length <= 1) {
-      toast.error("At least one Colour Set is required for Set Product");
-      return;
-    }
-    setColorSets((prev) => prev.filter((_, i) => i !== index));
-  };
-
-  const updateSetSizeQty = (setIndex: number, sizeName: string, delta: number) => {
-    setColorSets((prev) => {
-      const next = [...prev];
-      const targetSet = { ...next[setIndex] };
-      targetSet.sizes = targetSet.sizes.map((s) => (s.size === sizeName ? { ...s, qty: Math.max(0, s.qty + delta) } : s));
-      next[setIndex] = targetSet;
-      return next;
-    });
-  };
-
   const save = useMutation({
     mutationFn: async () => {
       if (!form.code.trim() || !form.name.trim() || !form.categoryId || !form.unitId) {
         throw new Error("Code, name, category and unit are required");
       }
 
-      if (productKind === "SET") {
-        if (colorSets.length === 0) throw new Error("At least one Colour Set is required for Set Product");
-        for (const cs of colorSets) {
-          if (!cs.colour.trim()) throw new Error("Colour is required for every Colour Set");
-          if (!cs.setName.trim()) throw new Error("Set Name is required for every Colour Set");
-          const totalPcs = cs.sizes.reduce((a, b) => a + b.qty, 0);
-          if (totalPcs <= 0) throw new Error(`Set '${cs.setName}' must contain at least 1 piece in size composition`);
-          if (!cs.costPrice || Number(cs.costPrice) <= 0) throw new Error(`Cost price is required for Set '${cs.setName}'`);
-          if (!cs.sellingPrice || Number(cs.sellingPrice) <= 0) throw new Error(`Selling price is required for Set '${cs.setName}'`);
-        }
-      } else if (productKind === "VARIANT") {
+      if (productKind === "VARIANT") {
         const enabled = combinations.filter((c) => c.enabled);
         if (!enabled.length) throw new Error("Generate and select at least one variant combination");
       }
@@ -242,102 +165,27 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
 
       let response: SetupResponse;
 
-      if (productKind === "SET") {
-        // Construct Variant objects for each Colour Set
-        const setVariants = colorSets.map((cs) => {
-          const totalPcs = cs.sizes.reduce((a, b) => a + b.qty, 0);
-          const activeComposition = cs.sizes.filter((s) => s.qty > 0);
-          const setSku = cs.sku.trim() || `${form.code.trim()}-${skuPart(cs.colour)}-SET`;
-
-          const setPrices = activePriceLists.map((list) => ({
-            companyId,
-            productId: 0,
-            priceListId: list.id,
-            costPrice: Number(cs.costPrice),
-            sellingPrice: Number(cs.sellingPrice),
-            mrp: cs.mrp ? Number(cs.mrp) : null,
-            effectiveFrom: new Date().toISOString(),
-            isActive: true,
-          }));
-
-          return {
-            clientKey: cs.id,
-            sku: setSku,
-            variantName: `${cs.setName} (${cs.colour} - ${totalPcs} pcs/set)`,
-            attributeValues: [
-              { attributeId: 0, attributeName: "Type", value: "SET" },
-              { attributeId: 0, attributeName: "Colour", value: cs.colour },
-              { attributeId: 0, attributeName: "Set Name", value: cs.setName },
-              { attributeId: 0, attributeName: "Pieces Per Set", value: String(totalPcs) },
-              { attributeId: 0, attributeName: "Set Composition", value: JSON.stringify(activeComposition) },
-            ],
-            prices: setPrices,
-            isActive: true,
-          };
-        });
-
-        response = await apiClient.post<SetupResponse>("products/setup", {
-          product: {
-            companyId,
-            categoryId: Number(form.categoryId),
-            brandId: form.brandId ? Number(form.brandId) : null,
-            unitId: Number(form.unitId),
-            taxId: form.taxId ? Number(form.taxId) : null,
-            code: form.code.trim(),
-            name: form.name.trim(),
-            description: form.description || null,
-            productType: "SET",
-            hasVariants: true,
-            trackInventory: form.trackInventory,
-            allowNegativeStock: form.allowNegativeStock,
-            isActive: form.isActive,
-          },
-          variants: setVariants as any,
-          prices: [],
-          generateBarcodes: false,
-        });
-
-        // Save Set Barcodes if entered
-        for (let i = 0; i < colorSets.length; i++) {
-          const cs = colorSets[i];
-          const createdVariant = response.variants?.[i];
-          if (cs.barcode.trim() && createdVariant?.id) {
-            try {
-              await apiClient.post(`products/barcodes`, {
-                productId: response.product.id,
-                variantId: createdVariant.id,
-                barcode: cs.barcode.trim(),
-                barcodeType: "EAN13",
-                isPrimary: true,
-              });
-            } catch (e) {
-              // ignore duplicate barcode errors gracefully
-            }
-          }
-        }
-      } else {
-        const enabled = form.hasVariants ? combinations.filter((c) => c.enabled) : [];
-        response = await apiClient.post<SetupResponse>("products/setup", {
-          product: {
-            companyId,
-            categoryId: Number(form.categoryId),
-            brandId: form.brandId ? Number(form.brandId) : null,
-            unitId: Number(form.unitId),
-            taxId: form.taxId ? Number(form.taxId) : null,
-            code: form.code.trim(),
-            name: form.name.trim(),
-            description: form.description || null,
-            productType: productKind,
-            hasVariants: form.hasVariants,
-            trackInventory: form.trackInventory,
-            allowNegativeStock: form.allowNegativeStock,
-            isActive: form.isActive,
-          },
-          variants: enabled.map((combo) => ({ clientKey: combo.key, sku: combo.sku, attributeValues: combo.values, prices: makePrices(combo.key), isActive: true })),
-          prices: form.hasVariants ? [] : makePrices("simple"),
-          generateBarcodes: true,
-        });
-      }
+      const enabled = form.hasVariants ? combinations.filter((c) => c.enabled) : [];
+      response = await apiClient.post<SetupResponse>("products/setup", {
+        product: {
+          companyId,
+          categoryId: Number(form.categoryId),
+          brandId: form.brandId ? Number(form.brandId) : null,
+          unitId: Number(form.unitId),
+          taxId: form.taxId ? Number(form.taxId) : null,
+          code: form.code.trim(),
+          name: form.name.trim(),
+          description: form.description || null,
+          productType: productKind,
+          hasVariants: form.hasVariants,
+          trackInventory: form.trackInventory,
+          allowNegativeStock: form.allowNegativeStock,
+          isActive: form.isActive,
+        },
+        variants: enabled.map((combo) => ({ clientKey: combo.key, sku: combo.sku, attributeValues: combo.values, prices: makePrices(combo.key), isActive: true })),
+        prices: form.hasVariants ? [] : makePrices("simple"),
+        generateBarcodes: true,
+      });
 
       // Upload Images
       const uploads: Promise<ProductImage>[] = files.map((file, index) => {
@@ -348,7 +196,7 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
         return apiClient.post<ProductImage>(`products/${response.product.id}/images/upload`, data);
       });
       const results = await Promise.allSettled(uploads);
-      const failed = results.filter((r) => r.status === "rejected").length;
+      const failed = results.filter((result) => result.status === "rejected").length;
       return { response, failed };
     },
     onSuccess: ({ response, failed }) => {
@@ -359,7 +207,7 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
     onError: (error) => toast.error(error instanceof Error ? error.message : "Unable to create product"),
   });
 
-  const sectionNav = ["Basics", productKind === "SET" ? "Set Configuration" : "Variants", "Pricing", "Images", "Review"];
+  const sectionNav = ["Basics", "Variants", "Pricing", "Images", "Review"];
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-5 pb-24">
@@ -370,7 +218,7 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
             Products
           </Button>
           <h1 className="mt-2 text-2xl font-semibold">Create complete product</h1>
-          <p className="text-sm text-muted-foreground">Configure catalog items—Simple, Variant, or Set products with prices, composition, and barcodes.</p>
+          <p className="text-sm text-muted-foreground">Configure catalog items—Simple or Variant products with prices and barcodes.</p>
         </div>
         <Button disabled={save.isPending} onClick={() => save.mutate()}>
           {save.isPending ? <Loader2 className="animate-spin" /> : <PackagePlus />}
@@ -396,7 +244,7 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
           {/* Product Type Selection */}
           <div className="md:col-span-2 lg:col-span-3 space-y-1.5 mb-2">
             <Label className="text-sm font-semibold">Product Type *</Label>
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               <label
                 className={`flex flex-col items-center justify-between gap-2 rounded-xl border p-4 cursor-pointer text-center transition-all ${
                   productKind === "SIMPLE" ? "border-primary bg-primary/5 shadow-sm font-semibold" : "hover:border-muted-foreground/40"
@@ -417,18 +265,6 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
                   <Boxes className="h-4 w-4" /> Product with Variants
                 </span>
                 <span className="text-[11px] text-muted-foreground font-normal">Multiple sellable variants generated from category attributes (e.g. Size, Color)</span>
-              </label>
-
-              <label
-                className={`flex flex-col items-center justify-between gap-2 rounded-xl border p-4 cursor-pointer text-center transition-all ${
-                  productKind === "SET" ? "border-primary bg-primary/5 shadow-sm font-semibold" : "hover:border-muted-foreground/40"
-                }`}
-              >
-                <input type="radio" name="productKind" value="SET" checked={productKind === "SET"} onChange={() => setProductKind("SET")} className="sr-only" />
-                <span className="text-sm font-bold flex items-center gap-1 text-primary">
-                  <Layers className="h-4 w-4" /> Set Product
-                </span>
-                <span className="text-[11px] text-muted-foreground font-normal">Group of different sizes of the SAME color (e.g., S:1, M:2, L:2, XL:1 = 6 Pcs/Set)</span>
               </label>
             </div>
           </div>
@@ -499,283 +335,79 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
         </CardContent>
       </Card>
 
-      {/* Section 1: Set Configuration / Variant Combinations */}
-      {productKind === "SET" ? (
-        <Card id="section-1" className="border-primary/40 shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <span className="flex items-center gap-2 text-primary">
-                <Layers className="h-5 w-5" /> Set Configuration
-              </span>
-              <Button size="sm" variant="outline" onClick={addColourSet} className="gap-1 text-xs">
-                <Plus className="h-3.5 w-3.5" /> Add Another Colour Set
+      {/* Section 1: Variant Combinations */}
+      <Card id="section-1">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Boxes className="size-5" />
+            Variant combinations
+          </CardTitle>
+          <CardDescription>Select category options, generate combinations, then disable combinations you do not sell.</CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          {!form.hasVariants ? (
+            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Simple product—one sellable SKU and one automatic barcode.</p>
+          ) : variantAttributes.length === 0 ? (
+            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Choose a category with variant attributes, or configure them in Master Data → Categories.</p>
+          ) : (
+            <>
+              {variantAttributes.map((a) => (
+                <div key={a.id}>
+                  <div className="mb-2 flex items-center gap-2 font-medium">
+                    {a.name}
+                    {a.required && <Badge>Required</Badge>}
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {a.options
+                      .filter((o) => o.isActive)
+                      .map((o) => {
+                        const checked = selected[a.id]?.has(o.value) ?? false;
+                        return (
+                          <label key={o.id} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3">
+                            <Checkbox
+                              checked={checked}
+                              onCheckedChange={(v) =>
+                                setSelected((current) => {
+                                  const next = { ...current, [a.id]: new Set(current[a.id] ?? []) };
+                                  if (v) next[a.id].add(o.value);
+                                  else next[a.id].delete(o.value);
+                                  return next;
+                                })
+                              }
+                            />
+                            {o.value}
+                          </label>
+                        );
+                      })}
+                  </div>
+                </div>
+              ))}
+              <Button variant="secondary" onClick={generate}>
+                <Sparkles />
+                Generate combinations
               </Button>
-            </CardTitle>
-            <CardDescription>Configure Colour Sets (same colour, multiple sizes per set). Define how many pieces of each size make 1 Set.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-6">
-            {colorSets.map((cs, setIdx) => {
-              const pcsPerSet = cs.sizes.reduce((a, b) => a + b.qty, 0);
-              const opSets = Number(cs.openingSets) || 0;
-              const totalOpeningPcs = opSets * pcsPerSet;
-
-              return (
-                <Card key={cs.id} className="border bg-card shadow-none relative">
-                  <CardHeader className="py-3 px-4 bg-muted/20 border-b flex flex-row items-center justify-between">
-                    <div className="flex items-center gap-2 font-bold text-sm">
-                      <span className="h-3 w-3 rounded-full bg-primary inline-block" />
-                      Colour Set #{setIdx + 1}: {cs.setName || cs.colour} ({pcsPerSet} Pieces/Set)
+              <div className="grid gap-2">
+                {combinations.map((combo, index) => (
+                  <div key={combo.key} className="grid items-center gap-3 rounded-lg border p-3 md:grid-cols-[auto_1fr_1fr]">
+                    <Checkbox checked={combo.enabled} onCheckedChange={(v) => setCombinations((rows) => rows.map((r, i) => (i === index ? { ...r, enabled: !!v } : r)))} />
+                    <div className="flex flex-wrap gap-1">
+                      {combo.values.map((v) => (
+                        <Badge variant="outline" key={`${v.attributeId}-${v.value}`}>
+                          {v.value}
+                        </Badge>
+                      ))}
                     </div>
-                    {colorSets.length > 1 && (
-                      <Button size="icon" variant="ghost" className="h-7 w-7 text-muted-foreground hover:text-destructive" onClick={() => removeColourSet(setIdx)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    )}
-                  </CardHeader>
-
-                  <CardContent className="p-4 space-y-4">
-                    {/* Header Info */}
-                    <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4">
-                      <Field label="Colour *">
-                        <Input
-                          value={cs.colour}
-                          onChange={(e) => {
-                            const newCol = e.target.value;
-                            setColorSets((prev) => {
-                              const next = [...prev];
-                              next[setIdx] = {
-                                ...next[setIdx],
-                                colour: newCol,
-                                setName: `${newCol} Set`,
-                                sku: `${form.code.trim() || "SKU"}-${skuPart(newCol)}-SET`,
-                              };
-                              return next;
-                            });
-                          }}
-                          placeholder="Black"
-                        />
-                      </Field>
-
-                      <Field label="Set Name *">
-                        <Input
-                          value={cs.setName}
-                          onChange={(e) => {
-                            const nameVal = e.target.value;
-                            setColorSets((prev) => {
-                              const next = [...prev];
-                              next[setIdx] = { ...next[setIdx], setName: nameVal };
-                              return next;
-                            });
-                          }}
-                          placeholder="Black Set"
-                        />
-                      </Field>
-
-                      <Field label="Set SKU *">
-                        <Input
-                          value={cs.sku}
-                          onChange={(e) => {
-                            const skuVal = e.target.value;
-                            setColorSets((prev) => {
-                              const next = [...prev];
-                              next[setIdx] = { ...next[setIdx], sku: skuVal };
-                              return next;
-                            });
-                          }}
-                          placeholder="TSHIRT-001-BLK-SET"
-                        />
-                      </Field>
-
-                      <Field label="Set Barcode (Optional)">
-                        <Input
-                          value={cs.barcode}
-                          onChange={(e) => {
-                            const bc = e.target.value;
-                            setColorSets((prev) => {
-                              const next = [...prev];
-                              next[setIdx] = { ...next[setIdx], barcode: bc };
-                              return next;
-                            });
-                          }}
-                          placeholder="8901234500012"
-                          className="font-mono"
-                        />
-                      </Field>
-                    </div>
-
-                    {/* Size Composition Interactive Table */}
-                    <div className="border rounded-lg p-3 bg-muted/10 space-y-2">
-                      <div className="flex items-center justify-between text-xs font-semibold text-muted-foreground uppercase tracking-wider">
-                        <span>Size Composition (Quantity Per Set)</span>
-                        <span className="font-bold text-foreground bg-primary/10 text-primary px-2.5 py-0.5 rounded-full">Total: {pcsPerSet} Pieces / Set</span>
-                      </div>
-
-                      <div className="grid grid-cols-2 sm:grid-cols-5 gap-2 pt-1">
-                        {cs.sizes.map((sObj) => (
-                          <div key={sObj.size} className="flex items-center justify-between p-2 rounded border bg-card text-xs">
-                            <span className="font-bold">{sObj.size}</span>
-                            <div className="flex items-center gap-1">
-                              <Button size="icon" variant="outline" className="h-5 w-5 shrink-0" onClick={() => updateSetSizeQty(setIdx, sObj.size, -1)}>
-                                -
-                              </Button>
-                              <span className="w-6 text-center font-bold">{sObj.qty}</span>
-                              <Button size="icon" variant="outline" className="h-5 w-5 shrink-0" onClick={() => updateSetSizeQty(setIdx, sObj.size, 1)}>
-                                +
-                              </Button>
-                            </div>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-
-                    {/* Pricing & Opening Stock for Set */}
-                    <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-4 pt-1">
-                      <Field label="Cost Price / Set (₹) *">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={cs.costPrice}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setColorSets((prev) => {
-                              const next = [...prev];
-                              next[setIdx] = { ...next[setIdx], costPrice: val };
-                              return next;
-                            });
-                          }}
-                          placeholder="2400"
-                        />
-                      </Field>
-
-                      <Field label="Selling Price / Set (₹) *">
-                        <Input
-                          type="number"
-                          min="0"
-                          step="0.01"
-                          value={cs.sellingPrice}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setColorSets((prev) => {
-                              const next = [...prev];
-                              next[setIdx] = { ...next[setIdx], sellingPrice: val };
-                              return next;
-                            });
-                          }}
-                          placeholder="2999"
-                        />
-                      </Field>
-
-                      <Field label="Opening Sets">
-                        <Input
-                          type="number"
-                          min="0"
-                          value={cs.openingSets}
-                          onChange={(e) => {
-                            const val = e.target.value;
-                            setColorSets((prev) => {
-                              const next = [...prev];
-                              next[setIdx] = { ...next[setIdx], openingSets: val };
-                              return next;
-                            });
-                          }}
-                          placeholder="10"
-                        />
-                      </Field>
-
-                      <div className="flex flex-col justify-center rounded-md border bg-muted/20 p-2.5 text-xs">
-                        <span className="text-muted-foreground block">Opening Pieces:</span>
-                        <strong className="text-base font-bold text-primary">{totalOpeningPcs} Pieces</strong>
-                        <span className="text-[10px] text-muted-foreground">
-                          {cs.sizes.filter((s) => s.qty > 0).map((s) => `${s.size}:${s.qty * opSets}`).join(" • ")}
-                        </span>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              );
-            })}
-
-            <Button variant="outline" onClick={addColourSet} className="w-full gap-2 border-dashed py-5">
-              <Plus className="h-4 w-4" /> Add Another Colour Set
-            </Button>
-          </CardContent>
-        </Card>
-      ) : (
-        <Card id="section-1">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Boxes className="size-5" />
-              Variant combinations
-            </CardTitle>
-            <CardDescription>Select category options, generate combinations, then disable combinations you do not sell.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-5">
-            {!form.hasVariants ? (
-              <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Simple product—one sellable SKU and one automatic barcode.</p>
-            ) : variantAttributes.length === 0 ? (
-              <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Choose a category with variant attributes, or configure them in Master Data → Categories.</p>
-            ) : (
-              <>
-                {variantAttributes.map((a) => (
-                  <div key={a.id}>
-                    <div className="mb-2 flex items-center gap-2 font-medium">
-                      {a.name}
-                      {a.required && <Badge>Required</Badge>}
-                    </div>
-                    <div className="flex flex-wrap gap-2">
-                      {a.options
-                        .filter((o) => o.isActive)
-                        .map((o) => {
-                          const checked = selected[a.id]?.has(o.value) ?? false;
-                          return (
-                            <label key={o.id} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3">
-                              <Checkbox
-                                checked={checked}
-                                onCheckedChange={(v) =>
-                                  setSelected((current) => {
-                                    const next = { ...current, [a.id]: new Set(current[a.id] ?? []) };
-                                    if (v) next[a.id].add(o.value);
-                                    else next[a.id].delete(o.value);
-                                    return next;
-                                  })
-                                }
-                              />
-                              {o.value}
-                            </label>
-                          );
-                        })}
-                    </div>
+                    <Input value={combo.sku} onChange={(e) => setCombinations((rows) => rows.map((r, i) => (i === index ? { ...r, sku: e.target.value } : r)))} />
                   </div>
                 ))}
-                <Button variant="secondary" onClick={generate}>
-                  <Sparkles />
-                  Generate combinations
-                </Button>
-                <div className="grid gap-2">
-                  {combinations.map((combo, index) => (
-                    <div key={combo.key} className="grid items-center gap-3 rounded-lg border p-3 md:grid-cols-[auto_1fr_1fr]">
-                      <Checkbox checked={combo.enabled} onCheckedChange={(v) => setCombinations((rows) => rows.map((r, i) => (i === index ? { ...r, enabled: !!v } : r)))} />
-                      <div className="flex flex-wrap gap-1">
-                        {combo.values.map((v) => (
-                          <Badge variant="outline" key={`${v.attributeId}-${v.value}`}>
-                            {v.value}
-                          </Badge>
-                        ))}
-                      </div>
-                      <Input value={combo.sku} onChange={(e) => setCombinations((rows) => rows.map((r, i) => (i === index ? { ...r, sku: e.target.value } : r)))} />
-                    </div>
-                  ))}
-                </div>
-              </>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              </div>
+            </>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Section 2: Pricing */}
-      {productKind !== "SET" && (
-        <Card id="section-2">
+      <Card id="section-2">
           <CardHeader>
             <CardTitle>Variant pricing</CardTitle>
             <CardDescription>Cost price and selling price are compulsory for all active price lists on every sellable variant.</CardDescription>
@@ -815,7 +447,6 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
             )}
           </CardContent>
         </Card>
-      )}
 
       {/* Section 3: Images */}
       <Card id="section-3">
@@ -854,12 +485,12 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
       <Card id="section-4">
         <CardHeader>
           <CardTitle>Review and create</CardTitle>
-          <CardDescription>The backend saves the product, sellable variants/sets, prices and permanent CODE128 barcodes atomically.</CardDescription>
+          <CardDescription>The backend saves the product, sellable variants, prices and permanent CODE128 barcodes atomically.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
           <Summary label="Product" value={form.name || "Not named"} />
-          <Summary label="Product Type" value={productKind === "SET" ? "Set Product" : productKind === "VARIANT" ? "Variant Product" : "Simple Product"} />
-          <Summary label="Sellable Items" value={String(productKind === "SET" ? colorSets.length : form.hasVariants ? combinations.filter((c) => c.enabled).length : 1)} />
+          <Summary label="Product Type" value={productKind === "VARIANT" ? "Variant Product" : "Simple Product"} />
+          <Summary label="Sellable Items" value={String(form.hasVariants ? combinations.filter((c) => c.enabled).length : 1)} />
           <Summary label="Images" value={String(files.length)} />
           <div className="sm:col-span-2 lg:col-span-4">
             <Toggle checked={form.isActive} onChange={(v) => setForm({ ...form, isActive: v })} label="Make available immediately" note="Turn this off if catalog preparation is incomplete." />
@@ -870,7 +501,7 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
       <div className="fixed inset-x-0 bottom-0 z-20 border-t bg-background/95 p-3 backdrop-blur lg:left-80">
         <div className="mx-auto flex max-w-7xl items-center justify-between">
           <span className="text-sm text-muted-foreground">
-            {productKind === "SET" ? `${colorSets.length} Colour Set(s)` : form.hasVariants ? `${combinations.filter((c) => c.enabled).length} sellable SKU(s)` : "1 sellable SKU"}
+            {form.hasVariants ? `${combinations.filter((c) => c.enabled).length} sellable SKU(s)` : "1 sellable SKU"}
           </span>
           <Button size="lg" disabled={save.isPending} onClick={() => save.mutate()}>
             {save.isPending ? <Loader2 className="animate-spin" /> : <Check />}

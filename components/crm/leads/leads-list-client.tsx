@@ -13,6 +13,7 @@ import { apiClient, type PagedResult } from "@/lib/api-client";
 import type { Lead, LeadStatus, LeadRating, LeadSource } from "@/lib/types/crm";
 import { LeadRatingBadge, LeadStatusBadge } from "@/components/crm/shared/status-badges";
 import { formatCurrency, formatDate } from "@/components/crm/shared/format";
+import { useUserNameLookup } from "@/components/crm/shared/user-select";
 
 const STATUS_OPTIONS: LeadStatus[] = [
   "NEW", "CONTACTED", "ATTEMPTED_CONTACT", "INTERESTED", "QUALIFIED",
@@ -29,7 +30,11 @@ function useDebounced<T>(value: T, delayMs = 300) {
   return debounced;
 }
 
+import { useRouter } from "next/navigation";
+
+// ...
 export function LeadsListClient() {
+  const router = useRouter();
   const [page, setPage] = React.useState(0);
   const [search, setSearch] = React.useState("");
   const [status, setStatus] = React.useState<string>("");
@@ -59,6 +64,8 @@ export function LeadsListClient() {
     return map;
   }, [sourcesQuery.data]);
 
+  const userNameById = useUserNameLookup();
+
   const columns: DataTableColumn<Lead>[] = [
     {
       key: "lead",
@@ -75,7 +82,7 @@ export function LeadsListClient() {
     { key: "status", header: "Status", render: (row) => <LeadStatusBadge status={row.status} /> },
     { key: "rating", header: "Rating", render: (row) => <LeadRatingBadge rating={row.rating} /> },
     { key: "value", header: "Est. Value", render: (row) => formatCurrency(row.estimatedDealValue), hideOnCard: true },
-    { key: "assigned", header: "Assigned To", render: (row) => (row.assignedUserId ? `User #${row.assignedUserId}` : "Unassigned"), hideOnCard: true },
+    { key: "assigned", header: "Assigned To", render: (row) => (row.assignedUserId ? userNameById.get(row.assignedUserId) ?? `User #${row.assignedUserId}` : "Unassigned"), hideOnCard: true },
     { key: "followUp", header: "Next Follow-up", render: (row) => formatDate(row.nextFollowUpAt), hideOnCard: true },
     { key: "created", header: "Created", render: (row) => formatDate(row.createdAt), hideOnCard: true },
   ];
@@ -158,6 +165,7 @@ export function LeadsListClient() {
         page={page}
         totalPages={listQuery.data?.totalPages}
         onPageChange={setPage}
+        onRowClick={(row) => router.push(`/crm/leads/${row.id}`)}
         actions={(row) => (
           <Button nativeButton={false} variant="ghost" size="sm" render={<Link href={`/crm/leads/${row.id}`} />}>
             View

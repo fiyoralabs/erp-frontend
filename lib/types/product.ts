@@ -61,6 +61,7 @@ export interface ProductSummary {
   code: string;
   name: string;
   primaryImageUrl: string | null;
+  taxId?: number | null;
   hasVariants: boolean;
   isActive: boolean;
 }

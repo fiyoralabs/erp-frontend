@@ -1,8 +1,9 @@
 "use client";
 
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
 
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
@@ -12,10 +13,17 @@ import { OpportunityStatusBadge } from "@/components/crm/shared/status-badges";
 import { formatCurrency } from "@/components/crm/shared/format";
 import { CrmTimeline } from "@/components/crm/shared/crm-timeline";
 
+function errorMessage(err: unknown) {
+  if (err instanceof ApiRequestError) return err.message;
+  if (err instanceof Error) return err.message;
+  return "Something went wrong";
+}
+
 // Ties an existing ERP Sales Customer back to its CRM Account (if any),
 // so users don't have to maintain two disconnected customer records --
 // section 49/66 of the CRM spec ("Customer 360").
 export function CustomerCrmDialog({ customerId, close }: { customerId: number | null; close: () => void }) {
+  const qc = useQueryClient();
   const accountQuery = useQuery({
     queryKey: ["crm", "accounts", "by-customer", customerId],
     queryFn: async () => {
@@ -27,6 +35,16 @@ export function CustomerCrmDialog({ customerId, close }: { customerId: number | 
       }
     },
     enabled: customerId !== null,
+  });
+
+  const linkMutation = useMutation({
+    mutationFn: () => apiClient.post<Account>(`crm/accounts/from-customer/${customerId}`),
+    onSuccess: () => {
+      toast.success("CRM Account created and linked to this customer.");
+      qc.invalidateQueries({ queryKey: ["crm", "accounts", "by-customer", customerId] });
+      qc.invalidateQueries({ queryKey: ["crm", "accounts"] });
+    },
+    onError: (err) => toast.error(errorMessage(err)),
   });
 
   const opportunitiesQuery = useQuery({
@@ -46,9 +64,13 @@ export function CustomerCrmDialog({ customerId, close }: { customerId: number | 
         {accountQuery.isLoading ? (
           <div className="flex items-center gap-2 py-8 text-sm text-muted-foreground"><Loader2 className="size-4 animate-spin" /> Loading...</div>
         ) : !accountQuery.data ? (
-          <div className="flex flex-col items-center gap-2 py-8 text-center">
+          <div className="flex flex-col items-center gap-3 py-8 text-center">
             <p className="text-sm text-muted-foreground">No CRM Account is linked to this customer yet.</p>
-            <p className="text-xs text-muted-foreground">Link one from an existing CRM Account&apos;s &quot;Create ERP Customer&quot; action, or from a converted Lead.</p>
+            <p className="text-xs text-muted-foreground">Create one now to track opportunities, activities, and timeline against this customer here in CRM.</p>
+            <Button size="sm" onClick={() => linkMutation.mutate()} disabled={linkMutation.isPending}>
+              {linkMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              Create CRM Account for this Customer
+            </Button>
           </div>
         ) : (
           <div className="flex flex-col gap-4">

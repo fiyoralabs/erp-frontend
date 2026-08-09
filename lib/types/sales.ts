@@ -22,7 +22,7 @@ export interface SalesInvoiceLine {
 export interface SalesInvoice {
   id: number; customerId: number; locationId: number; invoiceNumber: string; invoiceDate: string;
   dueDate: string; subtotal: number; discountAmount: number; taxAmount: number; totalAmount: number;
-  paidAmount: number; returnAppliedAmount: number; balanceAmount: number; status: string;
+  paidAmount: number; returnAppliedAmount: number; creditAppliedAmount: number; balanceAmount: number; status: string;
   createdAt: string; lines: SalesInvoiceLine[]; payments: SalesPayment[];
 }
 export interface SalesReturnLine {

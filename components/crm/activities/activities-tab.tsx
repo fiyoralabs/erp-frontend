@@ -11,6 +11,7 @@ import { apiClient } from "@/lib/api-client";
 import type { Activity, ActivityType, RelatedEntityType } from "@/lib/types/crm";
 import { ActivityDialog } from "@/components/crm/activities/activity-dialog";
 import { formatDateTime } from "@/components/crm/shared/format";
+import { useUserNameLookup } from "@/components/crm/shared/user-select";
 
 const TYPE_ICON: Record<ActivityType, React.ComponentType<{ className?: string }>> = {
   CALL: Phone, MEETING: CalendarCheck, EMAIL: Mail, WHATSAPP: MessageSquare, SMS: MessageSquare,
@@ -35,6 +36,7 @@ export function ActivitiesTab({ relatedType, relatedId }: { relatedType: Related
   });
 
   const activities = query.data ?? [];
+  const userNameById = useUserNameLookup();
 
   return (
     <div className="flex flex-col gap-3">
@@ -59,7 +61,11 @@ export function ActivitiesTab({ relatedType, relatedId }: { relatedType: Related
                     <div>
                       <p className="text-sm font-medium">{a.subject}</p>
                       {a.description && <p className="text-sm text-muted-foreground">{a.description}</p>}
-                      <p className="text-xs text-muted-foreground">{formatDateTime(a.createdAt)} · {a.status}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {formatDateTime(a.createdAt)} · {a.status}
+                        {a.assignedUserId && <> · Attended by {userNameById.get(a.assignedUserId) ?? `User #${a.assignedUserId}`}</>}
+                        {a.createdBy && <> · Logged by {userNameById.get(a.createdBy) ?? `User #${a.createdBy}`}</>}
+                      </p>
                     </div>
                   </div>
                   {a.status !== "COMPLETED" && (

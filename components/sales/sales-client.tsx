@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CreditCard, Loader2, MessageSquare, Plus, RotateCcw, Store, Users } from "lucide-react";
+import { CreditCard, Loader2, Plus, RotateCcw, Store, Users } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient, ApiRequestError, type PagedResult } from "@/lib/api-client";
 import { localDateInputValue } from "@/lib/date";
@@ -20,7 +20,6 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
-import { WhatsAppConfigDialog } from "@/components/settings/whatsapp-config-dialog";
 import { CustomerCrmDialog } from "@/components/crm/customer-360/customer-crm-dialog";
 
 type Sellable = { productId:number; variantId:number|null; label:string };
@@ -38,7 +37,6 @@ export function SalesClient(){
   const [ledgerCustomer,setLedgerCustomer]=React.useState<Customer|null>(null);
   const [wishlistCustomer,setWishlistCustomer]=React.useState<Customer|null>(null);
   const [crmCustomerId,setCrmCustomerId]=React.useState<number|null>(null);
-  const [isWaConfigOpen, setIsWaConfigOpen] = React.useState(false);
   const customers=useQuery({queryKey:["sales","customers"],queryFn:()=>apiClient.get<PagedResult<Customer>>("sales/customers?page=0&size=100")});
   const invoices=useQuery({queryKey:["sales","invoices"],queryFn:()=>apiClient.get<PagedResult<SalesInvoice>>("sales/invoices?page=0&size=100")});
   const returns=useQuery({queryKey:["sales","returns"],queryFn:()=>apiClient.get<PagedResult<SalesReturn>>("sales/returns?page=0&size=100")});
@@ -59,9 +57,6 @@ export function SalesClient(){
     <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
       <div><h1 className="text-2xl font-semibold">Sales</h1><p className="text-sm text-muted-foreground">Sell by exact SKU, collect payments, manage customers, and restore stock through controlled returns.</p></div>
       <div className="flex flex-wrap gap-2">
-        <Button variant="outline" onClick={() => setIsWaConfigOpen(true)} className="gap-1.5 text-emerald-600 dark:text-emerald-400 border-emerald-200">
-          <MessageSquare className="h-4 w-4" /> WhatsApp Config
-        </Button>
         <Link href="/sales/pos" target="_blank" rel="noopener noreferrer">
           <Button variant="outline" className="gap-1.5 font-bold border-primary text-primary hover:bg-primary/10">
             <Store className="h-4 w-4" /> Open POS Terminal
@@ -75,8 +70,8 @@ export function SalesClient(){
       <Tab value="invoices" title="Sales invoices" desc="Posted sales immediately deduct stock and create receivables." action={<div className="flex flex-wrap items-center gap-2"><Button onClick={() => setAction("invoice")} className="gap-1.5"><Plus className="h-4 w-4" />New invoice</Button>{due > 0 && <Button variant="outline" onClick={() => setAction("payment")} className="gap-1.5"><CreditCard className="h-4 w-4" />Record payment</Button>}</div>}>
         <Grid heads={["Invoice","Date","Customer","Status","Total","Balance",""]}>{inv.map(x=><TableRow key={x.id}><TableCell className="font-medium">{x.invoiceNumber}</TableCell><TableCell>{x.invoiceDate}</TableCell><TableCell>{c.find(y=>y.id===x.customerId)?.name??`Customer #${x.customerId}`}</TableCell><TableCell><Status value={x.status}/></TableCell><TableCell>{money.format(x.totalAmount)}</TableCell><TableCell className="font-medium">{money.format(x.balanceAmount)}</TableCell><TableCell><Button size="sm" variant="outline" onClick={()=>setDetail(x)}>View</Button></TableCell></TableRow>)}</Grid>
       </Tab>
-      <Tab value="customers" title="Customers" desc="Profiles, credit terms, wishlist, and independently calculated ledger.">
-        <Grid heads={["Code","Customer","Type","Credit limit","Lifetime sales","Status",""]}>{c.map(x=><TableRow key={x.id}><TableCell>{x.code}</TableCell><TableCell className="font-medium">{x.name}<span className="block text-xs text-muted-foreground">{x.phone||x.email||"No contact"}</span></TableCell><TableCell>{x.customerType}</TableCell><TableCell>{money.format(x.creditLimit)}</TableCell><TableCell>{money.format(x.totalPurchaseAmount)}</TableCell><TableCell><Status value="ACTIVE"/></TableCell><TableCell><div className="flex flex-wrap gap-1"><Button size="sm" variant="outline" onClick={()=>{setSelectedCustomer(x);setAction("customer")}}>Edit</Button><Button size="sm" variant="outline" onClick={()=>setLedgerCustomer(x)}>Ledger</Button><Button size="sm" variant="outline" onClick={()=>setWishlistCustomer(x)}>Wishlist</Button><Button size="sm" variant="outline" onClick={()=>setCrmCustomerId(x.id)}>CRM</Button></div></TableCell></TableRow>)}</Grid>
+      <Tab value="customers" title="Customers" desc="Profiles, preferred store terms, and independently calculated ledger.">
+        <Grid heads={["Code","Customer","Type","Lifetime sales","Status",""]}>{c.map(x=><TableRow key={x.id}><TableCell>{x.code}</TableCell><TableCell className="font-medium">{x.name}<span className="block text-xs text-muted-foreground">{x.phone||x.email||"No contact"}</span></TableCell><TableCell>{x.customerType}</TableCell><TableCell>{money.format(x.totalPurchaseAmount)}</TableCell><TableCell><Status value="ACTIVE"/></TableCell><TableCell><div className="flex flex-wrap gap-1"><Button size="sm" variant="outline" onClick={()=>{setSelectedCustomer(x);setAction("customer")}}>Edit</Button><Button size="sm" variant="outline" onClick={()=>setLedgerCustomer(x)}>Ledger</Button><Button size="sm" variant="outline" onClick={()=>setCrmCustomerId(x.id)}>CRM</Button></div></TableCell></TableRow>)}</Grid>
       </Tab>
       <Tab value="returns" title="Sales returns" desc="Return quantities are validated against the invoice and tracked goods are added back to Inventory." action={<Button variant="outline" onClick={()=>setAction("return")}><RotateCcw/>New return</Button>}>
         <Grid heads={["Return","Invoice","Date","Total","Receivable","Customer credit",""]}>{ret.map(x=><TableRow key={x.id}><TableCell className="font-medium">{x.returnNumber}</TableCell><TableCell>{inv.find(i=>i.id===x.invoiceId)?.invoiceNumber??`#${x.invoiceId}`}</TableCell><TableCell>{x.returnDate}</TableCell><TableCell>{money.format(x.totalAmount)}</TableCell><TableCell>{money.format(x.receivableAppliedAmount)}</TableCell><TableCell>{money.format(x.creditAmount)}</TableCell><TableCell><Button size="sm" variant="outline" onClick={()=>setDetail(x)}>View</Button></TableCell></TableRow>)}</Grid>
@@ -92,7 +87,6 @@ export function SalesClient(){
     <DetailDialog value={detail} customer={detail?c.find(x=>x.id===detail.customerId):undefined} close={()=>setDetail(null)}/>
     <LedgerDialog customer={ledgerCustomer} close={()=>setLedgerCustomer(null)}/>
     <WishlistDialog customer={wishlistCustomer} sellables={sellables.data??[]} close={()=>setWishlistCustomer(null)}/>
-    <WhatsAppConfigDialog open={isWaConfigOpen} onOpenChange={setIsWaConfigOpen} />
     <CustomerCrmDialog customerId={crmCustomerId} close={()=>setCrmCustomerId(null)} />
   </div>;
 }
@@ -111,11 +105,9 @@ function CustomerDialog({open,customer,priceLists,locations,close,saved}:{open:b
   const mutation=useMutation({mutationFn:()=>{const body={...form,priceListId:form.priceListId?Number(form.priceListId):null,preferredLocationId:form.preferredLocationId?Number(form.preferredLocationId):null,creditLimit:Number(form.creditLimit),creditDays:Number(form.creditDays),active:true};return customer?apiClient.put(`sales/customers/${customer.id}`,body):apiClient.post("sales/customers",body)},onSuccess:async()=>{toast.success(customer?"Customer updated":"Customer created");await saved()},onError:e=>toast.error(message(e))});
   const deactivate=useMutation({mutationFn:()=>apiClient.delete(`sales/customers/${customer!.id}`),onSuccess:async()=>{toast.success("Customer deactivated");await saved()},onError:e=>toast.error(message(e))});
   const set=(k:string,v:string)=>setForm(x=>({...x,[k]:v}));
-  return <Dialog open={open} onOpenChange={v=>{if(!v)close()}}><DialogContent className="sm:max-w-2xl"><form onSubmit={e=>{e.preventDefault();mutation.mutate()}}><DialogHeader><DialogTitle>{customer?"Edit customer":"New customer"}</DialogTitle><DialogDescription>Credit, price-list, and preferred-store settings drive invoice validation and pricing.</DialogDescription></DialogHeader><div className="my-5 grid gap-4 sm:grid-cols-2">
+  return <Dialog open={open} onOpenChange={v=>{if(!v)close()}}><DialogContent className="sm:max-w-2xl"><form onSubmit={e=>{e.preventDefault();mutation.mutate()}}><DialogHeader><DialogTitle>{customer?"Edit customer":"New customer"}</DialogTitle><DialogDescription>Enter basic contact information and remarks for the customer record.</DialogDescription></DialogHeader><div className="my-5 grid gap-4 sm:grid-cols-2">
     <Field label="Customer type"><Picker value={form.customerType} set={v=>set("customerType",v)} items={[["INDIVIDUAL","Individual"],["BUSINESS","Business"]]}/></Field><Field label="Name"><Input required value={form.name} onChange={e=>set("name",e.target.value)}/></Field>
     <Field label="Phone"><Input value={form.phone} onChange={e=>set("phone",e.target.value)}/></Field><Field label="Email"><Input type="email" value={form.email} onChange={e=>set("email",e.target.value)}/></Field>
-    <Field label="Price list"><Picker value={form.priceListId} set={v=>set("priceListId",v)} items={priceLists.map(x=>[String(x.id),x.name])}/></Field><Field label="Preferred location"><Picker value={form.preferredLocationId} set={v=>set("preferredLocationId",v)} items={locations.map(x=>[String(x.id),x.name])}/></Field>
-    <Field label="Credit limit"><Input type="number" min="0" value={form.creditLimit} onChange={e=>set("creditLimit",e.target.value)}/></Field><Field label="Credit days"><Input type="number" min="0" value={form.creditDays} onChange={e=>set("creditDays",e.target.value)}/></Field>
     <Field label="Remarks" className="sm:col-span-2"><Textarea value={form.remarks} onChange={e=>set("remarks",e.target.value)}/></Field>
   </div><DialogFooter>{customer&&<Button type="button" variant="destructive" onClick={()=>deactivate.mutate()} disabled={deactivate.isPending}>Deactivate</Button>}<Button type="button" variant="outline" onClick={close}>Cancel</Button><Button type="submit" disabled={mutation.isPending}>{mutation.isPending&&<Loader2 className="animate-spin"/>}Save</Button></DialogFooter></form></DialogContent></Dialog>;
 }
@@ -134,7 +126,7 @@ function InvoiceDialog({open,customers,locations,methods,sellables,close,saved}:
 
 function PaymentDialog({open,invoices,methods,close,saved}:{open:boolean;invoices:SalesInvoice[];methods:PaymentMethod[];close:()=>void;saved:()=>Promise<void>}){
   const [invoice,setInvoice]=React.useState(""),[method,setMethod]=React.useState(""),[amount,setAmount]=React.useState(""),[date,setDate]=React.useState(today()),[reference,setReference]=React.useState("");
-  const mutation=useMutation({mutationFn:()=>apiClient.post(`sales/invoices/${invoice}/payments`,{paymentMethodCode:method,amount:Number(amount),paymentDate:date,referenceNumber:reference||null,remarks:"Recorded from Sales workspace"}),onSuccess:async()=>{toast.success("Customer payment posted");await saved()},onError:e=>toast.error(message(e))});
+  const mutation=useMutation({mutationFn:()=>apiClient.post<{creditIssuedAmount:number|null;creditNumber:string|null}>(`sales/invoices/${invoice}/payments`,{paymentMethodCode:method,amount:Number(amount),paymentDate:date,referenceNumber:reference||null,remarks:"Recorded from Sales workspace"}),onSuccess:async(res)=>{if(res.creditIssuedAmount){toast.success(`Customer payment posted — ${money.format(res.creditIssuedAmount)} overpaid, saved as store credit ${res.creditNumber??""}`)}else{toast.success("Customer payment posted")}await saved()},onError:e=>toast.error(message(e))});
   return <Dialog open={open} onOpenChange={v=>{if(!v)close()}}><DialogContent><form onSubmit={e=>{e.preventDefault();mutation.mutate()}}><DialogHeader><DialogTitle>Record customer payment</DialogTitle><DialogDescription>The collectible balance is locked and validated by the backend.</DialogDescription></DialogHeader><div className="my-5 grid gap-4 sm:grid-cols-2"><Field label="Invoice"><Picker value={invoice} set={setInvoice} items={invoices.map(x=>[String(x.id),`${x.invoiceNumber} — due ${money.format(x.balanceAmount)}`])}/></Field><Field label="Method"><Picker value={method} set={setMethod} items={methods.map(x=>[x.code,x.name])}/></Field><Field label="Amount"><Input required type="number" min=".01" step=".01" value={amount} onChange={e=>setAmount(e.target.value)}/></Field><Field label="Date"><Input type="date" value={date} onChange={e=>setDate(e.target.value)}/></Field><Field label="Reference" className="sm:col-span-2"><Input value={reference} onChange={e=>setReference(e.target.value)}/></Field></div><Footer busy={mutation.isPending} close={close}/></form></DialogContent></Dialog>;
 }
 

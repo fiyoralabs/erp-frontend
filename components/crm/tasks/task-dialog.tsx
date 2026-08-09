@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -15,6 +16,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { apiClient, ApiRequestError } from "@/lib/api-client";
 import { crmTaskSchema, type CrmTaskFormValues } from "@/lib/validation/crm";
 import type { RelatedEntityType } from "@/lib/types/crm";
+import { UserSelect, useCurrentUser } from "@/components/crm/shared/user-select";
 
 function errorMessage(err: unknown) {
   if (err instanceof ApiRequestError) return err.message;
@@ -38,6 +40,15 @@ export function TaskDialog({
       assignedUserId: undefined, priority: "MEDIUM", dueDate: "", dueTime: "",
     },
   });
+
+  // Tasks default to "assigned to me" each time the dialog opens.
+  const currentUserQuery = useCurrentUser();
+  React.useEffect(() => {
+    if (open && currentUserQuery.data) {
+      form.setValue("assignedUserId", currentUserQuery.data.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, currentUserQuery.data]);
 
   const mutation = useMutation({
     mutationFn: (values: CrmTaskFormValues) => apiClient.post("crm/tasks", values),
@@ -82,8 +93,8 @@ export function TaskDialog({
                 </FormItem>
               )} />
               <FormField control={form.control} name="assignedUserId" render={({ field }) => (
-                <FormItem><FormLabel>Assigned To (User ID)</FormLabel><FormControl>
-                  <Input type="number" value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))} />
+                <FormItem><FormLabel>Assigned To</FormLabel><FormControl>
+                  <UserSelect value={field.value} onChange={field.onChange} />
                 </FormControl><FormMessage /></FormItem>
               )} />
             </div>

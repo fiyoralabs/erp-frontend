@@ -8,6 +8,7 @@ import {
 import { apiClient, type PagedResult } from "@/lib/api-client";
 import type { RelatedEntityType, TimelineEvent } from "@/lib/types/crm";
 import { formatDateTime } from "@/components/crm/shared/format";
+import { useUserNameLookup } from "@/components/crm/shared/user-select";
 import { Loader2 } from "lucide-react";
 
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
@@ -37,6 +38,7 @@ export function CrmTimeline({ relatedType, relatedId }: { relatedType: RelatedEn
     queryKey: ["crm", "timeline", relatedType, relatedId],
     queryFn: () => apiClient.get<PagedResult<TimelineEvent>>(`crm/timeline/${relatedType}/${relatedId}?size=50`),
   });
+  const userNameById = useUserNameLookup();
 
   if (query.isLoading) {
     return (
@@ -63,7 +65,10 @@ export function CrmTimeline({ relatedType, relatedId }: { relatedType: RelatedEn
             <div className="flex flex-col gap-0.5">
               <p className="text-sm font-medium">{event.title}</p>
               {event.description && <p className="text-sm text-muted-foreground">{event.description}</p>}
-              <p className="text-xs text-muted-foreground">{formatDateTime(event.occurredAt)}</p>
+              <p className="text-xs text-muted-foreground">
+                {formatDateTime(event.occurredAt)}
+                {event.actorUserId && <> · {userNameById.get(event.actorUserId) ?? `User #${event.actorUserId}`}</>}
+              </p>
             </div>
           </li>
         );

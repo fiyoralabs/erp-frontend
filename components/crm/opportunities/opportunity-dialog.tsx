@@ -17,6 +17,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { apiClient, ApiRequestError } from "@/lib/api-client";
 import { opportunitySchema, type OpportunityFormValues } from "@/lib/validation/crm";
 import type { Opportunity, Pipeline } from "@/lib/types/crm";
+import { UserSelect, useCurrentUser } from "@/components/crm/shared/user-select";
 
 const EMPTY: OpportunityFormValues = {
   name: "", accountId: undefined as unknown as number, primaryContactId: undefined,
@@ -68,6 +69,16 @@ export function OpportunityDialog({
     if (open) form.reset(opportunity ? toFormValues(opportunity) : { ...EMPTY, accountId: defaultAccountId ?? (undefined as unknown as number) });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, opportunity]);
+
+  // New opportunities default to "assigned to me" -- editing an existing
+  // one never overrides whatever it's already assigned to.
+  const currentUserQuery = useCurrentUser();
+  React.useEffect(() => {
+    if (open && !isEdit && currentUserQuery.data && form.getValues("assignedUserId") === undefined) {
+      form.setValue("assignedUserId", currentUserQuery.data.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isEdit, currentUserQuery.data]);
 
   const pipelineId = form.watch("pipelineId");
   const stages = pipelinesQuery.data?.find((p) => p.id === pipelineId)?.stages ?? [];
@@ -146,8 +157,8 @@ export function OpportunityDialog({
               )} />
             </div>
             <FormField control={form.control} name="assignedUserId" render={({ field }) => (
-              <FormItem><FormLabel>Assigned Salesperson (User ID)</FormLabel><FormControl>
-                <Input type="number" value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))} />
+              <FormItem><FormLabel>Assigned Salesperson</FormLabel><FormControl>
+                <UserSelect value={field.value} onChange={field.onChange} />
               </FormControl><FormMessage /></FormItem>
             )} />
             <FormField control={form.control} name="description" render={({ field }) => (

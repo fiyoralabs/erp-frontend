@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server";
 import { setSessionCookies } from "@/lib/auth";
 
-const ERP_API_URL = process.env.ERP_API_URL ?? "http://localhost:8080";
+import { getErpApiUrl } from "@/lib/env-config";
+
+const ERP_API_URL = getErpApiUrl();
 
 // Curl-verified against the live erp instance before writing this handler:
 //   POST /api/v1/auth/login {"email","password"}

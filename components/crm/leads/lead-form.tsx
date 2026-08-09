@@ -17,6 +17,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { apiClient, ApiRequestError } from "@/lib/api-client";
 import { leadSchema, type LeadFormValues } from "@/lib/validation/crm";
 import type { Lead, LeadDuplicate, LeadSource } from "@/lib/types/crm";
+import { UserSelect, useCurrentUser } from "@/components/crm/shared/user-select";
 
 const EMPTY_VALUES: LeadFormValues = {
   firstName: "", lastName: "", companyName: "", jobTitle: "", email: "", alternateEmail: "",
@@ -65,6 +66,16 @@ export function LeadForm({ lead }: { lead?: Lead }) {
     defaultValues: lead ? toFormValues(lead) : EMPTY_VALUES,
   });
 
+  // New leads default to "assigned to me" -- editing an existing lead never
+  // overrides whatever it's already assigned to.
+  const currentUserQuery = useCurrentUser();
+  React.useEffect(() => {
+    if (!isEdit && currentUserQuery.data && form.getValues("assignedUserId") === undefined) {
+      form.setValue("assignedUserId", currentUserQuery.data.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isEdit, currentUserQuery.data]);
+
   function toPayload(values: LeadFormValues) {
     return {
       ...values,
@@ -110,6 +121,26 @@ export function LeadForm({ lead }: { lead?: Lead }) {
     onError: (err) => toast.error(errorMessage(err)),
   });
 
+  const contactsQuery = useQuery({
+    queryKey: ["crm", "contacts", "dropdown"],
+    queryFn: () => apiClient.get<{ content: Array<{ id: number; firstName: string; lastName?: string; email?: string; mobile?: string; jobTitle?: string }> }>("crm/contacts?page=0&size=100"),
+  });
+
+  const checkLiveDuplicate = React.useCallback(async (email?: string, phone?: string) => {
+    if (!email && !phone) return;
+    try {
+      const params = new URLSearchParams();
+      if (email) params.set("email", email);
+      if (phone) params.set("phone", phone);
+      const found = await apiClient.get<LeadDuplicate[]>(`crm/leads/duplicates?${params.toString()}`);
+      if (found && found.length > 0) {
+        setDuplicates(found);
+      }
+    } catch (e) {
+      // Ignore background check errors
+    }
+  }, []);
+
   function onSubmit(values: LeadFormValues) {
     if (isEdit) {
       saveMutation.mutate(values);
@@ -125,9 +156,42 @@ export function LeadForm({ lead }: { lead?: Lead }) {
       <div>
         <h1 className="text-xl font-semibold sm:text-2xl">{isEdit ? "Edit Lead" : "New Lead"}</h1>
         <p className="text-sm text-muted-foreground">
-          {isEdit ? `Editing ${lead!.leadNumber}` : "Capture a new prospect's details."}
+          {isEdit ? `Editing ${lead!.leadNumber}` : "Capture a new prospect's details or select an existing contact."}
         </p>
       </div>
+
+      {!isEdit && contactsQuery.data?.content && contactsQuery.data.content.length > 0 && (
+        <Card className="border-blue-500/30 bg-blue-500/5">
+          <CardContent className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-6">
+            <div>
+              <p className="text-sm font-medium">Link with Existing Contact (Optional)</p>
+              <p className="text-xs text-muted-foreground">Select an existing contact from the system to autofill details.</p>
+            </div>
+            <div className="w-full sm:w-64">
+              <Select onValueChange={(val) => {
+                const c = contactsQuery.data?.content.find((x) => x.id.toString() === val);
+                if (c) {
+                  form.setValue("firstName", c.firstName);
+                  if (c.lastName) form.setValue("lastName", c.lastName);
+                  if (c.email) form.setValue("email", c.email);
+                  if (c.mobile) form.setValue("phone", c.mobile);
+                  if (c.jobTitle) form.setValue("jobTitle", c.jobTitle);
+                  toast.info(`Autofilled lead from contact: ${c.firstName} ${c.lastName ?? ""}`);
+                }
+              }}>
+                <SelectTrigger><SelectValue placeholder="Select existing contact..." /></SelectTrigger>
+                <SelectContent>
+                  {contactsQuery.data.content.map((c) => (
+                    <SelectItem key={c.id} value={c.id.toString()}>
+                      {c.firstName} {c.lastName ?? ""} {c.email ? `(${c.email})` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {duplicates && duplicates.length > 0 && (
         <Card className="border-amber-500/50 bg-amber-500/5">
@@ -135,11 +199,11 @@ export function LeadForm({ lead }: { lead?: Lead }) {
             <div className="flex items-start gap-2">
               <AlertTriangle className="mt-0.5 size-4 shrink-0 text-amber-600" />
               <div>
-                <p className="text-sm font-medium">Possible duplicate lead found</p>
+                <p className="text-sm font-medium text-amber-700">Possible duplicate lead already exists!</p>
                 <ul className="mt-1 list-disc pl-4 text-sm text-muted-foreground">
                   {duplicates.map((d) => (
                     <li key={d.id}>
-                      {d.fullName} ({d.leadNumber}) — {d.email ?? d.phone} — {d.status}
+                      <span className="font-medium text-foreground">{d.fullName}</span> ({d.leadNumber}) — {d.email ?? d.phone} — Status: <span className="font-semibold">{d.status}</span>
                     </li>
                   ))}
                 </ul>
@@ -147,15 +211,15 @@ export function LeadForm({ lead }: { lead?: Lead }) {
             </div>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={() => { setDuplicates(null); setPendingValues(null); }}>
-                Cancel
+                Review / Cancel
               </Button>
               <Button
                 size="sm"
                 disabled={saveMutation.isPending}
-                onClick={() => pendingValues && saveMutation.mutate(pendingValues)}
+                onClick={() => pendingValues ? saveMutation.mutate(pendingValues) : form.handleSubmit((v) => saveMutation.mutate(v))()}
               >
                 {saveMutation.isPending && <Loader2 className="animate-spin" />}
-                Continue Anyway
+                Proceed & Force Create
               </Button>
             </div>
           </CardContent>
@@ -174,10 +238,20 @@ export function LeadForm({ lead }: { lead?: Lead }) {
                 <FormItem><FormLabel>Last Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="email" render={({ field }) => (
-                <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem><FormLabel>Email</FormLabel><FormControl>
+                  <Input type="email" {...field} onBlur={(e) => {
+                    field.onBlur();
+                    checkLiveDuplicate(e.target.value, form.getValues("phone"));
+                  }} />
+                </FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="phone" render={({ field }) => (
-                <FormItem><FormLabel>Phone</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem><FormLabel>Phone</FormLabel><FormControl>
+                  <Input {...field} onBlur={(e) => {
+                    field.onBlur();
+                    checkLiveDuplicate(form.getValues("email"), e.target.value);
+                  }} />
+                </FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="whatsappNumber" render={({ field }) => (
                 <FormItem><FormLabel>WhatsApp Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
@@ -244,7 +318,6 @@ export function LeadForm({ lead }: { lead?: Lead }) {
                 <FormItem>
                   <FormLabel>Lead Source</FormLabel>
                   <Select
-                    items={Object.fromEntries((sourcesQuery.data ?? []).map((s) => [String(s.id), s.name]))}
                     value={field.value ? String(field.value) : ""}
                     onValueChange={(v) => field.onChange(v ? Number(v) : undefined)}
                   >
@@ -259,7 +332,7 @@ export function LeadForm({ lead }: { lead?: Lead }) {
               <FormField control={form.control} name="rating" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Rating</FormLabel>
-                  <Select items={{ HOT: "Hot", WARM: "Warm", COLD: "Cold" }} value={field.value ?? ""} onValueChange={field.onChange}>
+                  <Select value={field.value ?? ""} onValueChange={field.onChange}>
                     <FormControl><SelectTrigger className="w-full"><SelectValue placeholder="Select rating" /></SelectTrigger></FormControl>
                     <SelectContent>
                       <SelectItem value="HOT">Hot</SelectItem>
@@ -279,8 +352,8 @@ export function LeadForm({ lead }: { lead?: Lead }) {
                 <FormItem><FormLabel>Expected Closing Date</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="assignedUserId" render={({ field }) => (
-                <FormItem><FormLabel>Assigned Salesperson (User ID)</FormLabel><FormControl>
-                  <Input type="number" value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))} />
+                <FormItem><FormLabel>Assigned Salesperson</FormLabel><FormControl>
+                  <UserSelect value={field.value} onChange={field.onChange} />
                 </FormControl><FormMessage /></FormItem>
               )} />
             </CardContent>

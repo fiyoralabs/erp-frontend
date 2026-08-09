@@ -16,8 +16,9 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { apiClient, ApiRequestError } from "@/lib/api-client";
 import { campaignSchema, type CampaignFormValues } from "@/lib/validation/crm";
 import type { Campaign } from "@/lib/types/crm";
+import { UserSelect, useCurrentUser } from "@/components/crm/shared/user-select";
 
-const TYPE_LABELS = { EMAIL: "Email", SOCIAL_MEDIA: "Social Media", ADVERTISEMENT: "Advertisement", EVENT: "Event", REFERRAL: "Referral", WHATSAPP: "WhatsApp", OTHER: "Other" };
+const TYPE_LABELS = { EMAIL: "Email", SOCIAL_MEDIA: "Social Media", ADVERTISEMENT: "Advertisement", EVENT: "Event", REFERRAL: "Referral", WHATSAPP: "WhatsApp", DIGITAL: "Digital", OTHER: "Other" };
 const STATUS_LABELS = { PLANNED: "Planned", ACTIVE: "Active", COMPLETED: "Completed", CANCELLED: "Cancelled" };
 
 const EMPTY: CampaignFormValues = {
@@ -45,6 +46,16 @@ export function CampaignDialog({ open, onOpenChange, campaign }: { open: boolean
   const form = useForm<CampaignFormValues>({ resolver: zodResolver(campaignSchema), defaultValues: campaign ? toFormValues(campaign) : EMPTY });
 
   React.useEffect(() => { if (open) form.reset(campaign ? toFormValues(campaign) : EMPTY); }, [open, campaign]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // New campaigns default to "owned by me" -- editing an existing one never
+  // overrides whatever it's already owned by.
+  const currentUserQuery = useCurrentUser();
+  React.useEffect(() => {
+    if (open && !isEdit && currentUserQuery.data && form.getValues("ownerUserId") === undefined) {
+      form.setValue("ownerUserId", currentUserQuery.data.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isEdit, currentUserQuery.data]);
 
   const mutation = useMutation({
     mutationFn: (values: CampaignFormValues) => isEdit
@@ -117,6 +128,11 @@ export function CampaignDialog({ open, onOpenChange, campaign }: { open: boolean
                 </FormControl><FormMessage /></FormItem>
               )} />
             </div>
+            <FormField control={form.control} name="ownerUserId" render={({ field }) => (
+              <FormItem><FormLabel>Owner</FormLabel><FormControl>
+                <UserSelect value={field.value} onChange={field.onChange} />
+              </FormControl><FormMessage /></FormItem>
+            )} />
             <FormField control={form.control} name="description" render={({ field }) => (
               <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>
             )} />

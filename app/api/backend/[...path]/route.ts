@@ -1,7 +1,9 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getAccessToken, refreshAccessToken } from "@/lib/auth";
 
-const ERP_API_URL = process.env.ERP_API_URL ?? "http://localhost:8080";
+import { getErpApiUrl } from "@/lib/env-config";
+
+const ERP_API_URL = getErpApiUrl();
 
 // Generic authenticated forwarder: browser -> this route (same origin, no
 // CORS needed) -> erp (localhost:8080). See ARCHITECTURE.md section 2 for

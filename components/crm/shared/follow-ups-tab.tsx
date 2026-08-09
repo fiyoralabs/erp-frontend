@@ -12,6 +12,7 @@ import { FollowUpDialog } from "@/components/crm/shared/follow-up-dialog";
 import { FollowUpCompleteDialog } from "@/components/crm/shared/follow-up-complete-dialog";
 import { FollowUpStatusBadge } from "@/components/crm/shared/status-badges";
 import { formatDate } from "@/components/crm/shared/format";
+import { useUserNameLookup } from "@/components/crm/shared/user-select";
 
 export function FollowUpsTab({ relatedType, relatedId }: { relatedType: RelatedEntityType; relatedId: number }) {
   const [dialogOpen, setDialogOpen] = React.useState(false);
@@ -24,6 +25,7 @@ export function FollowUpsTab({ relatedType, relatedId }: { relatedType: RelatedE
   });
 
   const followUps = query.data ?? [];
+  const userNameById = useUserNameLookup();
 
   return (
     <div className="flex flex-col gap-3">
@@ -45,6 +47,9 @@ export function FollowUpsTab({ relatedType, relatedId }: { relatedType: RelatedE
                   <p className="text-sm font-medium">{formatDate(f.followUpDate)} · {f.method}</p>
                   {f.description && <p className="text-sm text-muted-foreground">{f.description}</p>}
                   {f.outcome && <p className="text-xs text-muted-foreground">Outcome: {f.outcome}</p>}
+                  {f.assignedUserId && (
+                    <p className="text-xs text-muted-foreground">Assigned to {userNameById.get(f.assignedUserId) ?? `User #${f.assignedUserId}`}</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <FollowUpStatusBadge status={f.status} />

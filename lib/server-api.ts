@@ -2,7 +2,9 @@ import "server-only";
 import { getAccessToken, refreshAccessToken } from "@/lib/auth";
 import type { ApiResponse, ApiError } from "@/lib/api-client";
 
-const ERP_API_URL = process.env.ERP_API_URL ?? "http://localhost:8080";
+import { getErpApiUrl } from "@/lib/env-config";
+
+const ERP_API_URL = getErpApiUrl();
 
 // For Server Components / Server Actions calling erp directly -- no need to
 // hop through /api/backend/* (that route exists for the browser, which

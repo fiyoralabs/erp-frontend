@@ -12,6 +12,7 @@ import { apiClient, type PagedResult } from "@/lib/api-client";
 import type { CrmTask } from "@/lib/types/crm";
 import { CrmTaskStatusBadge } from "@/components/crm/shared/status-badges";
 import { formatDate } from "@/components/crm/shared/format";
+import { useUserNameLookup } from "@/components/crm/shared/user-select";
 import { TaskDialog } from "@/components/crm/tasks/task-dialog";
 
 const VIEWS = [
@@ -42,9 +43,12 @@ export function TasksListClient() {
     },
   });
 
+  const userNameById = useUserNameLookup();
+
   const columns: DataTableColumn<CrmTask>[] = [
     { key: "title", header: "Title", render: (r) => r.title },
     { key: "related", header: "Related To", render: (r) => (r.relatedType ? `${r.relatedType} #${r.relatedId}` : "—") },
+    { key: "assigned", header: "Assigned To", render: (r) => (r.assignedUserId ? userNameById.get(r.assignedUserId) ?? `User #${r.assignedUserId}` : "Unassigned") },
     { key: "priority", header: "Priority", render: (r) => r.priority },
     { key: "due", header: "Due", render: (r) => formatDate(r.dueDate) },
     { key: "status", header: "Status", render: (r) => <CrmTaskStatusBadge status={r.status} /> },

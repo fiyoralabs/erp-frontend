@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Boxes, Loader2, Plus, Power, PowerOff, RefreshCw } from "lucide-react";
+import { Boxes, Loader2, Plus, Power, PowerOff, RefreshCw, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -31,6 +31,8 @@ function combinations(groups: { attributeId: number; values: string[] }[]) {
   );
 }
 
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+
 export function ProductVariantsTab({ productId, categoryId, productCode }: {
   productId: number;
   categoryId: number;
@@ -38,6 +40,7 @@ export function ProductVariantsTab({ productId, categoryId, productCode }: {
 }) {
   const qc = useQueryClient();
   const [selected, setSelected] = React.useState<Record<number, Set<string>>>({});
+  const [deleteTargetVariant, setDeleteTargetVariant] = React.useState<{ id: number; name: string } | null>(null);
 
   const variantsQuery = useQuery({
     queryKey: ["products", productId, "variants"],
@@ -103,6 +106,15 @@ export function ProductVariantsTab({ productId, categoryId, productCode }: {
     onError: (error) => toast.error(errorMessage(error)),
   });
 
+  const deleteVariantMutation = useMutation({
+    mutationFn: (variantId: number) => apiClient.delete(`products/${productId}/variants/${variantId}`),
+    onSuccess: () => {
+      toast.success("Variant deleted");
+      qc.invalidateQueries({ queryKey: ["products", productId, "variants"] });
+    },
+    onError: (error) => toast.error(errorMessage(error)),
+  });
+
   const columns: DataTableColumn<Variant>[] = [
     { key: "sku", header: "SKU", render: (row) => <span className="font-mono text-xs">{row.sku}</span> },
     { key: "variant", header: "Variant", render: (row) => <div className="flex flex-wrap gap-1">{(row.attributeValues ?? []).length > 0 ? row.attributeValues.map((value) => <Badge key={value.attributeId} variant="outline">{value.attributeName}: {value.value}</Badge>) : row.variantName}</div> },
@@ -132,7 +144,22 @@ export function ProductVariantsTab({ productId, categoryId, productCode }: {
     </Card>
 
     <div><h3 className="font-medium">Sellable variants</h3><p className="text-sm text-muted-foreground">Each row is a stock-keeping unit with its own inventory, price, and barcode.</p></div>
-    <DataTable columns={columns} data={variantsQuery.data ?? []} rowKey={(row) => row.id} isLoading={variantsQuery.isLoading} emptyMessage={attributes.length ? "Select values above and generate the missing variants." : "Configure category attributes first."} actions={(row) => <Button variant="ghost" size="sm" disabled={toggleMutation.isPending} onClick={() => toggleMutation.mutate(row)}>{row.isActive ? <PowerOff /> : <Power />}{row.isActive ? "Deactivate" : "Activate"}</Button>} />
+    <DataTable columns={columns} data={variantsQuery.data ?? []} rowKey={(row) => row.id} isLoading={variantsQuery.isLoading} emptyMessage={attributes.length ? "Select values above and generate the missing variants." : "Configure category attributes first."} actions={(row) => <div className="flex items-center gap-1"><Button variant="ghost" size="sm" disabled={toggleMutation.isPending} onClick={() => toggleMutation.mutate(row)}>{row.isActive ? <PowerOff /> : <Power />}{row.isActive ? "Deactivate" : "Activate"}</Button><Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteTargetVariant({ id: row.id, name: row.variantName || row.sku })}><Trash2 className="h-4 w-4" />Delete</Button></div>} />
     <Button variant="outline" className="w-fit" onClick={() => variantsQuery.refetch()}><RefreshCw />Refresh variants</Button>
+
+    <ConfirmDialog
+      open={!!deleteTargetVariant}
+      onOpenChange={(open) => !open && setDeleteTargetVariant(null)}
+      title="Delete Variant?"
+      description={`Are you sure you want to delete variant "${deleteTargetVariant?.name}"?`}
+      confirmText="Delete Variant"
+      variant="destructive"
+      isLoading={deleteVariantMutation.isPending}
+      onConfirm={() => {
+        if (deleteTargetVariant) {
+          deleteVariantMutation.mutate(deleteTargetVariant.id);
+        }
+      }}
+    />
   </div>;
 }

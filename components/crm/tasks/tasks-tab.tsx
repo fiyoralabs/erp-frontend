@@ -12,6 +12,7 @@ import type { CrmTask, RelatedEntityType } from "@/lib/types/crm";
 import { TaskDialog } from "@/components/crm/tasks/task-dialog";
 import { CrmTaskStatusBadge } from "@/components/crm/shared/status-badges";
 import { formatDate } from "@/components/crm/shared/format";
+import { useUserNameLookup } from "@/components/crm/shared/user-select";
 
 export function TasksTab({ relatedType, relatedId }: { relatedType: RelatedEntityType; relatedId: number }) {
   const qc = useQueryClient();
@@ -31,6 +32,7 @@ export function TasksTab({ relatedType, relatedId }: { relatedType: RelatedEntit
   });
 
   const tasks = query.data ?? [];
+  const userNameById = useUserNameLookup();
 
   return (
     <div className="flex flex-col gap-3">
@@ -50,7 +52,10 @@ export function TasksTab({ relatedType, relatedId }: { relatedType: RelatedEntit
               <CardContent className="flex items-center justify-between gap-3 py-3">
                 <div>
                   <p className="text-sm font-medium">{t.title}</p>
-                  <p className="text-xs text-muted-foreground">Due {formatDate(t.dueDate)} · {t.priority}</p>
+                  <p className="text-xs text-muted-foreground">
+                    Due {formatDate(t.dueDate)} · {t.priority}
+                    {t.assignedUserId && <> · {userNameById.get(t.assignedUserId) ?? `User #${t.assignedUserId}`}</>}
+                  </p>
                 </div>
                 <div className="flex items-center gap-2">
                   <CrmTaskStatusBadge status={t.status} />

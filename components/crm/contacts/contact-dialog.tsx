@@ -15,6 +15,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { apiClient, ApiRequestError } from "@/lib/api-client";
 import { contactSchema, type ContactFormValues } from "@/lib/validation/crm";
 import type { Contact } from "@/lib/types/crm";
+import { UserSelect, useCurrentUser } from "@/components/crm/shared/user-select";
 
 const EMPTY: ContactFormValues = {
   firstName: "", lastName: "", accountId: undefined, locationId: undefined, jobTitle: "", department: "",
@@ -57,6 +58,16 @@ export function ContactDialog({
     if (open) form.reset(contact ? toFormValues(contact) : { ...EMPTY, accountId: defaultAccountId });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open, contact]);
+
+  // New contacts default to "assigned to me" -- editing an existing one
+  // never overrides whatever it's already assigned to.
+  const currentUserQuery = useCurrentUser();
+  React.useEffect(() => {
+    if (open && !isEdit && currentUserQuery.data && form.getValues("assignedUserId") === undefined) {
+      form.setValue("assignedUserId", currentUserQuery.data.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, isEdit, currentUserQuery.data]);
 
   const mutation = useMutation({
     mutationFn: (values: ContactFormValues) => isEdit
@@ -107,6 +118,11 @@ export function ContactDialog({
                 </FormControl><FormMessage /></FormItem>
               )} />
             </div>
+            <FormField control={form.control} name="assignedUserId" render={({ field }) => (
+              <FormItem><FormLabel>Assigned To</FormLabel><FormControl>
+                <UserSelect value={field.value} onChange={field.onChange} />
+              </FormControl><FormMessage /></FormItem>
+            )} />
             <FormField control={form.control} name="address" render={({ field }) => (
               <FormItem><FormLabel>Address</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>
             )} />

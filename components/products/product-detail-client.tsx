@@ -59,11 +59,8 @@ export function ProductDetailClient({
       <Tabs defaultValue="overview">
         <TabsList className="flex-wrap">
           <TabsTrigger value="overview">Overview</TabsTrigger>
-          {isSetProduct ? (
-            <TabsTrigger value="set-config">Set Configuration</TabsTrigger>
-          ) : (
-            product.hasVariants && <TabsTrigger value="variants">Variants</TabsTrigger>
-          )}
+          {product.hasVariants && <TabsTrigger value="variants">Variants</TabsTrigger>}
+          <TabsTrigger value="sets">Custom Sets</TabsTrigger>
           <TabsTrigger value="pricing">Pricing</TabsTrigger>
           <TabsTrigger value="images">Images</TabsTrigger>
           <TabsTrigger value="barcodes">Barcodes</TabsTrigger>
@@ -74,17 +71,15 @@ export function ProductDetailClient({
           <ProductOverviewTab product={product} />
         </TabsContent>
 
-        {isSetProduct ? (
-          <TabsContent value="set-config">
-            <ProductSetTab product={product} />
+        {product.hasVariants && (
+          <TabsContent value="variants">
+            <ProductVariantsTab productId={product.id} categoryId={product.categoryId} productCode={product.code} />
           </TabsContent>
-        ) : (
-          product.hasVariants && (
-            <TabsContent value="variants">
-              <ProductVariantsTab productId={product.id} categoryId={product.categoryId} productCode={product.code} />
-            </TabsContent>
-          )
         )}
+
+        <TabsContent value="sets">
+          <ProductSetTab product={product} />
+        </TabsContent>
 
         <TabsContent value="pricing">
           <ProductPricingTab productId={product.id} companyId={companyId} hasVariants={product.hasVariants} />

@@ -28,10 +28,23 @@ import {
 } from "@/components/ui/form";
 import { loginSchema, type LoginInput } from "@/lib/validation/auth";
 import { landingPath } from "@/lib/permissions";
+import { useEffect } from "react";
 
 export function LoginForm() {
   const router = useRouter();
   const [submitting, setSubmitting] = useState(false);
+
+  // Security: Clean up any sensitive query params (password, email) from URL bar if present
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.location.search) {
+      const url = new URL(window.location.href);
+      if (url.searchParams.has("password") || url.searchParams.has("email")) {
+        url.searchParams.delete("password");
+        url.searchParams.delete("email");
+        window.history.replaceState({}, "", url.pathname + (url.searchParams.toString() ? "?" + url.searchParams.toString() : ""));
+      }
+    }
+  }, []);
 
   const form = useForm<LoginInput>({
     resolver: zodResolver(loginSchema),
@@ -55,8 +68,8 @@ export function LoginForm() {
       }
 
       toast.success("Welcome back");
-      router.push(landingPath(Array.isArray(body.permissions) ? body.permissions : []));
-      router.refresh();
+      const target = landingPath(Array.isArray(body.permissions) ? body.permissions : []);
+      window.location.href = target;
     } catch {
       toast.error("Could not reach the server. Please try again.");
     } finally {
@@ -73,7 +86,7 @@ export function LoginForm() {
         </CardDescription>
       </CardHeader>
       <Form {...form}>
-        <form onSubmit={form.handleSubmit(onSubmit)}>
+        <form onSubmit={(e) => { e.preventDefault(); form.handleSubmit(onSubmit)(e); }}>
           <CardContent className="space-y-4">
             <FormField
               control={form.control}

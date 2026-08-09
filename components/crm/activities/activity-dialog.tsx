@@ -1,5 +1,6 @@
 "use client";
 
+import * as React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
@@ -15,6 +16,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import { apiClient, ApiRequestError } from "@/lib/api-client";
 import { activitySchema, type ActivityFormValues } from "@/lib/validation/crm";
 import type { ActivityType, RelatedEntityType } from "@/lib/types/crm";
+import { UserSelect, useCurrentUser } from "@/components/crm/shared/user-select";
 
 const TYPE_LABELS: Record<ActivityType, string> = {
   CALL: "Call", MEETING: "Meeting", EMAIL: "Email", WHATSAPP: "WhatsApp", SMS: "SMS",
@@ -45,6 +47,15 @@ export function ActivityDialog({
       phoneNumber: "", durationSeconds: undefined, meetingUrl: "", location: "", pinned: false,
     },
   });
+
+  // Defaults to "attended by me" every time the dialog opens.
+  const currentUserQuery = useCurrentUser();
+  React.useEffect(() => {
+    if (open && currentUserQuery.data) {
+      form.setValue("assignedUserId", currentUserQuery.data.id);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [open, currentUserQuery.data]);
 
   const mutation = useMutation({
     mutationFn: (values: ActivityFormValues) => apiClient.post("crm/activities", {
@@ -106,6 +117,11 @@ export function ActivityDialog({
                 <FormItem><FormLabel>End</FormLabel><FormControl><Input type="datetime-local" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
             </div>
+            <FormField control={form.control} name="assignedUserId" render={({ field }) => (
+              <FormItem><FormLabel>Attended By</FormLabel><FormControl>
+                <UserSelect value={field.value} onChange={field.onChange} allowUnassigned={false} />
+              </FormControl><FormMessage /></FormItem>
+            )} />
             <FormField control={form.control} name="description" render={({ field }) => (
               <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>
             )} />
