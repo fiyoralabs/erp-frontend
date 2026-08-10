@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2 } from "lucide-react";
+import { Plus, Pencil, Trash2, ChevronRight } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -48,7 +48,7 @@ export function PipelinesSettings() {
 
       {(listQuery.data ?? []).map((pipeline) => (
         <Card key={pipeline.id}>
-          <CardHeader className="flex flex-row items-center justify-between">
+          <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
             <CardTitle className="flex items-center gap-2 text-base">
               {pipeline.name}
               {pipeline.isDefault && <Badge variant="secondary">Default</Badge>}
@@ -57,27 +57,40 @@ export function PipelinesSettings() {
             <Button
               size="sm"
               variant="outline"
-              className="gap-1.5"
+              className="w-fit gap-1.5"
               onClick={() => setStageDialog({ pipelineId: pipeline.id, nextSequence: (pipeline.stages.at(-1)?.sequence ?? 0) + 1 })}
             >
               <Plus className="size-4" /> Add Stage
             </Button>
           </CardHeader>
           <CardContent>
-            <div className="flex flex-wrap gap-2">
-              {[...pipeline.stages].sort((a, b) => a.sequence - b.sequence).map((stage) => (
-                <div key={stage.id} className="flex items-center gap-1 rounded-md border px-2 py-1.5 text-sm" style={{ borderLeft: `3px solid ${stage.color ?? "#94a3b8"}` }}>
-                  <span>{stage.name}</span>
-                  <span className="text-xs text-muted-foreground">({stage.probability}%)</span>
-                  {stage.isWon && <Badge variant="outline" className="text-emerald-600">Won</Badge>}
-                  {stage.isLost && <Badge variant="outline" className="text-red-600">Lost</Badge>}
-                  <button type="button" onClick={() => setStageDialog({ pipelineId: pipeline.id, stage, nextSequence: stage.sequence })} aria-label={`Edit ${stage.name}`} className="rounded p-0.5 hover:bg-muted">
-                    <Pencil className="size-3" />
-                  </button>
-                  <button type="button" onClick={() => setDeleteStageTarget({ pipelineId: pipeline.id, stage })} aria-label={`Delete ${stage.name}`} className="rounded p-0.5 hover:bg-muted">
-                    <Trash2 className="size-3" />
-                  </button>
-                </div>
+            <div className="flex flex-wrap items-center gap-1.5">
+              {[...pipeline.stages].sort((a, b) => a.sequence - b.sequence).map((stage, i, arr) => (
+                <React.Fragment key={stage.id}>
+                  <div className="flex items-center gap-1 rounded-md border px-2 py-1.5 text-sm" style={{ borderLeft: `3px solid ${stage.color ?? "#94a3b8"}` }}>
+                    <span>{stage.name}</span>
+                    <span className="text-xs text-muted-foreground">({stage.probability}%)</span>
+                    {stage.isWon && <Badge variant="outline" className="text-emerald-600">Won</Badge>}
+                    {stage.isLost && <Badge variant="outline" className="text-red-600">Lost</Badge>}
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setStageDialog({ pipelineId: pipeline.id, stage, nextSequence: stage.sequence })}
+                      aria-label={`Edit ${stage.name}`}
+                    >
+                      <Pencil />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setDeleteStageTarget({ pipelineId: pipeline.id, stage })}
+                      aria-label={`Delete ${stage.name}`}
+                    >
+                      <Trash2 />
+                    </Button>
+                  </div>
+                  {i < arr.length - 1 && <ChevronRight className="size-4 shrink-0 text-muted-foreground/50" />}
+                </React.Fragment>
               ))}
               {pipeline.stages.length === 0 && <p className="text-sm text-muted-foreground">No stages configured yet.</p>}
             </div>

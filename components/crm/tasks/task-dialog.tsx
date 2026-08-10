@@ -76,7 +76,7 @@ export function TaskDialog({
             <FormField control={form.control} name="description" render={({ field }) => (
               <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>
             )} />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField control={form.control} name="priority" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Priority</FormLabel>
@@ -98,7 +98,7 @@ export function TaskDialog({
                 </FormControl><FormMessage /></FormItem>
               )} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField control={form.control} name="dueDate" render={({ field }) => (
                 <FormItem><FormLabel>Due Date</FormLabel><FormControl><Input type="date" {...field} /></FormControl><FormMessage /></FormItem>
               )} />

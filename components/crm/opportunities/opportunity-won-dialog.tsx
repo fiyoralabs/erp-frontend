@@ -10,6 +10,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
+import { Form, FormControl, FormField, FormItem, FormLabel } from "@/components/ui/form";
 import { apiClient, ApiRequestError } from "@/lib/api-client";
 import type { Opportunity } from "@/lib/types/crm";
 
@@ -49,33 +50,34 @@ export function OpportunityWonDialog({ open, onOpenChange, opportunity }: { open
           <DialogTitle>Mark Opportunity Won</DialogTitle>
           <DialogDescription>Confirm the final deal amount and won date.</DialogDescription>
         </DialogHeader>
-        <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))} className="flex flex-col gap-4">
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="text-xs text-muted-foreground">Won Date</label>
-              <Input type="date" {...form.register("wonDate")} />
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))} className="flex flex-col gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              <FormField control={form.control} name="wonDate" render={({ field }) => (
+                <FormItem><FormLabel>Won Date</FormLabel><FormControl><Input type="date" {...field} /></FormControl></FormItem>
+              )} />
+              <FormField control={form.control} name="finalAmount" render={({ field }) => (
+                <FormItem><FormLabel>Final Amount</FormLabel><FormControl>
+                  <Input type="number" value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))} />
+                </FormControl></FormItem>
+              )} />
             </div>
-            <div>
-              <label className="text-xs text-muted-foreground">Final Amount</label>
-              <Input type="number" {...form.register("finalAmount", { valueAsNumber: true })} />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground">Notes</label>
-            <Textarea {...form.register("notes")} />
-          </div>
-          <label className="flex items-center gap-2 text-sm font-medium">
-            <Checkbox checked={form.watch("createCustomer")} onCheckedChange={(v) => form.setValue("createCustomer", !!v)} />
-            Create/link ERP Customer if not already linked
-          </label>
-          <DialogFooter>
-            <DialogClose render={<Button type="button" variant="outline" />}>Cancel</DialogClose>
-            <Button type="submit" disabled={mutation.isPending}>
-              {mutation.isPending && <Loader2 className="animate-spin" />}
-              Mark Won
-            </Button>
-          </DialogFooter>
-        </form>
+            <FormField control={form.control} name="notes" render={({ field }) => (
+              <FormItem><FormLabel>Notes</FormLabel><FormControl><Textarea {...field} /></FormControl></FormItem>
+            )} />
+            <label className="flex items-center gap-2 text-sm font-medium">
+              <Checkbox checked={form.watch("createCustomer")} onCheckedChange={(v) => form.setValue("createCustomer", !!v)} />
+              Create/link ERP Customer if not already linked
+            </label>
+            <DialogFooter>
+              <DialogClose render={<Button type="button" variant="outline" />}>Cancel</DialogClose>
+              <Button type="submit" disabled={mutation.isPending}>
+                {mutation.isPending && <Loader2 className="animate-spin" />}
+                Mark Won
+              </Button>
+            </DialogFooter>
+          </form>
+        </Form>
       </DialogContent>
     </Dialog>
   );

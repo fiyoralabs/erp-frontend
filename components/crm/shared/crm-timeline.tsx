@@ -11,6 +11,18 @@ import { formatDateTime } from "@/components/crm/shared/format";
 import { useUserNameLookup } from "@/components/crm/shared/user-select";
 import { Loader2 } from "lucide-react";
 
+// Same success/danger tone language as status-badges.tsx -- a WON event
+// here and a WON badge elsewhere should read as the same color.
+function toneClasses(eventType: string) {
+  if (eventType.includes("WON") || eventType.includes("CONVERTED")) {
+    return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400";
+  }
+  if (eventType.includes("LOST")) {
+    return "bg-red-500/10 text-red-600 dark:text-red-400";
+  }
+  return "bg-muted text-muted-foreground";
+}
+
 const ICONS: Record<string, React.ComponentType<{ className?: string }>> = {
   LEAD_CREATED: UserPlus,
   LEAD_ASSIGNED: ArrowRightLeft,
@@ -54,13 +66,14 @@ export function CrmTimeline({ relatedType, relatedId }: { relatedType: RelatedEn
   }
 
   return (
-    <ol className="flex flex-col gap-4">
+    <ol className="relative flex flex-col gap-4">
+      <div className="absolute top-4 bottom-4 left-4 w-px bg-border" aria-hidden />
       {events.map((event) => {
         const Icon = ICONS[event.eventType] ?? Clock;
         return (
           <li key={event.id} className="flex gap-3">
-            <div className="mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full bg-muted">
-              <Icon className="size-4 text-muted-foreground" />
+            <div className={`mt-0.5 flex size-8 shrink-0 items-center justify-center rounded-full ${toneClasses(event.eventType)}`}>
+              <Icon className="size-4" />
             </div>
             <div className="flex flex-col gap-0.5">
               <p className="text-sm font-medium">{event.title}</p>

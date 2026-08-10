@@ -6,24 +6,18 @@ import { useQuery } from "@tanstack/react-query";
 import {
   Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis, Cell,
 } from "recharts";
+import {
+  Users, UserPlus, UserCheck, CheckCircle2, Target, Trophy, XCircle, DollarSign,
+  Scale, Percent, ListChecks, AlertTriangle,
+} from "lucide-react";
 
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { apiClient } from "@/lib/api-client";
 import type { CrmDashboard, Lead, LeadSource, Opportunity, Pipeline } from "@/lib/types/crm";
 import { LeadStatusBadge, OpportunityStatusBadge } from "@/components/crm/shared/status-badges";
 import { formatCurrency, formatDate } from "@/components/crm/shared/format";
 import { CATEGORICAL_COLORS, STATUS_CRITICAL, STATUS_GOOD, SEQUENTIAL_BLUE } from "@/components/crm/shared/chart-colors";
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardDescription>{label}</CardDescription>
-        <CardTitle className="text-xl sm:text-2xl">{value}</CardTitle>
-      </CardHeader>
-    </Card>
-  );
-}
+import { StatTile } from "@/components/crm/shared/stat-tile";
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -84,18 +78,18 @@ export function CrmDashboardClient() {
       ) : (
         <>
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-            <StatCard label="Total Leads" value={String(data.totalLeads)} />
-            <StatCard label="New Leads" value={String(data.newLeads)} />
-            <StatCard label="Qualified Leads" value={String(data.qualifiedLeads)} />
-            <StatCard label="Converted Leads" value={String(data.convertedLeads)} />
-            <StatCard label="Open Opportunities" value={String(data.openOpportunities)} />
-            <StatCard label="Won Opportunities" value={String(data.wonOpportunities)} />
-            <StatCard label="Lost Opportunities" value={String(data.lostOpportunities)} />
-            <StatCard label="Pipeline Value" value={formatCurrency(data.pipelineValue)} />
-            <StatCard label="Weighted Pipeline" value={formatCurrency(data.weightedPipelineValue)} />
-            <StatCard label="Conversion Rate" value={`${data.conversionRate.toFixed(1)}%`} />
-            <StatCard label="Tasks Due Today" value={String(data.tasksDueToday)} />
-            <StatCard label="Overdue Follow-ups" value={String(data.overdueFollowUps)} />
+            <StatTile icon={Users} label="Total Leads" value={String(data.totalLeads)} />
+            <StatTile icon={UserPlus} label="New Leads" value={String(data.newLeads)} />
+            <StatTile icon={UserCheck} label="Qualified Leads" value={String(data.qualifiedLeads)} />
+            <StatTile icon={CheckCircle2} tone="success" label="Converted Leads" value={String(data.convertedLeads)} />
+            <StatTile icon={Target} label="Open Opportunities" value={String(data.openOpportunities)} />
+            <StatTile icon={Trophy} tone="success" label="Won Opportunities" value={String(data.wonOpportunities)} />
+            <StatTile icon={XCircle} tone="danger" label="Lost Opportunities" value={String(data.lostOpportunities)} />
+            <StatTile icon={DollarSign} label="Pipeline Value" value={formatCurrency(data.pipelineValue)} />
+            <StatTile icon={Scale} label="Weighted Pipeline" value={formatCurrency(data.weightedPipelineValue)} />
+            <StatTile icon={Percent} label="Conversion Rate" value={`${data.conversionRate.toFixed(1)}%`} />
+            <StatTile icon={ListChecks} tone={data.tasksDueToday > 0 ? "warning" : "default"} label="Tasks Due Today" value={String(data.tasksDueToday)} />
+            <StatTile icon={AlertTriangle} tone={data.overdueFollowUps > 0 ? "danger" : "default"} label="Overdue Follow-ups" value={String(data.overdueFollowUps)} />
           </div>
 
           <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

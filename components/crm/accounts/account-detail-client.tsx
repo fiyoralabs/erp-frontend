@@ -4,11 +4,11 @@ import * as React from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Pencil, UserPlus } from "lucide-react";
+import { ArrowLeft, Pencil, UserPlus, Phone, Mail, DollarSign, Users, CreditCard, Wallet, ShoppingBag } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable, type DataTableColumn } from "@/components/data-table/data-table";
 import { apiClient, ApiRequestError, type PagedResult } from "@/lib/api-client";
 import type { Account, AccountCustomerSummary, Contact, Opportunity } from "@/lib/types/crm";
@@ -20,6 +20,8 @@ import { FollowUpsTab } from "@/components/crm/shared/follow-ups-tab";
 import { CrmTimeline } from "@/components/crm/shared/crm-timeline";
 import { OpportunityStatusBadge } from "@/components/crm/shared/status-badges";
 import { formatCurrency, formatDate } from "@/components/crm/shared/format";
+import { StatTile } from "@/components/crm/shared/stat-tile";
+import { ScrollableTabsList } from "@/components/crm/shared/scrollable-tabs";
 
 function errorMessage(err: unknown) {
   if (err instanceof ApiRequestError) return err.message;
@@ -110,17 +112,17 @@ export function AccountDetailClient({ accountId }: { accountId: number }) {
               )}
             </div>
           </div>
-          <div className="grid grid-cols-2 gap-4 border-t pt-4 text-sm sm:grid-cols-4">
-            <div><p className="text-muted-foreground">Phone</p><p className="font-medium">{account.phone ?? "—"}</p></div>
-            <div><p className="text-muted-foreground">Email</p><p className="font-medium">{account.email ?? "—"}</p></div>
-            <div><p className="text-muted-foreground">Annual Revenue</p><p className="font-medium">{formatCurrency(account.annualRevenue)}</p></div>
-            <div><p className="text-muted-foreground">Employees</p><p className="font-medium">{account.employeeCount ?? "—"}</p></div>
+          <div className="grid grid-cols-2 gap-4 border-t pt-4 sm:grid-cols-4">
+            <StatTile variant="inline" icon={Phone} label="Phone" value={account.phone ?? "—"} />
+            <StatTile variant="inline" icon={Mail} label="Email" value={account.email ?? "—"} />
+            <StatTile variant="inline" icon={DollarSign} label="Annual Revenue" value={formatCurrency(account.annualRevenue)} />
+            <StatTile variant="inline" icon={Users} label="Employees" value={account.employeeCount ? String(account.employeeCount) : "—"} />
           </div>
         </CardContent>
       </Card>
 
       <Tabs defaultValue="contacts">
-        <TabsList>
+        <ScrollableTabsList className="inline-flex h-10 items-center justify-start rounded-lg bg-muted p-1 text-muted-foreground w-max min-w-full">
           <TabsTrigger value="contacts">Contacts</TabsTrigger>
           <TabsTrigger value="opportunities">Opportunities</TabsTrigger>
           <TabsTrigger value="sales">Sales</TabsTrigger>
@@ -128,7 +130,7 @@ export function AccountDetailClient({ accountId }: { accountId: number }) {
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
           <TabsTrigger value="follow-ups">Follow-ups</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
-        </TabsList>
+        </ScrollableTabsList>
         <TabsContent value="contacts">
           <DataTable columns={contactColumns} data={contactsQuery.data ?? []} rowKey={(r) => r.id} isLoading={contactsQuery.isLoading} emptyMessage="No contacts linked to this account." />
         </TabsContent>
@@ -172,11 +174,11 @@ function AccountSalesSummary({ summary, isLoading }: { summary: AccountCustomerS
   return (
     <div className="flex flex-col gap-4">
       <Card>
-        <CardContent className="grid grid-cols-2 gap-4 pt-6 text-sm sm:grid-cols-4">
-          <div><p className="text-muted-foreground">Customer</p><p className="font-medium">{summary.customerCode ?? `#${summary.customerId}`}</p></div>
-          <div><p className="text-muted-foreground">Credit Limit</p><p className="font-medium">{formatCurrency(summary.creditLimit)}</p></div>
-          <div><p className="text-muted-foreground">Outstanding Balance</p><p className="font-medium">{formatCurrency(summary.outstandingBalance)}</p></div>
-          <div><p className="text-muted-foreground">Total Purchases</p><p className="font-medium">{formatCurrency(summary.totalPurchaseAmount)}</p></div>
+        <CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <StatTile variant="inline" icon={Users} label="Customer" value={summary.customerCode ?? `#${summary.customerId}`} />
+          <StatTile variant="inline" icon={CreditCard} label="Credit Limit" value={formatCurrency(summary.creditLimit)} />
+          <StatTile variant="inline" icon={Wallet} tone={(summary.outstandingBalance ?? 0) > 0 ? "warning" : "default"} label="Outstanding Balance" value={formatCurrency(summary.outstandingBalance)} />
+          <StatTile variant="inline" icon={ShoppingBag} tone="success" label="Total Purchases" value={formatCurrency(summary.totalPurchaseAmount)} />
         </CardContent>
       </Card>
       <div>

@@ -18,6 +18,8 @@ import { apiClient, ApiRequestError } from "@/lib/api-client";
 import { opportunitySchema, type OpportunityFormValues } from "@/lib/validation/crm";
 import type { Opportunity, Pipeline } from "@/lib/types/crm";
 import { UserSelect, useCurrentUser } from "@/components/crm/shared/user-select";
+import { AccountSelect } from "@/components/crm/shared/account-select";
+import { ContactSelect } from "@/components/crm/shared/contact-select";
 
 const EMPTY: OpportunityFormValues = {
   name: "", accountId: undefined as unknown as number, primaryContactId: undefined,
@@ -108,19 +110,19 @@ export function OpportunityDialog({
             <FormField control={form.control} name="name" render={({ field }) => (
               <FormItem><FormLabel>Opportunity Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
             )} />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField control={form.control} name="accountId" render={({ field }) => (
-                <FormItem><FormLabel>Account ID</FormLabel><FormControl>
-                  <Input type="number" value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))} />
+                <FormItem><FormLabel>Account</FormLabel><FormControl>
+                  <AccountSelect value={field.value} onChange={field.onChange} allowNone={false} placeholder="Select account" />
                 </FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="primaryContactId" render={({ field }) => (
-                <FormItem><FormLabel>Primary Contact ID</FormLabel><FormControl>
-                  <Input type="number" value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))} />
+                <FormItem><FormLabel>Primary Contact</FormLabel><FormControl>
+                  <ContactSelect value={field.value} onChange={field.onChange} placeholder="Select contact" />
                 </FormControl><FormMessage /></FormItem>
               )} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField control={form.control} name="pipelineId" render={({ field }) => (
                 <FormItem>
                   <FormLabel>Pipeline</FormLabel>
@@ -146,7 +148,7 @@ export function OpportunityDialog({
                 </FormItem>
               )} />
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField control={form.control} name="amount" render={({ field }) => (
                 <FormItem><FormLabel>Amount</FormLabel><FormControl>
                   <Input type="number" value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))} />

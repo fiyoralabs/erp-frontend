@@ -16,6 +16,7 @@ import { apiClient, ApiRequestError } from "@/lib/api-client";
 import { contactSchema, type ContactFormValues } from "@/lib/validation/crm";
 import type { Contact } from "@/lib/types/crm";
 import { UserSelect, useCurrentUser } from "@/components/crm/shared/user-select";
+import { AccountSelect } from "@/components/crm/shared/account-select";
 
 const EMPTY: ContactFormValues = {
   firstName: "", lastName: "", accountId: undefined, locationId: undefined, jobTitle: "", department: "",
@@ -90,7 +91,7 @@ export function ContactDialog({
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit((v) => mutation.mutate(v))} className="flex flex-col gap-4">
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField control={form.control} name="firstName" render={({ field }) => (
                 <FormItem><FormLabel>First Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
               )} />
@@ -113,8 +114,8 @@ export function ContactDialog({
                 <FormItem><FormLabel>WhatsApp</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="accountId" render={({ field }) => (
-                <FormItem><FormLabel>Account ID</FormLabel><FormControl>
-                  <Input type="number" value={field.value ?? ""} onChange={(e) => field.onChange(e.target.value === "" ? undefined : Number(e.target.value))} />
+                <FormItem><FormLabel>Account</FormLabel><FormControl>
+                  <AccountSelect value={field.value} onChange={field.onChange} placeholder="Select account" />
                 </FormControl><FormMessage /></FormItem>
               )} />
             </div>

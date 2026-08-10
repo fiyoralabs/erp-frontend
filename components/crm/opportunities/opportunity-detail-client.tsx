@@ -4,11 +4,14 @@ import * as React from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Pencil, Trophy, XCircle, FileText, Loader2 } from "lucide-react";
+import { ArrowLeft, Pencil, Trophy, XCircle, FileText, Loader2, MoreVertical, DollarSign, Percent, TrendingUp, CalendarClock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { apiClient, ApiRequestError } from "@/lib/api-client";
 import type { Account, Opportunity, OpportunityProductLine, Pipeline, Quotation } from "@/lib/types/crm";
 import { OpportunityStatusBadge } from "@/components/crm/shared/status-badges";
@@ -21,6 +24,8 @@ import { ActivitiesTab } from "@/components/crm/activities/activities-tab";
 import { TasksTab } from "@/components/crm/tasks/tasks-tab";
 import { FollowUpsTab } from "@/components/crm/shared/follow-ups-tab";
 import { CrmTimeline } from "@/components/crm/shared/crm-timeline";
+import { StatTile } from "@/components/crm/shared/stat-tile";
+import { ScrollableTabsList } from "@/components/crm/shared/scrollable-tabs";
 
 function errorMessage(err: unknown) {
   if (err instanceof ApiRequestError) return err.message;
@@ -121,32 +126,54 @@ export function OpportunityDetailClient({ opportunityId }: { opportunityId: numb
                 {opportunity.opportunityNumber} · {pipeline?.name ?? "Pipeline"} / {stage?.name ?? "Stage"}
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {isOpen && (
                 <>
-                  <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setEditOpen(true)}>
-                    <Pencil className="size-4" /> Edit
-                  </Button>
-                  <Button variant="outline" size="sm" className="gap-1.5" disabled={createQuotationMutation.isPending} onClick={() => createQuotationMutation.mutate()}>
-                    {createQuotationMutation.isPending ? <Loader2 className="animate-spin" /> : <FileText className="size-4" />}
-                    Create Quotation
+                  {/* Informational/setup actions -- inline on sm+, collapsed below */}
+                  <div className="hidden items-center gap-2 sm:flex">
+                    <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setEditOpen(true)}>
+                      <Pencil className="size-4" /> Edit
+                    </Button>
+                    <Button variant="ghost" size="sm" className="gap-1.5" disabled={createQuotationMutation.isPending} onClick={() => createQuotationMutation.mutate()}>
+                      {createQuotationMutation.isPending ? <Loader2 className="animate-spin" /> : <FileText className="size-4" />}
+                      Create Quotation
+                    </Button>
+                  </div>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger render={<Button variant="outline" size="icon" className="sm:hidden" aria-label="More actions" />}>
+                      <MoreVertical className="size-4" />
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="start">
+                      <DropdownMenuItem onClick={() => setEditOpen(true)} className="flex items-center gap-2">
+                        <Pencil className="size-3.5" /> Edit
+                      </DropdownMenuItem>
+                      <DropdownMenuItem
+                        disabled={createQuotationMutation.isPending}
+                        onClick={() => createQuotationMutation.mutate()}
+                        className="flex items-center gap-2"
+                      >
+                        <FileText className="size-3.5" /> Create Quotation
+                      </DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+
+                  {/* High-consequence actions stay full-weight, always visible */}
+                  <Button variant="destructive" size="sm" className="gap-1.5" onClick={() => setLostOpen(true)}>
+                    <XCircle className="size-4" /> Mark Lost
                   </Button>
                   <Button size="sm" className="gap-1.5" onClick={() => setWonOpen(true)}>
                     <Trophy className="size-4" /> Mark Won
-                  </Button>
-                  <Button variant="destructive" size="sm" className="gap-1.5" onClick={() => setLostOpen(true)}>
-                    <XCircle className="size-4" /> Mark Lost
                   </Button>
                 </>
               )}
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 border-t pt-4 text-sm sm:grid-cols-4">
-            <div><p className="text-muted-foreground">Amount</p><p className="font-medium">{formatCurrency(opportunity.amount)}</p></div>
-            <div><p className="text-muted-foreground">Probability</p><p className="font-medium">{opportunity.probability}%</p></div>
-            <div><p className="text-muted-foreground">Expected Revenue</p><p className="font-medium">{formatCurrency(opportunity.expectedRevenue)}</p></div>
-            <div><p className="text-muted-foreground">Expected Close</p><p className="font-medium">{formatDate(opportunity.expectedCloseDate)}</p></div>
+          <div className="grid grid-cols-2 gap-4 border-t pt-4 sm:grid-cols-4">
+            <StatTile variant="inline" icon={DollarSign} label="Amount" value={formatCurrency(opportunity.amount)} />
+            <StatTile variant="inline" icon={Percent} label="Probability" value={`${opportunity.probability}%`} />
+            <StatTile variant="inline" icon={TrendingUp} label="Expected Revenue" value={formatCurrency(opportunity.expectedRevenue)} />
+            <StatTile variant="inline" icon={CalendarClock} label="Expected Close" value={formatDate(opportunity.expectedCloseDate)} />
           </div>
 
           {opportunity.status === "LOST" && opportunity.lossReason && (
@@ -164,14 +191,14 @@ export function OpportunityDetailClient({ opportunityId }: { opportunityId: numb
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="products">
-        <TabsList>
+      <Tabs defaultValue="products" className="w-full">
+        <ScrollableTabsList className="inline-flex h-10 items-center justify-start rounded-lg bg-muted p-1 text-muted-foreground w-max min-w-full">
           <TabsTrigger value="products">Products</TabsTrigger>
           <TabsTrigger value="activities">Activities</TabsTrigger>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
           <TabsTrigger value="follow-ups">Follow-ups</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
-        </TabsList>
+        </ScrollableTabsList>
         <TabsContent value="products"><OpportunityProductsTab opportunityId={opportunity.id} /></TabsContent>
         <TabsContent value="activities"><ActivitiesTab relatedType="OPPORTUNITY" relatedId={opportunity.id} /></TabsContent>
         <TabsContent value="tasks"><TasksTab relatedType="OPPORTUNITY" relatedId={opportunity.id} /></TabsContent>

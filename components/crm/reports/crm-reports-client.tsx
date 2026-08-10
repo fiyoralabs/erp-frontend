@@ -2,6 +2,7 @@
 
 import { useQuery } from "@tanstack/react-query";
 import { Bar, BarChart, CartesianGrid, Cell, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Percent, DollarSign, Scale, Trophy, CheckCircle2, XCircle, Banknote, CalendarClock } from "lucide-react";
 
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { DataTable, type DataTableColumn } from "@/components/data-table/data-table";
@@ -9,17 +10,7 @@ import { apiClient } from "@/lib/api-client";
 import type { CrmReports } from "@/lib/types/crm";
 import { formatCurrency } from "@/components/crm/shared/format";
 import { CATEGORICAL_COLORS, SEQUENTIAL_BLUE, STATUS_CRITICAL } from "@/components/crm/shared/chart-colors";
-
-function StatCard({ label, value }: { label: string; value: string }) {
-  return (
-    <Card>
-      <CardHeader>
-        <CardDescription>{label}</CardDescription>
-        <CardTitle className="text-xl sm:text-2xl">{value}</CardTitle>
-      </CardHeader>
-    </Card>
-  );
-}
+import { StatTile } from "@/components/crm/shared/stat-tile";
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -57,14 +48,14 @@ export function CrmReportsClient() {
       </div>
 
       <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-        <StatCard label="Lead Conversion Rate" value={`${data.leadConversionRate.toFixed(1)}%`} />
-        <StatCard label="Pipeline Value" value={formatCurrency(data.pipelineValue)} />
-        <StatCard label="Weighted Pipeline" value={formatCurrency(data.weightedPipelineValue)} />
-        <StatCard label="Win Rate" value={`${data.winRate.toFixed(1)}%`} />
-        <StatCard label="Won Deals" value={String(data.wonDeals)} />
-        <StatCard label="Lost Deals" value={String(data.lostDeals)} />
-        <StatCard label="Average Deal Size" value={formatCurrency(data.averageDealSize)} />
-        <StatCard label="Avg. Sales Cycle" value={data.averageSalesCycleDays !== null ? `${data.averageSalesCycleDays.toFixed(0)}d` : "—"} />
+        <StatTile icon={Percent} label="Lead Conversion Rate" value={`${data.leadConversionRate.toFixed(1)}%`} />
+        <StatTile icon={DollarSign} label="Pipeline Value" value={formatCurrency(data.pipelineValue)} />
+        <StatTile icon={Scale} label="Weighted Pipeline" value={formatCurrency(data.weightedPipelineValue)} />
+        <StatTile icon={Trophy} tone="success" label="Win Rate" value={`${data.winRate.toFixed(1)}%`} />
+        <StatTile icon={CheckCircle2} tone="success" label="Won Deals" value={String(data.wonDeals)} />
+        <StatTile icon={XCircle} tone="danger" label="Lost Deals" value={String(data.lostDeals)} />
+        <StatTile icon={Banknote} label="Average Deal Size" value={formatCurrency(data.averageDealSize)} />
+        <StatTile icon={CalendarClock} label="Avg. Sales Cycle" value={data.averageSalesCycleDays !== null ? `${data.averageSalesCycleDays.toFixed(0)}d` : "—"} />
       </div>
 
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

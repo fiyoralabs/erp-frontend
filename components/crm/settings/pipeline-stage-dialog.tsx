@@ -72,7 +72,7 @@ export function PipelineStageDialog({
             <FormField control={form.control} name="name" render={({ field }) => (
               <FormItem><FormLabel>Name</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
             )} />
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
               <FormField control={form.control} name="sequence" render={({ field }) => (
                 <FormItem><FormLabel>Sequence</FormLabel><FormControl>
                   <Input type="number" value={field.value ?? ""} onChange={(e) => field.onChange(Number(e.target.value))} />
@@ -85,7 +85,16 @@ export function PipelineStageDialog({
               )} />
             </div>
             <FormField control={form.control} name="color" render={({ field }) => (
-              <FormItem><FormLabel>Color</FormLabel><FormControl><Input {...field} placeholder="#3730A3" /></FormControl><FormMessage /></FormItem>
+              <FormItem><FormLabel>Color</FormLabel><FormControl>
+                <div className="flex items-center gap-2">
+                  <span
+                    className="size-9 shrink-0 rounded-md border"
+                    style={{ backgroundColor: field.value || "transparent" }}
+                    aria-hidden
+                  />
+                  <Input {...field} placeholder="#3730A3" />
+                </div>
+              </FormControl><FormMessage /></FormItem>
             )} />
             <label className="flex items-center gap-2 text-sm font-medium">
               <Checkbox checked={form.watch("isWon")} onCheckedChange={(v) => form.setValue("isWon", !!v)} />

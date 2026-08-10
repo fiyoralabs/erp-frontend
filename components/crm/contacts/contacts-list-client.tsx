@@ -12,6 +12,7 @@ import { apiClient, type PagedResult } from "@/lib/api-client";
 import type { Contact } from "@/lib/types/crm";
 import { ActiveBadge } from "@/components/shared/active-badge";
 import { ContactDialog } from "@/components/crm/contacts/contact-dialog";
+import { useAccountNameLookup } from "@/components/crm/shared/account-select";
 
 function useDebounced<T>(value: T, delayMs = 300) {
   const [debounced, setDebounced] = React.useState(value);
@@ -36,13 +37,15 @@ export function ContactsListClient() {
     queryFn: () => apiClient.get<PagedResult<Contact>>(`crm/contacts?${params.toString()}`),
   });
 
+  const accountNameById = useAccountNameLookup();
+
   const columns: DataTableColumn<Contact>[] = [
     { key: "name", header: "Name", render: (r) => <Link href={`/crm/contacts/${r.id}`} className="font-medium text-primary hover:underline">{r.firstName} {r.lastName}</Link> },
-    { key: "title", header: "Title", render: (r) => r.jobTitle ?? "—" },
+    { key: "title", header: "Title", render: (r) => r.jobTitle ?? "—", hideOnCard: true },
     { key: "email", header: "Email", render: (r) => r.email ?? "—" },
     { key: "phone", header: "Phone", render: (r) => r.mobile ?? r.phone ?? "—" },
-    { key: "account", header: "Account", render: (r) => r.accountId ? <Link href={`/crm/accounts/${r.accountId}`} className="text-primary hover:underline">#{r.accountId}</Link> : "—" },
-    { key: "status", header: "Status", render: (r) => <ActiveBadge isActive={r.active} /> },
+    { key: "account", header: "Account", render: (r) => r.accountId ? <Link href={`/crm/accounts/${r.accountId}`} className="text-primary hover:underline">{accountNameById.get(r.accountId) ?? `#${r.accountId}`}</Link> : "—" },
+    { key: "status", header: "Status", render: (r) => <ActiveBadge isActive={r.active} />, hideOnCard: true },
   ];
 
   return (

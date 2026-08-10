@@ -4,11 +4,11 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Phone, Mail, MessageSquare, StickyNote, CalendarCheck, MapPin, FileText, Clock, CheckCircle2, AlertCircle, ArrowUpRight, Filter } from "lucide-react";
+import { Phone, Mail, MessageSquare, StickyNote, CalendarCheck, MapPin, FileText, Clock, CheckCircle2, AlertCircle, ArrowUpRight } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { DataTable, type DataTableColumn } from "@/components/data-table/data-table";
 import { apiClient, type PagedResult } from "@/lib/api-client";
 import type { Activity, ActivityType, FollowUp } from "@/lib/types/crm";
@@ -29,6 +29,19 @@ function getRelatedLink(relatedType?: string, relatedId?: number) {
   if (t === "ACCOUNT") return `/crm/accounts/${relatedId}`;
   return null;
 }
+
+const RELATED_TYPE_LABEL: Record<string, string> = {
+  LEAD: "Open Lead", OPPORTUNITY: "Open Deal", CONTACT: "Open Contact", ACCOUNT: "Open Account",
+};
+
+const VIEWS = [
+  { value: "ALL", label: "All Engagements" },
+  { value: "FOLLOWUPS", label: "Follow-ups Only" },
+  { value: "ACTIVITIES", label: "Activities Only" },
+  { value: "PENDING", label: "Pending Follow-ups" },
+  { value: "TODAY", label: "Today's Follow-ups" },
+  { value: "OVERDUE", label: "Overdue" },
+] as const;
 
 export function ActivitiesListClient() {
   const router = useRouter();
@@ -156,6 +169,7 @@ export function ActivitiesListClient() {
       key: "assigned",
       header: "Assigned To",
       render: (r) => (r.assignedUserId ? userNameById.get(r.assignedUserId) ?? `User #${r.assignedUserId}` : <span className="text-muted-foreground">Unassigned</span>),
+      hideOnCard: true,
     },
     {
       key: "status",
@@ -183,10 +197,11 @@ export function ActivitiesListClient() {
         if (!link) return null;
         return (
           <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); router.push(link); }}>
-            Open Lead / Deal
+            {(r.relatedType && RELATED_TYPE_LABEL[r.relatedType.toUpperCase()]) || "Open"}
           </Button>
         );
       },
+      hideOnCard: true,
     },
   ];
 
@@ -197,31 +212,13 @@ export function ActivitiesListClient() {
         <p className="text-sm text-muted-foreground">Unified 360° interaction hub for activities, follow-ups, and sales tasks.</p>
       </div>
 
-      <Card>
-        <CardContent className="flex flex-wrap items-center gap-2 pt-6">
-          <span className="flex items-center gap-1 text-sm font-medium text-muted-foreground mr-2">
-            <Filter className="size-4" /> Quick Filter:
-          </span>
-          <Button size="sm" variant={filter === "ALL" ? "default" : "outline"} onClick={() => { setFilter("ALL"); setPage(0); }}>
-            All Engagements
-          </Button>
-          <Button size="sm" variant={filter === "FOLLOWUPS" ? "default" : "outline"} onClick={() => { setFilter("FOLLOWUPS"); setPage(0); }}>
-            Follow-ups Only
-          </Button>
-          <Button size="sm" variant={filter === "ACTIVITIES" ? "default" : "outline"} onClick={() => { setFilter("ACTIVITIES"); setPage(0); }}>
-            Activities Only
-          </Button>
-          <Button size="sm" variant={filter === "PENDING" ? "default" : "outline"} onClick={() => { setFilter("PENDING"); setPage(0); }}>
-            Pending Follow-ups
-          </Button>
-          <Button size="sm" variant={filter === "TODAY" ? "default" : "outline"} onClick={() => { setFilter("TODAY"); setPage(0); }}>
-            Today's Follow-ups
-          </Button>
-          <Button size="sm" variant={filter === "OVERDUE" ? "default" : "outline"} onClick={() => { setFilter("OVERDUE"); setPage(0); }}>
-            Overdue
-          </Button>
-        </CardContent>
-      </Card>
+      <Tabs value={filter} onValueChange={(v) => { setFilter(v as typeof filter); setPage(0); }} className="w-full">
+        <div className="overflow-x-auto scrollbar-none pb-1">
+          <TabsList className="inline-flex h-10 items-center justify-start rounded-lg bg-muted p-1 text-muted-foreground w-max min-w-full">
+            {VIEWS.map((v) => <TabsTrigger key={v.value} value={v.value}>{v.label}</TabsTrigger>)}
+          </TabsList>
+        </div>
+      </Tabs>
 
       <DataTable
         columns={columns}

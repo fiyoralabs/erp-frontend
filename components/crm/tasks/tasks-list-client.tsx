@@ -65,10 +65,12 @@ export function TasksListClient() {
           <Plus className="size-4" /> Add Task
         </Button>
       </div>
-      <Tabs value={view} onValueChange={(v) => { setView(v); setPage(0); }}>
-        <TabsList>
-          {VIEWS.map((v) => <TabsTrigger key={v.value} value={v.value}>{v.label}</TabsTrigger>)}
-        </TabsList>
+      <Tabs value={view} onValueChange={(v) => { setView(v); setPage(0); }} className="w-full">
+        <div className="overflow-x-auto scrollbar-none pb-1">
+          <TabsList className="inline-flex h-10 items-center justify-start rounded-lg bg-muted p-1 text-muted-foreground w-max min-w-full">
+            {VIEWS.map((v) => <TabsTrigger key={v.value} value={v.value}>{v.label}</TabsTrigger>)}
+          </TabsList>
+        </div>
       </Tabs>
       <DataTable
         columns={columns}

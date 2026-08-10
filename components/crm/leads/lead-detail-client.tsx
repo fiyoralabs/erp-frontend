@@ -4,12 +4,15 @@ import * as React from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Phone, Mail, MessageSquare, Pencil, Handshake, Loader2 } from "lucide-react";
+import { ArrowLeft, Phone, Mail, MessageSquare, Pencil, Handshake, Loader2, MoreVertical, DollarSign, Radio, Clock3, CalendarClock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { apiClient, ApiRequestError } from "@/lib/api-client";
 import type { Lead, LeadSource } from "@/lib/types/crm";
 import { LeadRatingBadge, LeadStatusBadge } from "@/components/crm/shared/status-badges";
@@ -20,6 +23,8 @@ import { FollowUpsTab } from "@/components/crm/shared/follow-ups-tab";
 import { LeadProductsTab } from "@/components/crm/leads/lead-products-tab";
 import { CrmTimeline } from "@/components/crm/shared/crm-timeline";
 import { LeadConvertDialog } from "@/components/crm/leads/lead-convert-dialog";
+import { StatTile } from "@/components/crm/shared/stat-tile";
+import { ScrollableTabsList } from "@/components/crm/shared/scrollable-tabs";
 
 const STATUS_OPTIONS = ["NEW", "CONTACTED", "ATTEMPTED_CONTACT", "INTERESTED", "QUALIFIED", "UNQUALIFIED", "NURTURING", "LOST"];
 
@@ -86,25 +91,57 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
                 {lead.leadNumber} {lead.companyName ? `· ${lead.companyName}` : ""} {lead.jobTitle ? `· ${lead.jobTitle}` : ""}
               </p>
             </div>
-            <div className="flex flex-wrap gap-2">
-              {lead.phone && (
-                <Button nativeButton={false} variant="outline" size="sm" className="gap-1.5" render={<a href={`tel:${lead.phone}`} />}>
-                  <Phone className="size-4" /> Call
+            <div className="flex flex-wrap items-center gap-2">
+              {/* Secondary/informational actions -- inline on sm+, collapsed below */}
+              <div className="hidden items-center gap-2 sm:flex">
+                {lead.phone && (
+                  <Button nativeButton={false} variant="ghost" size="sm" className="gap-1.5" render={<a href={`tel:${lead.phone}`} />}>
+                    <Phone className="size-4" /> Call
+                  </Button>
+                )}
+                {lead.email && (
+                  <Button nativeButton={false} variant="ghost" size="sm" className="gap-1.5" render={<a href={`mailto:${lead.email}`} />}>
+                    <Mail className="size-4" /> Email
+                  </Button>
+                )}
+                {lead.whatsappNumber && (
+                  <Button nativeButton={false} variant="ghost" size="sm" className="gap-1.5" render={<a href={`https://wa.me/${lead.whatsappNumber.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" />}>
+                    <MessageSquare className="size-4" /> WhatsApp
+                  </Button>
+                )}
+                <Button nativeButton={false} variant="ghost" size="sm" className="gap-1.5" render={<Link href={`/crm/leads/${lead.id}/edit`} />}>
+                  <Pencil className="size-4" /> Edit
                 </Button>
-              )}
-              {lead.email && (
-                <Button nativeButton={false} variant="outline" size="sm" className="gap-1.5" render={<a href={`mailto:${lead.email}`} />}>
-                  <Mail className="size-4" /> Email
-                </Button>
-              )}
-              {lead.whatsappNumber && (
-                <Button nativeButton={false} variant="outline" size="sm" className="gap-1.5" render={<a href={`https://wa.me/${lead.whatsappNumber.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" />}>
-                  <MessageSquare className="size-4" /> WhatsApp
-                </Button>
-              )}
-              <Button nativeButton={false} variant="outline" size="sm" className="gap-1.5" render={<Link href={`/crm/leads/${lead.id}/edit`} />}>
-                <Pencil className="size-4" /> Edit
-              </Button>
+              </div>
+
+              {/* Same actions, collapsed into a menu below sm: to avoid a
+                  multi-row button wrap on phones. */}
+              <DropdownMenu>
+                <DropdownMenuTrigger render={<Button variant="outline" size="icon" className="sm:hidden" aria-label="More actions" />}>
+                  <MoreVertical className="size-4" />
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  {lead.phone && (
+                    <DropdownMenuItem render={<a href={`tel:${lead.phone}`} className="flex items-center gap-2" />}>
+                      <Phone className="size-3.5" /> Call
+                    </DropdownMenuItem>
+                  )}
+                  {lead.email && (
+                    <DropdownMenuItem render={<a href={`mailto:${lead.email}`} className="flex items-center gap-2" />}>
+                      <Mail className="size-3.5" /> Email
+                    </DropdownMenuItem>
+                  )}
+                  {lead.whatsappNumber && (
+                    <DropdownMenuItem render={<a href={`https://wa.me/${lead.whatsappNumber.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="flex items-center gap-2" />}>
+                      <MessageSquare className="size-3.5" /> WhatsApp
+                    </DropdownMenuItem>
+                  )}
+                  <DropdownMenuItem render={<Link href={`/crm/leads/${lead.id}/edit`} className="flex items-center gap-2" />}>
+                    <Pencil className="size-3.5" /> Edit
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
+
               {!isConverted && (
                 <Button size="sm" className="gap-1.5" onClick={() => setConvertOpen(true)}>
                   <Handshake className="size-4" /> Convert
@@ -113,11 +150,11 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
             </div>
           </div>
 
-          <div className="grid grid-cols-2 gap-4 border-t pt-4 text-sm sm:grid-cols-4">
-            <div><p className="text-muted-foreground">Deal Value</p><p className="font-medium">{formatCurrency(lead.estimatedDealValue)}</p></div>
-            <div><p className="text-muted-foreground">Source</p><p className="font-medium">{sourceName ?? "—"}</p></div>
-            <div><p className="text-muted-foreground">Last Contacted</p><p className="font-medium">{formatDateTime(lead.lastContactedAt)}</p></div>
-            <div><p className="text-muted-foreground">Next Follow-up</p><p className="font-medium">{formatDateTime(lead.nextFollowUpAt)}</p></div>
+          <div className="grid grid-cols-2 gap-4 border-t pt-4 sm:grid-cols-4">
+            <StatTile variant="inline" icon={DollarSign} label="Deal Value" value={formatCurrency(lead.estimatedDealValue)} />
+            <StatTile variant="inline" icon={Radio} label="Source" value={sourceName ?? "—"} />
+            <StatTile variant="inline" icon={Clock3} label="Last Contacted" value={formatDateTime(lead.lastContactedAt)} />
+            <StatTile variant="inline" icon={CalendarClock} label="Next Follow-up" value={formatDateTime(lead.nextFollowUpAt)} />
           </div>
 
           {!isConverted && (
@@ -147,15 +184,15 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="overview">
-        <TabsList>
+      <Tabs defaultValue="overview" className="w-full">
+        <ScrollableTabsList className="inline-flex h-10 items-center justify-start rounded-lg bg-muted p-1 text-muted-foreground w-max min-w-full">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="activities">Activities</TabsTrigger>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
           <TabsTrigger value="follow-ups">Follow-ups</TabsTrigger>
           <TabsTrigger value="products">Products</TabsTrigger>
           <TabsTrigger value="timeline">Timeline</TabsTrigger>
-        </TabsList>
+        </ScrollableTabsList>
         <TabsContent value="overview">
           <Card>
             <CardContent className="grid grid-cols-1 gap-4 pt-6 sm:grid-cols-2">
