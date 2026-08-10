@@ -42,6 +42,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
+import { usePaymentMethodsLookup, useTaxesLookup } from "@/lib/hooks/use-master-data";
 
 type Sellable = { productId: number; variantId: number | null; label: string };
 type Action = "supplier" | "order" | "receipt" | "invoice" | "payment" | "return" | null;
@@ -102,14 +103,8 @@ export function PurchasesClient() {
     queryKey: ["master", "locations", "purchase"],
     queryFn: () => apiClient.get<PagedResult<Location>>("master/locations?page=0&size=100"),
   });
-  const taxes = useQuery({
-    queryKey: ["master", "taxes", "purchase"],
-    queryFn: () => apiClient.get<PagedResult<Tax>>("master/taxes?page=0&size=100"),
-  });
-  const methods = useQuery({
-    queryKey: ["master", "payment-methods", "purchase"],
-    queryFn: () => apiClient.get<PagedResult<PaymentMethod>>("master/payment-methods?page=0&size=100"),
-  });
+  const taxes = useTaxesLookup();
+  const methods = usePaymentMethodsLookup();
   const stockQuery = useQuery({
     queryKey: ["inventory", "stock", activeLocation?.id],
     enabled: !!activeLocation,

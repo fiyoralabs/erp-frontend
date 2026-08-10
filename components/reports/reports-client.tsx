@@ -7,6 +7,7 @@ import {apiClient,ApiRequestError,type PagedResult} from "@/lib/api-client";
 import {localDateInputValue} from "@/lib/date";
 import type {Location,Category} from "@/lib/types/master";
 import {categoryHierarchy} from "@/lib/category-hierarchy";
+import {useCategoriesLookup} from "@/lib/hooks/use-master-data";
 import type {Product} from "@/lib/types/product";
 import type {Customer} from "@/lib/types/sales";
 import type {Supplier} from "@/lib/types/purchase";
@@ -55,7 +56,7 @@ const reports:ReportDef[]=[
 const groups:[Group,string][]=[["Executive","Overview"],["Sales","Sales"],["Purchases","Purchases"],["Inventory","Inventory"],["Expenses","Expenses"],["Finance","Finance"],["Customers","Customers"],["Suppliers","Suppliers"]];
 
 export function ReportsClient(){const [group,setGroup]=React.useState<Group>("Executive"),[id,setId]=React.useState("overview"),[from,setFrom]=React.useState(`${new Date().getFullYear()}-01-01`),[to,setTo]=React.useState(localDateInputValue()),[location,setLocation]=React.useState("all"),[customer,setCustomer]=React.useState("all"),[supplier,setSupplier]=React.useState("all"),[product,setProduct]=React.useState("all"),[category,setCategory]=React.useState("all"),[horizon,setHorizon]=React.useState("30");
- const locations=useQuery({queryKey:["reports","locations"],queryFn:()=>apiClient.get<PagedResult<Location>>("master/locations?page=0&size=100")});const customers=useQuery({queryKey:["reports","customers"],queryFn:()=>apiClient.get<PagedResult<Customer>>("sales/customers?page=0&size=100")});const suppliers=useQuery({queryKey:["reports","suppliers"],queryFn:()=>apiClient.get<Supplier[]>("purchases/suppliers")});const products=useQuery({queryKey:["reports","products"],queryFn:()=>apiClient.get<PagedResult<Product>>("products?page=0&size=100")});const categories=useQuery({queryKey:["reports","categories"],queryFn:()=>apiClient.get<PagedResult<Category>>("master/categories?page=0&size=100")});
+ const locations=useQuery({queryKey:["reports","locations"],queryFn:()=>apiClient.get<PagedResult<Location>>("master/locations?page=0&size=100")});const customers=useQuery({queryKey:["reports","customers"],queryFn:()=>apiClient.get<PagedResult<Customer>>("sales/customers?page=0&size=100")});const suppliers=useQuery({queryKey:["reports","suppliers"],queryFn:()=>apiClient.get<Supplier[]>("purchases/suppliers")});const products=useQuery({queryKey:["reports","products"],queryFn:()=>apiClient.get<PagedResult<Product>>("products?page=0&size=100")});const categories=useCategoriesLookup();
  const report=reports.find(x=>x.id===id)??reports[0];React.useEffect(()=>{const first=reports.find(x=>x.group===group);if(first)setId(first.id)},[group]);
  const path=React.useMemo(()=>buildPath(report,{from,to,location,customer,supplier,product,category,horizon}),[report,from,to,location,customer,supplier,product,category,horizon]);const runnable=(!report.filters.includes("ledger")||(product!=="all"&&location!=="all"))&&(report.id!=="customer-ledger"||customer!=="all");
  const result=useQuery({queryKey:["reports",report.id,path],queryFn:()=>apiClient.get<unknown>(`reports/${path}`),enabled:runnable});const names={locations:locations.data?.content??[],customers:customers.data?.content??[],suppliers:suppliers.data??[],products:products.data?.content??[],categories:categories.data?.content??[]};

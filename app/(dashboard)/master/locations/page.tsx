@@ -45,8 +45,9 @@ import {
 } from "@/components/master/location-tree";
 import { collectDescendantIds } from "@/lib/tree";
 import { apiClient, ApiRequestError, type PagedResult } from "@/lib/api-client";
+import { usePriceListsLookup } from "@/lib/hooks/use-master-data";
 import { locationSchema, type LocationFormValues } from "@/lib/validation/master";
-import type { Location, LocationType, PriceList } from "@/lib/types/master";
+import type { Location, LocationType } from "@/lib/types/master";
 
 const LOCATION_TYPES: LocationType[] = ["STORE", "WAREHOUSE", "OFFICE", "KITCHEN", "OUTLET"];
 const NO_PARENT = "__none__";
@@ -94,10 +95,7 @@ export default function LocationsPage() {
     queryFn: () => apiClient.get<PagedResult<Location>>("master/locations?page=0&size=100"),
   });
 
-  const priceListsQuery = useQuery({
-    queryKey: ["master", "price-lists", "active-for-location-create"],
-    queryFn: () => apiClient.get<PagedResult<PriceList>>("master/price-lists?page=0&size=100"),
-  });
+  const priceListsQuery = usePriceListsLookup();
 
   const allLocations = (listQuery.data?.content ?? []).filter((location) => location.isActive);
 

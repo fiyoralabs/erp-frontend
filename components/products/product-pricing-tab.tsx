@@ -10,9 +10,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { apiClient, ApiRequestError, type PagedResult } from "@/lib/api-client";
+import { apiClient, ApiRequestError } from "@/lib/api-client";
 import type { Price, Variant } from "@/lib/types/product";
-import type { PriceList } from "@/lib/types/master";
+import { usePriceListsLookup } from "@/lib/hooks/use-master-data";
 
 interface PriceRow {
   variantId: number | null;
@@ -44,10 +44,7 @@ export function ProductPricingTab({ productId, companyId, hasVariants }: {
   const [priceListId, setPriceListId] = React.useState<number | null>(null);
   const [rows, setRows] = React.useState<PriceRow[]>([]);
 
-  const priceListsQuery = useQuery({
-    queryKey: ["master", "price-lists", "active-for-products"],
-    queryFn: () => apiClient.get<PagedResult<PriceList>>("master/price-lists?page=0&size=100"),
-  });
+  const priceListsQuery = usePriceListsLookup();
   const variantsQuery = useQuery({
     queryKey: ["products", productId, "variants"],
     queryFn: () => apiClient.get<Variant[]>(`products/${productId}/variants`),

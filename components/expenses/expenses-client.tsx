@@ -8,6 +8,7 @@ import { apiClient,ApiRequestError,type PagedResult } from "@/lib/api-client";
 import { localDateInputValue } from "@/lib/date";
 import type { Location,PaymentMethod } from "@/lib/types/master";
 import type { Expense,ExpenseCategory } from "@/lib/types/expense";
+import { usePaymentMethodsLookup } from "@/lib/hooks/use-master-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card,CardContent,CardDescription,CardHeader,CardTitle } from "@/components/ui/card";
@@ -37,7 +38,7 @@ export function ExpensesClient(){
   const categories=useQuery({queryKey:["expense","categories"],queryFn:()=>apiClient.get<PagedResult<ExpenseCategory>>("expense-categories?page=0&size=100")});
   const expenses=useQuery({queryKey:["expense","list",query],queryFn:()=>apiClient.get<PagedResult<Expense>>(`expenses?${query}`)});
   const locations=useQuery({queryKey:["master","locations","expense"],queryFn:()=>apiClient.get<PagedResult<Location>>("master/locations?page=0&size=100")});
-  const methods=useQuery({queryKey:["master","payment-methods","expense"],queryFn:()=>apiClient.get<PagedResult<PaymentMethod>>("master/payment-methods?page=0&size=100")});
+  const methods=usePaymentMethodsLookup();
   const detail=useQuery({queryKey:["expense","detail",detailId],queryFn:()=>apiClient.get<Expense>(`expenses/${detailId}`),enabled:detailId!==null});
   const cats=(categories.data?.content??[]).filter(x=>x.active), rows=expenses.data?.content??[], locs=(locations.data?.content??[]).filter(x=>x.isActive);
   const manual=rows.filter(x=>x.source==="MANUAL").reduce((a,x)=>a+x.amount,0),loss=rows.filter(x=>x.source==="INVENTORY_LOSS").reduce((a,x)=>a+x.amount,0);

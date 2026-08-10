@@ -16,9 +16,10 @@ import { DataTable, type DataTableColumn } from "@/components/data-table/data-ta
 import { ActiveBadge } from "@/components/shared/active-badge";
 import { apiClient, type PagedResult } from "@/lib/api-client";
 import { categoryAndDescendantIds, categoryHierarchy } from "@/lib/category-hierarchy";
-import type { Brand, Category, CategoryAttribute, PriceList } from "@/lib/types/master";
+import type { Brand, CategoryAttribute } from "@/lib/types/master";
 import type { ProductSummary } from "@/lib/types/product";
 import { SetsManagementClient } from "@/components/products/sets-management-client";
+import { useCategoriesLookup, usePriceListsLookup } from "@/lib/hooks/use-master-data";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
@@ -43,8 +44,8 @@ export function ProductsListClient({ companyId: _companyId }: { companyId: numbe
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  const categories = useQuery({ queryKey: ["master", "categories", "product-filter"], queryFn: () => apiClient.get<PagedResult<Category>>("master/categories?page=0&size=500") });
-  const priceLists = useQuery({ queryKey: ["master", "price-lists", "product-filter"], queryFn: () => apiClient.get<PagedResult<PriceList>>("master/price-lists?page=0&size=500") });
+  const categories = useCategoriesLookup();
+  const priceLists = usePriceListsLookup();
   const relevantCategoryIds = categoryId
     ? categoryAndDescendantIds(categories.data?.content ?? [], Number(categoryId))
     : [];

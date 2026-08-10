@@ -12,10 +12,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { apiClient, type PagedResult } from "@/lib/api-client";
-import type { Brand, Category, CategoryAttribute, PriceList, Tax, Unit } from "@/lib/types/master";
+import { apiClient } from "@/lib/api-client";
+import type { CategoryAttribute } from "@/lib/types/master";
 import type { Product, Variant, Price, Barcode, ProductImage, ProductType } from "@/lib/types/product";
 import { categoryHierarchy } from "@/lib/category-hierarchy";
+import {
+  useBrandsLookup,
+  useCategoriesLookup,
+  usePriceListsLookup,
+  useTaxesLookup,
+  useUnitsLookup,
+} from "@/lib/hooks/use-master-data";
 
 type Combination = { key: string; values: { attributeId: number; value: string }[]; sku: string; enabled: boolean };
 type Money = { costPrice: string; sellingPrice: string; mrp: string };
@@ -79,11 +86,11 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
   const [prices, setPrices] = React.useState<Record<string, Money>>({});
   const [files, setFiles] = React.useState<File[]>([]);
 
-  const categories = useQuery({ queryKey: ["master", "categories", "product-workspace"], queryFn: () => apiClient.get<PagedResult<Category>>("master/categories?page=0&size=100") });
-  const units = useQuery({ queryKey: ["master", "units", "product-workspace"], queryFn: () => apiClient.get<PagedResult<Unit>>("master/units?page=0&size=100") });
-  const brands = useQuery({ queryKey: ["master", "brands", "product-workspace"], queryFn: () => apiClient.get<PagedResult<Brand>>("master/brands?page=0&size=100") });
-  const taxes = useQuery({ queryKey: ["master", "taxes", "product-workspace"], queryFn: () => apiClient.get<PagedResult<Tax>>("master/taxes?page=0&size=100") });
-  const priceLists = useQuery({ queryKey: ["master", "price-lists", "product-workspace"], queryFn: () => apiClient.get<PagedResult<PriceList>>("master/price-lists?page=0&size=100") });
+  const categories = useCategoriesLookup();
+  const units = useUnitsLookup();
+  const brands = useBrandsLookup();
+  const taxes = useTaxesLookup();
+  const priceLists = usePriceListsLookup();
   const attributes = useQuery({
     queryKey: ["master", "categories", form.categoryId, "attributes"],
     enabled: !!form.categoryId && productKind === "VARIANT",

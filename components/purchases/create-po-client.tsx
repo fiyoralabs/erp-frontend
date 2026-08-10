@@ -8,7 +8,7 @@ import { ArrowLeft, Check, Grid, Loader2, Plus, Search, ShoppingBag, Trash2 } fr
 import { toast } from "sonner";
 import { apiClient, ApiRequestError, type PagedResult } from "@/lib/api-client";
 import { localDateInputValue } from "@/lib/date";
-import type { Location } from "@/lib/types/master";
+import type { Category, Location } from "@/lib/types/master";
 import type { ProductSummary, Variant } from "@/lib/types/product";
 import type { Supplier } from "@/lib/types/purchase";
 import { Badge } from "@/components/ui/badge";
@@ -20,10 +20,9 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
+import { useCategoriesLookup } from "@/lib/hooks/use-master-data";
 
 type WorkingLocationContext = { activeLocation: Location | null; allowedLocations: Location[]; locationRequired: boolean };
-
-type Category = { id: number; code: string; name: string; parentCategoryId: number | null; isActive: boolean };
 
 export type POLineItem = {
   id: string; // internal unique key
@@ -66,7 +65,7 @@ export function CreatePOClient() {
 
   const suppliersQuery = useQuery({ queryKey: ["purchase", "suppliers"], queryFn: () => apiClient.get<Supplier[]>("purchases/suppliers") });
   const locationsQuery = useQuery({ queryKey: ["master", "locations", "purchase"], queryFn: () => apiClient.get<PagedResult<Location>>("master/locations?page=0&size=100") });
-  const categoriesQuery = useQuery({ queryKey: ["master", "categories", "purchase"], queryFn: () => apiClient.get<PagedResult<Category>>("master/categories?page=0&size=100") });
+  const categoriesQuery = useCategoriesLookup();
   const productsQuery = useQuery({ queryKey: ["products", "purchase", "catalog"], queryFn: () => apiClient.get<PagedResult<ProductSummary>>("products?page=0&size=200") });
 
   // Auto-set location when activeLocation is available

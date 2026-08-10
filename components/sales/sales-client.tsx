@@ -21,6 +21,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { CustomerCrmDialog } from "@/components/crm/customer-360/customer-crm-dialog";
+import { usePaymentMethodsLookup, usePriceListsLookup } from "@/lib/hooks/use-master-data";
 
 type Sellable = { productId:number; variantId:number|null; label:string };
 type Action = "customer"|"invoice"|"payment"|"return"|null;
@@ -41,8 +42,8 @@ export function SalesClient(){
   const invoices=useQuery({queryKey:["sales","invoices"],queryFn:()=>apiClient.get<PagedResult<SalesInvoice>>("sales/invoices?page=0&size=100")});
   const returns=useQuery({queryKey:["sales","returns"],queryFn:()=>apiClient.get<PagedResult<SalesReturn>>("sales/returns?page=0&size=100")});
   const locations=useQuery({queryKey:["master","locations","sales"],queryFn:()=>apiClient.get<PagedResult<Location>>("master/locations?page=0&size=100")});
-  const methods=useQuery({queryKey:["master","payment-methods","sales"],queryFn:()=>apiClient.get<PagedResult<PaymentMethod>>("master/payment-methods?page=0&size=100")});
-  const priceLists=useQuery({queryKey:["master","price-lists","sales"],queryFn:()=>apiClient.get<PagedResult<PriceList>>("master/price-lists?page=0&size=100")});
+  const methods=usePaymentMethodsLookup();
+  const priceLists=usePriceListsLookup();
   const sellables=useQuery({queryKey:["sales","sellables"],queryFn:async()=>{
     const products=await apiClient.get<PagedResult<ProductSummary>>("products?page=0&size=100");
     return (await Promise.all(products.content.filter(p=>p.isActive).map(async p=>p.hasVariants
