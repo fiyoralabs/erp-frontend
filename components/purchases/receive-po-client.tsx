@@ -310,7 +310,7 @@ export function ReceivePOClient() {
                           <Input
                             type="number"
                             min="0"
-                            step="1"
+                            step="any"
                             value={line.acceptedQuantity}
                             onChange={(e) => handleLineChange(idx, "acceptedQuantity", Math.max(0, Number(e.target.value)))}
                             className="w-24 text-right ml-auto font-medium"
@@ -320,7 +320,7 @@ export function ReceivePOClient() {
                           <Input
                             type="number"
                             min="0"
-                            step="1"
+                            step="any"
                             value={line.rejectedQuantity}
                             onChange={(e) => handleLineChange(idx, "rejectedQuantity", Math.max(0, Number(e.target.value)))}
                             className="w-20 text-right ml-auto text-destructive"

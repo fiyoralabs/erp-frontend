@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ChevronsDownUp, ChevronsUpDown, Plus, Loader2 } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, MessageSquare, Plus, Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -36,6 +36,7 @@ import {
 } from "@/components/ui/form";
 import { ComboboxField } from "@/components/shared/combobox-field";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
+import { WhatsAppConfigDialog } from "@/components/settings/whatsapp-config-dialog";
 import {
   buildLocationTree,
   collectAllIds,
@@ -44,8 +45,9 @@ import {
 } from "@/components/master/location-tree";
 import { collectDescendantIds } from "@/lib/tree";
 import { apiClient, ApiRequestError, type PagedResult } from "@/lib/api-client";
+import { usePriceListsLookup } from "@/lib/hooks/use-master-data";
 import { locationSchema, type LocationFormValues } from "@/lib/validation/master";
-import type { Location, LocationType, PriceList } from "@/lib/types/master";
+import type { Location, LocationType } from "@/lib/types/master";
 
 const LOCATION_TYPES: LocationType[] = ["STORE", "WAREHOUSE", "OFFICE", "KITCHEN", "OUTLET"];
 const NO_PARENT = "__none__";
@@ -61,6 +63,7 @@ const emptyValues: LocationFormValues = {
   state: "",
   country: "",
   postalCode: "",
+  gstin: "",
   isDefault: false,
   priceLists: [],
 };
@@ -81,6 +84,7 @@ export default function LocationsPage() {
   const [expandedIds, setExpandedIds] = React.useState<Set<number>>(new Set());
   const [hasAutoExpanded, setHasAutoExpanded] = React.useState(false);
   const [deleteTarget, setDeleteTarget] = React.useState<Location | null>(null);
+  const [isWaConfigOpen, setIsWaConfigOpen] = React.useState(false);
 
   // erp's GET /master/locations has no `city` filter and no dedicated
   // "flat list with hierarchy" endpoint -- Master Data lists realistically
@@ -91,10 +95,7 @@ export default function LocationsPage() {
     queryFn: () => apiClient.get<PagedResult<Location>>("master/locations?page=0&size=100"),
   });
 
-  const priceListsQuery = useQuery({
-    queryKey: ["master", "price-lists", "active-for-location-create"],
-    queryFn: () => apiClient.get<PagedResult<PriceList>>("master/price-lists?page=0&size=100"),
-  });
+  const priceListsQuery = usePriceListsLookup();
 
   const allLocations = (listQuery.data?.content ?? []).filter((location) => location.isActive);
 
@@ -153,6 +154,7 @@ export default function LocationsPage() {
         state: row.state ?? "",
         country: row.country ?? "",
         postalCode: row.postalCode ?? "",
+        gstin: row.gstin ?? "",
         isDefault: row.isDefault,
         isActive: row.isActive,
         priceLists: undefined,
@@ -267,13 +269,23 @@ export default function LocationsPage() {
             configuration and allowed price lists.
           </p>
         </div>
-        <Button
-          className="h-11 gap-1.5 sm:h-8"
-          onClick={() => setDialogState({ mode: "create", parent: null })}
-        >
-          <Plus className="size-4" />
-          Add location
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            className="h-11 gap-1.5 text-emerald-600 dark:text-emerald-400 border-emerald-200 sm:h-8"
+            onClick={() => setIsWaConfigOpen(true)}
+          >
+            <MessageSquare className="size-4" />
+            WhatsApp Config
+          </Button>
+          <Button
+            className="h-11 gap-1.5 sm:h-8"
+            onClick={() => setDialogState({ mode: "create", parent: null })}
+          >
+            <Plus className="size-4" />
+            Add location
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-wrap items-center gap-4">
@@ -348,6 +360,8 @@ export default function LocationsPage() {
           onReactivate={(loc) => reactivateMutation.mutate(loc)}
         />
       )}
+
+      <WhatsAppConfigDialog open={isWaConfigOpen} onOpenChange={setIsWaConfigOpen} />
 
       <ConfirmDialog
         open={deleteTarget !== null}
@@ -548,6 +562,27 @@ export default function LocationsPage() {
                       <FormControl>
                         <Input {...field} value={field.value ?? ""} />
                       </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="gstin"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>GSTIN</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder="29AAAAA0000A1Z5"
+                          className="font-mono uppercase"
+                          {...field}
+                          value={field.value ?? ""}
+                        />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        Printed on this store&apos;s sales invoices.
+                      </p>
                       <FormMessage />
                     </FormItem>
                   )}

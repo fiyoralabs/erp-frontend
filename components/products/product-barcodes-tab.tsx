@@ -67,8 +67,13 @@ export function ProductBarcodesTab({ productId }: { productId: number }) {
   }, [createOpen]);
 
   const createMutation = useMutation({
-    mutationFn: (values: BarcodeFormValues) =>
-      apiClient.post<Barcode>("products/barcodes", { ...values, productId }),
+    mutationFn: (values: BarcodeFormValues) => {
+      const trimmed = values.barcode.trim();
+      if (barcodes.some((b) => b.barcode.trim().toLowerCase() === trimmed.toLowerCase())) {
+        throw new Error(`Barcode '${trimmed}' is already assigned to this product.`);
+      }
+      return apiClient.post<Barcode>("products/barcodes", { ...values, barcode: trimmed, productId });
+    },
     onSuccess: (created) => {
       toast.success("Barcode added");
       qc.invalidateQueries({ queryKey: ["products", productId, "barcodes"] });

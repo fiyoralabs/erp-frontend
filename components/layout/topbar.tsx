@@ -82,12 +82,14 @@ export function Topbar({ userName, userEmail, companyLabel, permissions, locatio
             </Button>
           }
         />
-        <SheetContent side="left" className="w-72 p-0">
+        <SheetContent side="left" className="w-72 p-0 flex flex-col h-full overflow-hidden">
           <SheetTitle className="sr-only">Navigation</SheetTitle>
-          <div className="flex h-14 items-center border-b px-4 font-semibold">
+          <div className="flex h-14 items-center border-b px-4 font-semibold shrink-0">
             Fiyora ERP
           </div>
-          <SidebarNav permissions={permissions} />
+          <div className="flex-1 overflow-y-auto">
+            <SidebarNav permissions={permissions} />
+          </div>
         </SheetContent>
       </Sheet>
 

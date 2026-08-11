@@ -36,6 +36,7 @@ interface DataTableProps<T> {
   page?: number;
   totalPages?: number;
   onPageChange?: (page: number) => void;
+  onRowClick?: (row: T) => void;
 }
 
 export function DataTable<T>({
@@ -48,6 +49,7 @@ export function DataTable<T>({
   page,
   totalPages,
   onPageChange,
+  onRowClick,
 }: DataTableProps<T>) {
   if (isLoading) {
     return (
@@ -79,7 +81,11 @@ export function DataTable<T>({
       {/* Card list -- below md: */}
       <div className="flex flex-col gap-3 md:hidden">
         {data.map((row) => (
-          <Card key={rowKey(row)}>
+          <Card
+            key={rowKey(row)}
+            className={onRowClick ? "cursor-pointer transition-colors hover:bg-muted/50" : ""}
+            onClick={() => onRowClick?.(row)}
+          >
             <CardContent className="flex flex-col gap-2">
               {columns
                 .filter((c) => !c.hideOnCard)
@@ -100,7 +106,7 @@ export function DataTable<T>({
       </div>
 
       {/* Real table -- md: and above */}
-      <div className="hidden rounded-xl ring-1 ring-foreground/10 md:block">
+      <div className="hidden rounded-xl ring-1 ring-foreground/10 md:block overflow-hidden">
         <Table>
           <TableHeader>
             <TableRow>
@@ -114,15 +120,19 @@ export function DataTable<T>({
           </TableHeader>
           <TableBody>
             {data.map((row) => (
-              <TableRow key={rowKey(row)}>
+              <TableRow
+                key={rowKey(row)}
+                className={onRowClick ? "cursor-pointer transition-colors hover:bg-muted/50" : ""}
+                onClick={() => onRowClick?.(row)}
+              >
                 {columns.map((col) => (
                   <TableCell key={col.key} className={col.className}>
                     {col.render(row)}
                   </TableCell>
                 ))}
                 {actions && (
-                  <TableCell className="text-right">
-                    <div className="flex justify-end gap-1">{actions(row)}</div>
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                    {actions(row)}
                   </TableCell>
                 )}
               </TableRow>

@@ -27,6 +27,7 @@ import {
   FormMessage,
 } from "@/components/ui/form";
 import { apiClient, ApiRequestError } from "@/lib/api-client";
+import { usePriceListsLookup } from "@/lib/hooks/use-master-data";
 import {
   locationConfigurationSchema,
   type LocationConfigurationFormValues,
@@ -85,11 +86,7 @@ export default function LocationDetailPage() {
       apiClient.get<LocationConfiguration>(`master/locations/${locationId}/configuration`),
   });
 
-  const allPriceListsQuery = useQuery({
-    queryKey: ["master", "price-lists", "all-for-assignment"],
-    queryFn: () =>
-      apiClient.get<{ content: PriceList[] }>("master/price-lists?page=0&size=100"),
-  });
+  const allPriceListsQuery = usePriceListsLookup();
 
   const assignedPriceListsQuery = useQuery({
     queryKey: ["master", "locations", "price-lists", locationId],

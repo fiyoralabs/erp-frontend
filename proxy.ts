@@ -11,10 +11,12 @@ import { NextRequest, NextResponse } from "next/server";
 // proxied backend call. A user who clears/forges this cookie gains no
 // access to anything -- they just skip straight to a 401 from erp instead
 // of being redirected client-side first.
+import { getErpApiUrl } from "@/lib/env-config";
+
 const PUBLIC_ROUTES = ["/login", "/forgot-password"];
 const ACCESS_TOKEN_COOKIE = "fiyora_erp_at";
 const REFRESH_TOKEN_COOKIE = "fiyora_erp_rt";
-const ERP_API_URL = process.env.ERP_API_URL ?? "http://localhost:8080";
+const ERP_API_URL = getErpApiUrl();
 
 function tokenIsUsable(token: string | undefined) {
   if (!token) return false;

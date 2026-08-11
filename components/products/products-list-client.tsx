@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useQueries, useQuery } from "@tanstack/react-query";
-import { ChevronDown, ChevronLeft, Filter, LayoutGrid, List, Package, Plus, Search, X } from "lucide-react";
+import { useQueries, useQuery, useMutation } from "@tanstack/react-query";
+import { ChevronDown, ChevronLeft, Filter, LayoutGrid, List, Package, Plus, Search, Trash2, X } from "lucide-react";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -15,8 +16,12 @@ import { DataTable, type DataTableColumn } from "@/components/data-table/data-ta
 import { ActiveBadge } from "@/components/shared/active-badge";
 import { apiClient, type PagedResult } from "@/lib/api-client";
 import { categoryAndDescendantIds, categoryHierarchy } from "@/lib/category-hierarchy";
-import type { Brand, Category, CategoryAttribute, PriceList } from "@/lib/types/master";
+import type { Brand, CategoryAttribute } from "@/lib/types/master";
 import type { ProductSummary } from "@/lib/types/product";
+import { SetsManagementClient } from "@/components/products/sets-management-client";
+import { useCategoriesLookup, usePriceListsLookup } from "@/lib/hooks/use-master-data";
+
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
 export function ProductsListClient({ companyId: _companyId }: { companyId: number }) {
   const [page, setPage] = React.useState(0);
@@ -32,14 +37,15 @@ export function ProductsListClient({ companyId: _companyId }: { companyId: numbe
   const [minPrice, setMinPrice] = React.useState("");
   const [maxPrice, setMaxPrice] = React.useState("");
   const [attributes, setAttributes] = React.useState<Set<string>>(new Set());
+  const [deleteTargetProduct, setDeleteTargetProduct] = React.useState<{ id: number; name: string } | null>(null);
 
   React.useEffect(() => {
     const timer = window.setTimeout(() => setDebouncedSearch(search.trim()), 300);
     return () => window.clearTimeout(timer);
   }, [search]);
 
-  const categories = useQuery({ queryKey: ["master", "categories", "product-filter"], queryFn: () => apiClient.get<PagedResult<Category>>("master/categories?page=0&size=500") });
-  const priceLists = useQuery({ queryKey: ["master", "price-lists", "product-filter"], queryFn: () => apiClient.get<PagedResult<PriceList>>("master/price-lists?page=0&size=500") });
+  const categories = useCategoriesLookup();
+  const priceLists = usePriceListsLookup();
   const relevantCategoryIds = categoryId
     ? categoryAndDescendantIds(categories.data?.content ?? [], Number(categoryId))
     : [];
@@ -95,7 +101,7 @@ export function ProductsListClient({ companyId: _companyId }: { companyId: numbe
     { key: "name", header: "Product", render: (row) => row.name },
     { key: "category", header: "Category", render: (row) => row.categoryName ?? "—" },
     { key: "brand", header: "Brand", render: (row) => row.brandName ?? "—" },
-    { key: "type", header: "Catalog type", render: (row) => row.hasVariants ? <Badge variant="outline">Variants</Badge> : "Simple" },
+    { key: "type", header: "Catalog type", render: (row) => (row as any).productType === "SET" ? <Badge variant="default">Set Product</Badge> : row.hasVariants ? <Badge variant="outline">Variants</Badge> : "Simple" },
     { key: "status", header: "Status", render: (row) => <ActiveBadge isActive={row.isActive} /> },
   ];
   const products = query.data?.content ?? [];
@@ -108,14 +114,40 @@ export function ProductsListClient({ companyId: _companyId }: { companyId: numbe
     <Button className="w-full" variant="outline" onClick={clearFilters} disabled={activeFilterCount === 0}><X />Clear filters</Button>
   </div>;
 
+  const deleteProductMutation = useMutation({
+    mutationFn: (id: number) => apiClient.delete(`products/${id}`),
+    onSuccess: () => {
+      toast.success("Product deleted successfully");
+      query.refetch();
+    },
+    onError: (err: any) => toast.error(err.message || "Failed to delete product"),
+  });
+
   return <div className="flex flex-col gap-5">
     <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between"><div><h1 className="text-2xl font-semibold">Products</h1><p className="text-sm text-muted-foreground">Find and manage sellable items, variants, pricing, media and labels.</p></div><Button nativeButton={false} render={<Link href="/products/new" />}><Plus />Create product</Button></div>
     <div className={desktopFiltersOpen ? "grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]" : "grid gap-5"}>
       {desktopFiltersOpen && <aside className="hidden h-fit rounded-xl border bg-card p-4 lg:block"><div className="mb-4 flex items-center justify-between gap-2"><div className="flex items-center gap-2"><h2 className="font-semibold">Filters</h2>{activeFilterCount > 0 && <Badge>{activeFilterCount}</Badge>}</div><Button type="button" size="icon-sm" variant="ghost" aria-label="Hide filters" title="Hide filters" onClick={() => setDesktopFiltersOpen(false)}><ChevronLeft /></Button></div>{filterContent}</aside>}
       <div className="min-w-0 space-y-4">
         <div className="flex flex-col gap-3 rounded-xl border bg-card p-3 sm:flex-row sm:items-center"><div className="relative flex-1"><Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"/><Input className="pl-9" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search products, codes, SKUs or barcodes"/></div><Button className="lg:hidden" variant="outline" onClick={() => setMobileFiltersOpen(true)}><Filter />Filters{activeFilterCount > 0 && <Badge>{activeFilterCount}</Badge>}</Button>{!desktopFiltersOpen && <div className="hidden lg:block"><Button variant="outline" onClick={() => setDesktopFiltersOpen(true)}><Filter />Show filters{activeFilterCount > 0 && <Badge>{activeFilterCount}</Badge>}</Button></div>}<select aria-label="Sort products" className="h-10 rounded-md border bg-background px-3 text-sm" value={sort} onChange={(event) => setSort(event.target.value)}><option value="name,asc">Name: A to Z</option><option value="name,desc">Name: Z to A</option><option value="createdAt,desc">Newest first</option><option value="createdAt,asc">Oldest first</option><option value="code,asc">Product code</option></select><div className="flex rounded-lg border p-1"><Button size="icon" variant={view === "grid" ? "secondary" : "ghost"} aria-label="Grid view" onClick={() => setView("grid")}><LayoutGrid/></Button><Button size="icon" variant={view === "list" ? "secondary" : "ghost"} aria-label="List view" onClick={() => setView("list")}><List/></Button></div></div>
-        {view === "list" ? <DataTable columns={columns} data={products} rowKey={(row) => row.id} isLoading={query.isLoading} emptyMessage="No active products match these filters." page={page} totalPages={query.data?.totalPages} onPageChange={setPage} actions={(row) => <div className="flex gap-2"><Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/products/${row.id}`} />}>View</Button><Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/products/${row.id}/edit`} />}>Edit</Button></div>} /> : <>{query.isLoading ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 8 }, (_, index) => <div key={index} className="h-72 animate-pulse rounded-xl bg-muted"/>)}</div> : products.length === 0 ? <div className="rounded-xl border border-dashed p-12 text-center text-sm text-muted-foreground">No active products match these filters.</div> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{products.map((product) => <Card key={product.id} className="group overflow-hidden p-0 transition hover:-translate-y-0.5 hover:shadow-md"><Link href={`/products/${product.id}`} className="block"><ProductPhoto product={product}/><CardContent className="space-y-2 p-4"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><h2 className="truncate font-semibold">{product.name}</h2><p className="truncate font-mono text-xs text-muted-foreground">{product.code}</p></div>{product.hasVariants && <Badge variant="outline">Variants</Badge>}</div><div className="flex items-center justify-between gap-2 text-xs text-muted-foreground"><span className="truncate">{product.categoryName ?? "Uncategorized"}</span><span className="truncate">{product.brandName ?? "No brand"}</span></div></CardContent></Link><div className="flex border-t"><Button className="flex-1 rounded-none" variant="ghost" nativeButton={false} render={<Link href={`/products/${product.id}`} />}>View</Button><Button className="flex-1 rounded-none border-l" variant="ghost" nativeButton={false} render={<Link href={`/products/${product.id}/edit`} />}>Edit</Button></div></Card>)}</div>}<div className="flex items-center justify-end gap-2"><Button variant="outline" disabled={page === 0} onClick={() => setPage((current) => current - 1)}>Previous</Button><span className="text-sm text-muted-foreground">Page {page + 1} of {Math.max(1, query.data?.totalPages ?? 1)}</span><Button variant="outline" disabled={page + 1 >= (query.data?.totalPages ?? 1)} onClick={() => setPage((current) => current + 1)}>Next</Button></div></>}
+        {view === "list" ? <DataTable columns={columns} data={products} rowKey={(row) => row.id} isLoading={query.isLoading} emptyMessage="No active products match these filters." page={page} totalPages={query.data?.totalPages} onPageChange={setPage} actions={(row) => <div className="flex gap-1"><Button variant="outline" size="sm" nativeButton={false} render={<Link href={`/products/${row.id}`} />}>View</Button><Button variant="ghost" size="sm" nativeButton={false} render={<Link href={`/products/${row.id}/edit`} />}>Edit</Button><Button variant="ghost" size="sm" onClick={() => setDeleteTargetProduct({ id: row.id, name: row.name })}><Trash2 className="h-4 w-4 text-destructive" /></Button></div>} /> : <>{query.isLoading ? <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{Array.from({ length: 8 }, (_, index) => <div key={index} className="h-72 animate-pulse rounded-xl bg-muted"/>)}</div> : products.length === 0 ? <div className="rounded-xl border border-dashed p-12 text-center text-sm text-muted-foreground">No active products match these filters.</div> : <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">{products.map((product) => <Card key={product.id} className="group overflow-hidden p-0 transition hover:-translate-y-0.5 hover:shadow-md"><Link href={`/products/${product.id}`} className="block"><ProductPhoto product={product}/><CardContent className="space-y-2 p-4"><div className="flex items-start justify-between gap-2"><div className="min-w-0"><h2 className="truncate font-semibold">{product.name}</h2><p className="truncate font-mono text-xs text-muted-foreground">{product.code}</p></div>{(product as any).productType === "SET" ? <Badge variant="default">Set Product</Badge> : product.hasVariants && <Badge variant="outline">Variants</Badge>}</div><div className="flex items-center justify-between gap-2 text-xs text-muted-foreground"><span className="truncate">{product.categoryName ?? "Uncategorized"}</span><span className="truncate">{product.brandName ?? "No brand"}</span></div></CardContent></Link><div className="flex border-t"><Button className="flex-1 rounded-none" variant="ghost" nativeButton={false} render={<Link href={`/products/${product.id}`} />}>View</Button><Button className="flex-1 rounded-none border-l" variant="ghost" nativeButton={false} render={<Link href={`/products/${product.id}/edit`} />}>Edit</Button><Button className="rounded-none border-l text-destructive hover:text-destructive" variant="ghost" size="icon" onClick={() => setDeleteTargetProduct({ id: product.id, name: product.name })}><Trash2 className="h-4 w-4" /></Button></div></Card>)}</div>}<div className="flex items-center justify-end gap-2"><Button variant="outline" disabled={page === 0} onClick={() => setPage((current) => current - 1)}>Previous</Button><span className="text-sm text-muted-foreground">Page {page + 1} of {Math.max(1, query.data?.totalPages ?? 1)}</span><Button variant="outline" disabled={page + 1 >= (query.data?.totalPages ?? 1)} onClick={() => setPage((current) => current + 1)}>Next</Button></div></>}
       </div>
+    </div>
+    <ConfirmDialog
+      open={!!deleteTargetProduct}
+      onOpenChange={(open) => !open && setDeleteTargetProduct(null)}
+      title="Delete Product?"
+      description={`Are you sure you want to delete "${deleteTargetProduct?.name}"? This action will remove the product from your active catalog.`}
+      confirmText="Delete Product"
+      variant="destructive"
+      isLoading={deleteProductMutation.isPending}
+      onConfirm={() => {
+        if (deleteTargetProduct) {
+          deleteProductMutation.mutate(deleteTargetProduct.id);
+        }
+      }}
+    />
+    <div className="mt-8 border-t pt-6">
+      <SetsManagementClient />
     </div>
     <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}><SheetContent side="left" className="w-[90vw] overflow-y-auto sm:max-w-sm"><SheetHeader><SheetTitle>Filter products</SheetTitle><SheetDescription>All selected filters must match.</SheetDescription></SheetHeader><div className="px-4 pb-6">{filterContent}</div></SheetContent></Sheet>
   </div>;

@@ -8,6 +8,7 @@ import { apiClient,ApiRequestError,type PagedResult } from "@/lib/api-client";
 import { localDateInputValue } from "@/lib/date";
 import type { Location,PaymentMethod } from "@/lib/types/master";
 import type { Expense,ExpenseCategory } from "@/lib/types/expense";
+import { usePaymentMethodsLookup } from "@/lib/hooks/use-master-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card,CardContent,CardDescription,CardHeader,CardTitle } from "@/components/ui/card";
@@ -37,7 +38,7 @@ export function ExpensesClient(){
   const categories=useQuery({queryKey:["expense","categories"],queryFn:()=>apiClient.get<PagedResult<ExpenseCategory>>("expense-categories?page=0&size=100")});
   const expenses=useQuery({queryKey:["expense","list",query],queryFn:()=>apiClient.get<PagedResult<Expense>>(`expenses?${query}`)});
   const locations=useQuery({queryKey:["master","locations","expense"],queryFn:()=>apiClient.get<PagedResult<Location>>("master/locations?page=0&size=100")});
-  const methods=useQuery({queryKey:["master","payment-methods","expense"],queryFn:()=>apiClient.get<PagedResult<PaymentMethod>>("master/payment-methods?page=0&size=100")});
+  const methods=usePaymentMethodsLookup();
   const detail=useQuery({queryKey:["expense","detail",detailId],queryFn:()=>apiClient.get<Expense>(`expenses/${detailId}`),enabled:detailId!==null});
   const cats=(categories.data?.content??[]).filter(x=>x.active), rows=expenses.data?.content??[], locs=(locations.data?.content??[]).filter(x=>x.isActive);
   const manual=rows.filter(x=>x.source==="MANUAL").reduce((a,x)=>a+x.amount,0),loss=rows.filter(x=>x.source==="INVENTORY_LOSS").reduce((a,x)=>a+x.amount,0);
@@ -62,7 +63,7 @@ export function ExpensesClient(){
 function Metric({label,value,warn}:{label:string;value:string;warn?:boolean}){return <Card><CardContent className="pt-5"><p className="text-sm text-muted-foreground">{label}</p><p className={warn?"text-2xl font-semibold text-amber-600":"text-2xl font-semibold"}>{value}</p></CardContent></Card>}
 function Grid({heads,children}:{heads:string[];children:React.ReactNode}){return <div className="overflow-x-auto"><Table><TableHeader><TableRow>{heads.map(x=><TableHead key={x}>{x}</TableHead>)}</TableRow></TableHeader><TableBody>{children}</TableBody></Table></div>}
 function Field({label,children,className=""}:{label:string;children:React.ReactNode;className?:string}){return <div className={"grid gap-2 "+className}><Label>{label}</Label>{children}</div>}
-function Picker({value,set,items}:{value:string;set:(v:string)=>void;items:[string,string][]}){return <Select value={value} onValueChange={v=>set(v??"")}><SelectTrigger><SelectValue placeholder="Select"/></SelectTrigger><SelectContent>{items.map(([v,l])=><SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent></Select>}
+function Picker({value,set,items}:{value:string;set:(v:string)=>void;items:[string,string][]}){return <Select items={Object.fromEntries(items)} value={value} onValueChange={v=>set(v??"")}><SelectTrigger><SelectValue placeholder="Select"/></SelectTrigger><SelectContent>{items.map(([v,l])=><SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent></Select>}
 
 function CategoryDialog({open,value,close,saved}:{open:boolean;value:ExpenseCategory|null;close:()=>void;saved:()=>Promise<void>}){
   const [code,setCode]=React.useState(""),[name,setName]=React.useState(""),[description,setDescription]=React.useState("");

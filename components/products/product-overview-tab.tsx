@@ -3,7 +3,7 @@
 import * as React from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { z } from "zod";
 import { Loader2, PowerOff, Power } from "lucide-react";
@@ -28,9 +28,9 @@ import {
   FormLabel,
   FormMessage,
 } from "@/components/ui/form";
-import { apiClient, ApiRequestError, type PagedResult } from "@/lib/api-client";
+import { apiClient, ApiRequestError } from "@/lib/api-client";
 import type { Product } from "@/lib/types/product";
-import type { Brand, Tax } from "@/lib/types/master";
+import { useBrandsLookup, useTaxesLookup } from "@/lib/hooks/use-master-data";
 
 const NONE = "__none__";
 
@@ -53,14 +53,8 @@ function errorMessage(err: unknown): string {
 export function ProductOverviewTab({ product }: { product: Product }) {
   const qc = useQueryClient();
 
-  const brandsQuery = useQuery({
-    queryKey: ["master", "brands", "all-for-products"],
-    queryFn: () => apiClient.get<PagedResult<Brand>>("master/brands?page=0&size=100"),
-  });
-  const taxesQuery = useQuery({
-    queryKey: ["master", "taxes", "all-for-products"],
-    queryFn: () => apiClient.get<PagedResult<Tax>>("master/taxes?page=0&size=100"),
-  });
+  const brandsQuery = useBrandsLookup();
+  const taxesQuery = useTaxesLookup();
 
   const form = useForm<OverviewFormValues>({
     resolver: zodResolver(overviewSchema),

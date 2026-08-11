@@ -23,7 +23,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { apiClient, PagedResult } from "@/lib/api-client";
+import { apiClient } from "@/lib/api-client";
+import { useTaxesLookup } from "@/lib/hooks/use-master-data";
 
 interface InvoiceLineState {
   productId: number;
@@ -95,13 +96,8 @@ export function CreateInvoiceClient() {
   };
 
   // Fetch Master Data (taxes)
-  const taxesQuery = useQuery({
-    queryKey: ["taxes"],
-    queryFn: async () => {
-      const res = await apiClient.get<PagedResult<{ id: number; name: string; taxPercentage: number }>>("master/taxes?page=0&size=100");
-      return res?.content || [];
-    },
-  });
+  const taxesLookup = useTaxesLookup();
+  const taxesQuery = { data: taxesLookup.data?.content };
 
   // Fetch Receipts for GRN details
   const workspaceQuery = useQuery({

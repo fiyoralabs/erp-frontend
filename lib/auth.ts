@@ -70,7 +70,9 @@ export async function clearSessionCookies(): Promise<void> {
   }
 }
 
-const ERP_API_URL = process.env.ERP_API_URL ?? "http://localhost:8080";
+import { getErpApiUrl } from "@/lib/env-config";
+
+const ERP_API_URL = getErpApiUrl();
 
 // Shared by both /api/auth/refresh (explicit client-triggered refresh) and
 // the backend proxy's automatic one-retry-on-401 behavior, as a direct

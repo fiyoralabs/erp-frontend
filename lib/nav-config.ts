@@ -11,6 +11,7 @@ import {
   BarChart3,
   ScrollText,
   Settings,
+  Users,
 } from "lucide-react";
 
 export interface NavItem {
@@ -23,6 +24,10 @@ export interface NavItem {
   implemented: boolean;
   requiredPermissions?: readonly string[];
   permissionMode?: "any" | "all";
+  // Nested sub-items (e.g. CRM's Leads/Contacts/Accounts/...). First
+  // 2-level menu in this app -- SidebarNav renders these as a collapsible
+  // group instead of a single link.
+  items?: readonly NavItem[];
 }
 
 export const navItems: NavItem[] = [
@@ -32,6 +37,13 @@ export const navItems: NavItem[] = [
   { title: "Inventory", href: "/inventory", icon: Warehouse, implemented: true, requiredPermissions: ["INVENTORY_VIEW"] },
   { title: "Purchases", href: "/purchases", icon: ShoppingCart, implemented: true, requiredPermissions: ["PURCHASE_VIEW"] },
   { title: "Sales", href: "/sales", icon: Receipt, implemented: true, requiredPermissions: ["SALES_VIEW"] },
+  {
+    title: "CRM",
+    href: "/crm",
+    icon: Users,
+    implemented: true,
+    requiredPermissions: ["CRM_DASHBOARD_VIEW", "LEAD_VIEW", "OPPORTUNITY_VIEW", "ACCOUNT_VIEW", "CONTACT_VIEW"],
+  },
   { title: "Expenses", href: "/expenses", icon: Wallet, implemented: true, requiredPermissions: ["EXPENSE_VIEW"] },
   { title: "Finance", href: "/finance", icon: Landmark, implemented: true, requiredPermissions: ["FINANCE_VIEW"] },
   { title: "Reports", href: "/reports", icon: BarChart3, implemented: true, requiredPermissions: ["REPORT_SALES_VIEW", "REPORT_PURCHASE_VIEW", "REPORT_INVENTORY_VIEW", "REPORT_CUSTOMER_VIEW", "REPORT_SUPPLIER_VIEW", "REPORT_EXPENSE_VIEW", "REPORT_FINANCIAL_VIEW"] },

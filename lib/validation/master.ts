@@ -96,6 +96,7 @@ export const locationSchema = z.object({
   state: z.string().optional().or(z.literal("")),
   country: z.string().optional().or(z.literal("")),
   postalCode: z.string().optional().or(z.literal("")),
+  gstin: z.string().optional().or(z.literal("")),
   isDefault: z.boolean().optional(),
   isActive: z.boolean().optional(),
   priceLists: z.array(z.object({

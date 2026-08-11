@@ -14,6 +14,8 @@ import { ProductVariantsTab } from "@/components/products/product-variants-tab";
 import { ProductPricingTab } from "@/components/products/product-pricing-tab";
 import { ProductImagesTab } from "@/components/products/product-images-tab";
 import { ProductBarcodesTab } from "@/components/products/product-barcodes-tab";
+import { ProductPurchaseHistoryTab } from "@/components/products/product-purchase-history-tab";
+import { ProductSetTab } from "@/components/products/product-set-tab";
 
 export function ProductDetailClient({
   productId,
@@ -35,6 +37,7 @@ export function ProductDetailClient({
   }
 
   const product = productQuery.data;
+  const isSetProduct = product.productType === "SET";
 
   return (
     <div className="flex flex-col gap-4">
@@ -57,19 +60,27 @@ export function ProductDetailClient({
         <TabsList className="flex-wrap">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           {product.hasVariants && <TabsTrigger value="variants">Variants</TabsTrigger>}
+          <TabsTrigger value="sets">Custom Sets</TabsTrigger>
           <TabsTrigger value="pricing">Pricing</TabsTrigger>
           <TabsTrigger value="images">Images</TabsTrigger>
           <TabsTrigger value="barcodes">Barcodes</TabsTrigger>
+          <TabsTrigger value="purchase-history">Purchase History & Suppliers</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview">
           <ProductOverviewTab product={product} />
         </TabsContent>
+
         {product.hasVariants && (
           <TabsContent value="variants">
             <ProductVariantsTab productId={product.id} categoryId={product.categoryId} productCode={product.code} />
           </TabsContent>
         )}
+
+        <TabsContent value="sets">
+          <ProductSetTab product={product} />
+        </TabsContent>
+
         <TabsContent value="pricing">
           <ProductPricingTab productId={product.id} companyId={companyId} hasVariants={product.hasVariants} />
         </TabsContent>
@@ -78,6 +89,9 @@ export function ProductDetailClient({
         </TabsContent>
         <TabsContent value="barcodes">
           <ProductBarcodesTab productId={product.id} />
+        </TabsContent>
+        <TabsContent value="purchase-history">
+          <ProductPurchaseHistoryTab productId={product.id} />
         </TabsContent>
       </Tabs>
     </div>

@@ -100,9 +100,16 @@ export function MasterCrudPage<
   >(null);
   const [deleteTarget, setDeleteTarget] = React.useState<TEntity | null>(null);
 
+  // Long staleTime is safe here: invalidate() below runs after every one of
+  // this page's own mutations, so edits made on THIS screen are never
+  // stale. It also lets this key double as the shared cache root for the
+  // "lookup" queries other screens use to populate dropdowns (see
+  // lib/hooks/use-master-data.ts) -- both share the ["master", queryKey]
+  // prefix, so invalidating one refreshes the other too.
   const listQuery = useQuery({
     queryKey: ["master", queryKey, page],
     queryFn: () => apiClient.get<PagedResult<TEntity>>(`${apiPath}?page=${page}&size=20`),
+    staleTime: 5 * 60_000,
   });
 
   // zod v4's inferred resolver generic, and react-hook-form's own
