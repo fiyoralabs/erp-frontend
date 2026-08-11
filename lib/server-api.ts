@@ -34,12 +34,17 @@ export async function serverApiGet<T>(path: string): Promise<T | null> {
     }
   }
 
-  const body = (await response.json()) as ApiResponse<T>;
-  if (!response.ok || !body.success) {
-    console.error(
-      `serverApiGet(${path}) failed: ${(body as ApiError).error?.message}`
-    );
+  try {
+    const body = (await response.json()) as ApiResponse<T>;
+    if (!response.ok || !body.success) {
+      console.error(
+        `serverApiGet(${path}) failed: ${(body as ApiError).error?.message}`
+      );
+      return null;
+    }
+    return body.data;
+  } catch (err) {
+    console.error(`serverApiGet(${path}) response parsing failed:`, err);
     return null;
   }
-  return body.data;
 }
