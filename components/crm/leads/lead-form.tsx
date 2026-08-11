@@ -10,6 +10,7 @@ import { Loader2, AlertTriangle } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -247,14 +248,16 @@ export function LeadForm({ lead }: { lead?: Lead }) {
               )} />
               <FormField control={form.control} name="phone" render={({ field }) => (
                 <FormItem><FormLabel>Phone</FormLabel><FormControl>
-                  <Input {...field} onBlur={(e) => {
-                    field.onBlur();
-                    checkLiveDuplicate(form.getValues("email"), e.target.value);
+                  <PhoneInput value={field.value} onChange={(val) => {
+                    field.onChange(val);
+                    checkLiveDuplicate(form.getValues("email"), val);
                   }} />
                 </FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="whatsappNumber" render={({ field }) => (
-                <FormItem><FormLabel>WhatsApp Number</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem><FormLabel>WhatsApp Number</FormLabel><FormControl>
+                  <PhoneInput value={field.value} onChange={field.onChange} />
+                </FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="jobTitle" render={({ field }) => (
                 <FormItem><FormLabel>Job Title</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
