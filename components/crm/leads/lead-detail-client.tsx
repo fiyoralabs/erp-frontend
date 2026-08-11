@@ -34,6 +34,9 @@ function errorMessage(err: unknown) {
   return "Something went wrong";
 }
 
+import { LeadPastInquiriesTab } from "@/components/crm/leads/lead-past-inquiries-tab";
+
+// ...
 export function LeadDetailClient({ leadId }: { leadId: number }) {
   const qc = useQueryClient();
   const [convertOpen, setConvertOpen] = React.useState(false);
@@ -92,7 +95,6 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
               </p>
             </div>
             <div className="flex flex-wrap items-center gap-2">
-              {/* Secondary/informational actions -- inline on sm+, collapsed below */}
               <div className="hidden items-center gap-2 sm:flex">
                 {lead.phone && (
                   <Button nativeButton={false} variant="ghost" size="sm" className="gap-1.5" render={<a href={`tel:${lead.phone}`} />}>
@@ -104,8 +106,8 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
                     <Mail className="size-4" /> Email
                   </Button>
                 )}
-                {lead.whatsappNumber && (
-                  <Button nativeButton={false} variant="ghost" size="sm" className="gap-1.5" render={<a href={`https://wa.me/${lead.whatsappNumber.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" />}>
+                {(lead.whatsappNumber || lead.phone) && (
+                  <Button nativeButton={false} variant="ghost" size="sm" className="gap-1.5" render={<a href={`https://wa.me/${(lead.whatsappNumber || lead.phone)!.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" />}>
                     <MessageSquare className="size-4" /> WhatsApp
                   </Button>
                 )}
@@ -114,8 +116,6 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
                 </Button>
               </div>
 
-              {/* Same actions, collapsed into a menu below sm: to avoid a
-                  multi-row button wrap on phones. */}
               <DropdownMenu>
                 <DropdownMenuTrigger render={<Button variant="outline" size="icon" className="sm:hidden" aria-label="More actions" />}>
                   <MoreVertical className="size-4" />
@@ -131,8 +131,8 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
                       <Mail className="size-3.5" /> Email
                     </DropdownMenuItem>
                   )}
-                  {lead.whatsappNumber && (
-                    <DropdownMenuItem render={<a href={`https://wa.me/${lead.whatsappNumber.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="flex items-center gap-2" />}>
+                  {(lead.whatsappNumber || lead.phone) && (
+                    <DropdownMenuItem render={<a href={`https://wa.me/${(lead.whatsappNumber || lead.phone)!.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="flex items-center gap-2" />}>
                       <MessageSquare className="size-3.5" /> WhatsApp
                     </DropdownMenuItem>
                   )}
@@ -187,6 +187,7 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
       <Tabs defaultValue="overview" className="w-full">
         <ScrollableTabsList className="inline-flex h-10 items-center justify-start rounded-lg bg-muted p-1 text-muted-foreground w-max min-w-full">
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="past-inquiries">Past Inquiries</TabsTrigger>
           <TabsTrigger value="activities">Activities</TabsTrigger>
           <TabsTrigger value="tasks">Tasks</TabsTrigger>
           <TabsTrigger value="follow-ups">Follow-ups</TabsTrigger>
@@ -213,6 +214,7 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
             </CardContent>
           </Card>
         </TabsContent>
+        <TabsContent value="past-inquiries"><LeadPastInquiriesTab leadId={lead.id} /></TabsContent>
         <TabsContent value="activities"><ActivitiesTab relatedType="LEAD" relatedId={lead.id} /></TabsContent>
         <TabsContent value="tasks"><TasksTab relatedType="LEAD" relatedId={lead.id} /></TabsContent>
         <TabsContent value="follow-ups"><FollowUpsTab relatedType="LEAD" relatedId={lead.id} /></TabsContent>

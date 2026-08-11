@@ -9,6 +9,7 @@ import { Loader2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogClose } from "@/components/ui/dialog";
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
@@ -108,10 +109,14 @@ export function ContactDialog({
                 <FormItem><FormLabel>Email</FormLabel><FormControl><Input type="email" {...field} /></FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="mobile" render={({ field }) => (
-                <FormItem><FormLabel>Mobile</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem><FormLabel>Mobile</FormLabel><FormControl>
+                  <PhoneInput value={field.value} onChange={field.onChange} />
+                </FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="whatsappNumber" render={({ field }) => (
-                <FormItem><FormLabel>WhatsApp</FormLabel><FormControl><Input {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem><FormLabel>WhatsApp</FormLabel><FormControl>
+                  <PhoneInput value={field.value} onChange={field.onChange} />
+                </FormControl><FormMessage /></FormItem>
               )} />
               <FormField control={form.control} name="accountId" render={({ field }) => (
                 <FormItem><FormLabel>Account</FormLabel><FormControl>

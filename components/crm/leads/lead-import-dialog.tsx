@@ -29,6 +29,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiClient } from "@/lib/api-client";
 import type { LeadBatchImportItem, LeadBatchImportRequest, LeadBatchImportResponse } from "@/lib/types/crm";
 import { toast } from "sonner";
+import { sanitizePhoneNumber } from "@/components/ui/phone-input";
 
 interface LeadImportDialogProps {
   open: boolean;
@@ -266,7 +267,9 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
 
       if (mappedKey && mappedKey !== "IGNORE") {
         if (cellVal !== "") {
-          if (mappedKey === "numberOfEmployees" || mappedKey === "estimatedRevenue" || mappedKey === "estimatedDealValue") {
+          if (mappedKey === "phone" || mappedKey === "alternatePhone" || mappedKey === "whatsappNumber") {
+            lead[mappedKey] = sanitizePhoneNumber(cellVal);
+          } else if (mappedKey === "numberOfEmployees" || mappedKey === "estimatedRevenue" || mappedKey === "estimatedDealValue") {
             const num = parseFloat(cellVal.replace(/[^0-9.-]+/g, ""));
             if (!isNaN(num)) lead[mappedKey] = num;
           } else {
