@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
-import { Plus, Search, Download } from "lucide-react";
+import { Plus, Search, Download, FileSpreadsheet } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -14,6 +14,7 @@ import type { Lead, LeadStatus, LeadRating, LeadSource } from "@/lib/types/crm";
 import { LeadRatingBadge, LeadStatusBadge } from "@/components/crm/shared/status-badges";
 import { formatCurrency, formatDate } from "@/components/crm/shared/format";
 import { useUserNameLookup } from "@/components/crm/shared/user-select";
+import { LeadImportDialog } from "@/components/crm/leads/lead-import-dialog";
 
 const STATUS_OPTIONS: LeadStatus[] = [
   "NEW", "CONTACTED", "ATTEMPTED_CONTACT", "INTERESTED", "QUALIFIED",
@@ -40,6 +41,7 @@ export function LeadsListClient() {
   const [status, setStatus] = React.useState<string>("");
   const [rating, setRating] = React.useState<string>("");
   const [sourceId, setSourceId] = React.useState<string>("");
+  const [importDialogOpen, setImportDialogOpen] = React.useState(false);
   const debouncedSearch = useDebounced(search);
 
   const sourcesQuery = useQuery({
@@ -110,6 +112,9 @@ export function LeadsListClient() {
           <p className="text-sm text-muted-foreground">Track and qualify incoming leads.</p>
         </div>
         <div className="flex gap-2">
+          <Button variant="outline" className="h-11 gap-1.5 sm:h-8" onClick={() => setImportDialogOpen(true)}>
+            <FileSpreadsheet className="size-4 text-emerald-500" /> Import Excel / CSV
+          </Button>
           <Button variant="outline" className="h-11 gap-1.5 sm:h-8" onClick={exportCsv}>
             <Download className="size-4" /> Export
           </Button>
@@ -176,6 +181,12 @@ export function LeadsListClient() {
       {listQuery.isError && (
         <p className="text-sm text-destructive">Failed to load leads.</p>
       )}
+
+      <LeadImportDialog
+        open={importDialogOpen}
+        onOpenChange={setImportDialogOpen}
+        onSuccess={() => listQuery.refetch()}
+      />
     </div>
   );
 }

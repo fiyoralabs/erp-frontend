@@ -419,3 +419,47 @@ export interface CrmReports {
   lostReasons: Record<string, number>;
   forecastByMonth: { month: string; amount: number }[];
 }
+
+export interface LeadBatchImportItem {
+  firstName: string;
+  lastName?: string;
+  companyName?: string;
+  jobTitle?: string;
+  email?: string;
+  alternateEmail?: string;
+  phone?: string;
+  alternatePhone?: string;
+  whatsappNumber?: string;
+  website?: string;
+  industry?: string;
+  businessType?: string;
+  numberOfEmployees?: number;
+  estimatedRevenue?: number;
+  address?: string;
+  city?: string;
+  state?: string;
+  country?: string;
+  postalCode?: string;
+  leadSourceId?: number;
+  rating?: LeadRating;
+  estimatedDealValue?: number;
+  expectedClosingDate?: string;
+  assignedUserId?: number;
+  locationId?: number;
+  campaignId?: number;
+  description?: string;
+  notes?: string;
+}
+
+export interface LeadBatchImportRequest {
+  leads: LeadBatchImportItem[];
+  skipDuplicates: boolean;
+}
+
+export interface LeadBatchImportResponse {
+  total: number;
+  importedCount: number;
+  skippedCount: number;
+  errors: string[];
+}
+
