@@ -106,8 +106,8 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
                     <Mail className="size-4" /> Email
                   </Button>
                 )}
-                {lead.whatsappNumber && (
-                  <Button nativeButton={false} variant="ghost" size="sm" className="gap-1.5" render={<a href={`https://wa.me/${lead.whatsappNumber.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" />}>
+                {(lead.whatsappNumber || lead.phone) && (
+                  <Button nativeButton={false} variant="ghost" size="sm" className="gap-1.5" render={<a href={`https://wa.me/${(lead.whatsappNumber || lead.phone)!.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" />}>
                     <MessageSquare className="size-4" /> WhatsApp
                   </Button>
                 )}
@@ -131,8 +131,8 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
                       <Mail className="size-3.5" /> Email
                     </DropdownMenuItem>
                   )}
-                  {lead.whatsappNumber && (
-                    <DropdownMenuItem render={<a href={`https://wa.me/${lead.whatsappNumber.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="flex items-center gap-2" />}>
+                  {(lead.whatsappNumber || lead.phone) && (
+                    <DropdownMenuItem render={<a href={`https://wa.me/${(lead.whatsappNumber || lead.phone)!.replace(/\D/g, "")}`} target="_blank" rel="noreferrer" className="flex items-center gap-2" />}>
                       <MessageSquare className="size-3.5" /> WhatsApp
                     </DropdownMenuItem>
                   )}

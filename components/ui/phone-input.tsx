@@ -3,7 +3,6 @@
 import * as React from "react";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertCircle } from "lucide-react";
 
 export interface CountryCode {
   code: string;       // e.g. "IN"
@@ -69,7 +68,6 @@ export function parsePhoneParts(fullPhone: string | null | undefined): { dialCod
   }
 
   if (clean.startsWith("+")) {
-    // If it starts with + but didn't match known list, try splitting after first 3 chars
     return { dialCode: "+91", number: clean.replace(/[^0-9]/g, "") };
   }
 
@@ -103,7 +101,6 @@ export function PhoneInput({ value = "", onChange, placeholder = "e.g. 987654321
 
   const handleNumberChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const raw = e.target.value;
-    // Strip prefixes like p: or non-digits
     const cleanDigits = raw.replace(/^(p:|tel:|ph:|mobile:|phone:)\s*/i, "").replace(/[^0-9]/g, "");
     setPhoneNumber(cleanDigits);
     emitChange(selectedDialCode, cleanDigits);
@@ -119,53 +116,42 @@ export function PhoneInput({ value = "", onChange, placeholder = "e.g. 987654321
   };
 
   const activeCountry = COUNTRY_CODES.find(c => c.dialCode === selectedDialCode) || COUNTRY_CODES[0];
-  const isValidLength = phoneNumber.length === 0 || (phoneNumber.length >= 7 && phoneNumber.length <= 12);
 
   return (
-    <div className="space-y-1">
-      <div className="flex items-center gap-1.5">
-        {/* Country Code & Flag Selector */}
-        <Select value={selectedDialCode} onValueChange={handleDialCodeChange} disabled={disabled}>
-          <SelectTrigger className="h-9 text-xs w-32 bg-background border-input flex-shrink-0">
-            <SelectValue>
-              <span className="flex items-center gap-1.5 font-medium">
-                <span className="text-base leading-none">{activeCountry.flag}</span>
-                <span>{activeCountry.dialCode}</span>
+    <div className="flex items-center gap-1.5 w-full">
+      {/* Country Code & Flag Selector */}
+      <Select value={selectedDialCode} onValueChange={handleDialCodeChange} disabled={disabled}>
+        <SelectTrigger className="h-9 text-xs w-[110px] shrink-0 bg-background border-input px-2.5 flex items-center justify-between">
+          <SelectValue>
+            <span className="flex items-center gap-1.5 font-medium">
+              <span className="text-base leading-none">{activeCountry.flag}</span>
+              <span>{activeCountry.dialCode}</span>
+            </span>
+          </SelectValue>
+        </SelectTrigger>
+        <SelectContent className="bg-popover text-popover-foreground max-h-60">
+          {COUNTRY_CODES.map((c) => (
+            <SelectItem key={`${c.code}-${c.dialCode}`} value={c.dialCode}>
+              <span className="flex items-center gap-2 text-xs">
+                <span className="text-base leading-none">{c.flag}</span>
+                <span className="font-medium text-foreground">{c.dialCode}</span>
+                <span className="text-muted-foreground font-normal">({c.name})</span>
               </span>
-            </SelectValue>
-          </SelectTrigger>
-          <SelectContent className="bg-popover text-popover-foreground max-h-60">
-            {COUNTRY_CODES.map((c) => (
-              <SelectItem key={`${c.code}-${c.dialCode}`} value={c.dialCode}>
-                <span className="flex items-center gap-2 text-xs">
-                  <span className="text-base leading-none">{c.flag}</span>
-                  <span className="font-medium text-foreground">{c.dialCode}</span>
-                  <span className="text-muted-foreground">({c.name})</span>
-                </span>
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+            </SelectItem>
+          ))}
+        </SelectContent>
+      </Select>
 
-        {/* Number Input */}
-        <div className="relative flex-1">
-          <Input
-            id={id}
-            type="tel"
-            value={phoneNumber}
-            onChange={handleNumberChange}
-            placeholder={placeholder}
-            disabled={disabled}
-            className={`h-9 text-xs ${!isValidLength ? "border-amber-500 focus:ring-amber-500" : ""}`}
-          />
-        </div>
-      </div>
-
-      {!isValidLength && (
-        <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1">
-          <AlertCircle className="h-3 w-3" /> Standard phone numbers usually have 7 to 11 digits
-        </p>
-      )}
+      {/* Number Input */}
+      <Input
+        id={id}
+        type="tel"
+        value={phoneNumber}
+        onChange={handleNumberChange}
+        placeholder={placeholder}
+        disabled={disabled}
+        className="h-9 text-xs flex-1"
+      />
     </div>
   );
 }
