@@ -32,6 +32,7 @@ export const leadSchema = z.object({
   campaignId: z.number().nullable().optional(),
   description: z.string().optional().or(z.literal("")),
   notes: z.string().optional().or(z.literal("")),
+  customFields: z.string().optional().or(z.literal("")),
 });
 export type LeadFormValues = z.infer<typeof leadSchema>;
 
