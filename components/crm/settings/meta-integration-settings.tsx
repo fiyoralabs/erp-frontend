@@ -9,20 +9,18 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
 import { apiClient } from "@/lib/api-client";
-import { Loader2, Copy, Check, RefreshCw, Globe, ExternalLink, Webhook, CheckCircle2 } from "lucide-react";
+import { Loader2, RefreshCw, ExternalLink, Webhook, CheckCircle2 } from "lucide-react";
 
 interface MetaConfigResponse {
   id?: number;
   companyId: number;
   pageId?: string;
   pageName?: string;
-  verifyToken?: string;
   isActive?: boolean;
   isConnected?: boolean;
   connectedUserName?: string;
   connectedAt?: string;
   lastSyncedAt?: string;
-  webhookUrl: string;
 }
 
 interface MetaPageOption {
@@ -37,7 +35,6 @@ export function MetaIntegrationSettings() {
   const [syncing, setSyncing] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const [loadingPages, setLoadingPages] = useState(false);
-  const [copied, setCopied] = useState(false);
 
   const [config, setConfig] = useState<MetaConfigResponse | null>(null);
   const [pages, setPages] = useState<MetaPageOption[]>([]);
@@ -70,7 +67,6 @@ export function MetaIntegrationSettings() {
         setConfig(res);
         setSelectedPageId(res.pageId || "");
         setPageName(res.pageName || "");
-        setVerifyToken(res.verifyToken || "");
         setIsActive(res.isActive ?? true);
 
         if (res.isConnected) {
@@ -167,14 +163,6 @@ export function MetaIntegrationSettings() {
     }
   };
 
-  const copyWebhookUrl = () => {
-    if (!config?.webhookUrl) return;
-    navigator.clipboard.writeText(config.webhookUrl);
-    setCopied(true);
-    toast.success("Webhook URL copied to clipboard.");
-    setTimeout(() => setCopied(false), 2000);
-  };
-
   if (loading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -220,8 +208,8 @@ export function MetaIntegrationSettings() {
               </div>
               <p className="text-xs text-muted-foreground">
                 {config?.isConnected
-                  ? `Connected on ${new Date(config.connectedAt!).toLocaleDateString()}. Fiyora automatically ingests leads from your authorized Facebook Lead Forms.`
-                  : "Authorize Fiyora via Meta Business Login (config_id: 939235305865838) to automatically fetch your Facebook Pages and Lead Ads."}
+                  ? `Connected to "${config.pageName || "a Facebook Page"}" on ${new Date(config.connectedAt!).toLocaleDateString()}. Fiyora automatically ingests leads from this Page's Lead Ads.`
+                  : "Authorize Fiyora via Meta Business Login to automatically fetch your Facebook Pages and Lead Ads."}
               </p>
             </div>
             <Button
@@ -259,7 +247,7 @@ export function MetaIntegrationSettings() {
                     <SelectContent>
                       {pages.map((p) => (
                         <SelectItem key={p.id} value={p.id} className="text-xs">
-                          {p.name} ({p.id})
+                          {p.name}
                         </SelectItem>
                       ))}
                     </SelectContent>
@@ -275,25 +263,6 @@ export function MetaIntegrationSettings() {
               )}
             </div>
           )}
-
-          {/* Webhook Endpoint Box */}
-          <div className="rounded-lg border bg-muted/40 p-4 space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
-                <Globe className="h-3.5 w-3.5 text-blue-400" /> Company Webhook Callback URL
-              </Label>
-              <Button size="sm" variant="ghost" className="h-7 text-xs gap-1" onClick={copyWebhookUrl}>
-                {copied ? <Check className="h-3.5 w-3.5 text-emerald-500" /> : <Copy className="h-3.5 w-3.5" />}
-                {copied ? "Copied" : "Copy URL"}
-              </Button>
-            </div>
-            <div className="rounded border bg-background px-3 py-2 text-xs font-mono select-all text-blue-400 font-medium break-all">
-              {config?.webhookUrl}
-            </div>
-            <p className="text-[11px] text-muted-foreground">
-              Meta Webhook notifications are received at this HTTPS URL in real-time.
-            </p>
-          </div>
 
           {/* Sync Trigger Action */}
           <div className="flex items-center justify-between rounded-lg border p-3 bg-card">
