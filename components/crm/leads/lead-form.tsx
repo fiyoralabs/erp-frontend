@@ -19,6 +19,7 @@ import { apiClient, ApiRequestError } from "@/lib/api-client";
 import { leadSchema, type LeadFormValues } from "@/lib/validation/crm";
 import type { Lead, LeadDuplicate, LeadSource } from "@/lib/types/crm";
 import { UserSelect, useCurrentUser } from "@/components/crm/shared/user-select";
+import { RichTextEditor } from "@/components/ui/rich-text-editor";
 
 const EMPTY_VALUES: LeadFormValues = {
   firstName: "", lastName: "", companyName: "", jobTitle: "", email: "", alternateEmail: "",
@@ -26,7 +27,7 @@ const EMPTY_VALUES: LeadFormValues = {
   numberOfEmployees: undefined, estimatedRevenue: undefined, address: "", city: "", state: "",
   country: "", postalCode: "", leadSourceId: undefined, rating: undefined, estimatedDealValue: undefined,
   expectedClosingDate: "", assignedUserId: undefined, locationId: undefined, campaignId: undefined,
-  description: "", notes: "",
+  description: "", notes: "", customFields: "",
 };
 
 function toFormValues(lead: Lead): LeadFormValues {
@@ -41,6 +42,7 @@ function toFormValues(lead: Lead): LeadFormValues {
     estimatedDealValue: lead.estimatedDealValue ?? undefined, expectedClosingDate: lead.expectedClosingDate ?? "",
     assignedUserId: lead.assignedUserId ?? undefined, locationId: lead.locationId ?? undefined,
     campaignId: lead.campaignId ?? undefined, description: lead.description ?? "", notes: lead.notes ?? "",
+    customFields: lead.customFields ?? "",
   };
 }
 
@@ -366,10 +368,32 @@ export function LeadForm({ lead }: { lead?: Lead }) {
             <CardHeader><CardTitle>Notes</CardTitle></CardHeader>
             <CardContent className="flex flex-col gap-4">
               <FormField control={form.control} name="description" render={({ field }) => (
-                <FormItem><FormLabel>Description</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>
+                <FormItem>
+                  <FormLabel>Description</FormLabel>
+                  <FormControl>
+                    <RichTextEditor
+                      value={field.value || ""}
+                      onChange={field.onChange}
+                      placeholder="Enter detailed lead description..."
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )} />
               <FormField control={form.control} name="notes" render={({ field }) => (
                 <FormItem><FormLabel>Notes</FormLabel><FormControl><Textarea {...field} /></FormControl><FormMessage /></FormItem>
+              )} />
+              <FormField control={form.control} name="customFields" render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Custom Fields (JSON format)</FormLabel>
+                  <FormControl>
+                    <Textarea
+                      placeholder='e.g. {"interested_course": "Full Stack", "budget": "50000"}'
+                      {...field}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )} />
             </CardContent>
           </Card>

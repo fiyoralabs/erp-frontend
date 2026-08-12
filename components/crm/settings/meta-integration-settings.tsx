@@ -1,14 +1,15 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Checkbox } from "@/components/ui/checkbox";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { toast } from "sonner";
-import { apiClient, ApiRequestError } from "@/lib/api-client";
-import { Loader2, Copy, Check, RefreshCw, Globe, ShieldCheck, Zap } from "lucide-react";
+import { apiClient } from "@/lib/api-client";
+import { Loader2, Copy, Check, RefreshCw, Globe, ExternalLink, Webhook, CheckCircle2 } from "lucide-react";
 
 interface MetaConfigResponse {
   id?: number;
@@ -17,26 +18,49 @@ interface MetaConfigResponse {
   pageName?: string;
   verifyToken?: string;
   isActive?: boolean;
+  isConnected?: boolean;
+  connectedUserName?: string;
+  connectedAt?: string;
   lastSyncedAt?: string;
   webhookUrl: string;
 }
 
+interface MetaPageOption {
+  id: string;
+  name: string;
+}
+
 export function MetaIntegrationSettings() {
+  const searchParams = useSearchParams();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [syncing, setSyncing] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [loadingPages, setLoadingPages] = useState(false);
   const [copied, setCopied] = useState(false);
 
   const [config, setConfig] = useState<MetaConfigResponse | null>(null);
-  const [pageId, setPageId] = useState("");
+  const [pages, setPages] = useState<MetaPageOption[]>([]);
+  const [selectedPageId, setSelectedPageId] = useState("");
   const [pageName, setPageName] = useState("");
   const [accessToken, setAccessToken] = useState("");
   const [verifyToken, setVerifyToken] = useState("");
   const [isActive, setIsActive] = useState(true);
 
   useEffect(() => {
+    // Check URL parameters for OAuth redirect feedback
+    const success = searchParams.get("success");
+    const connectedUser = searchParams.get("connectedUser");
+    const error = searchParams.get("error");
+
+    if (success === "true") {
+      toast.success(`Successfully connected Meta account for ${connectedUser || "User"}!`);
+    } else if (error) {
+      toast.error(`Meta OAuth Connection failed: ${error}`);
+    }
+
     fetchConfig();
-  }, []);
+  }, [searchParams]);
 
   const fetchConfig = async () => {
     setLoading(true);
@@ -44,10 +68,14 @@ export function MetaIntegrationSettings() {
       const res = await apiClient.get<MetaConfigResponse>("crm/meta-config");
       if (res) {
         setConfig(res);
-        setPageId(res.pageId || "");
+        setSelectedPageId(res.pageId || "");
         setPageName(res.pageName || "");
         setVerifyToken(res.verifyToken || "");
         setIsActive(res.isActive ?? true);
+
+        if (res.isConnected) {
+          fetchDiscoveredPages();
+        }
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to load Meta integration settings.");
@@ -56,12 +84,61 @@ export function MetaIntegrationSettings() {
     }
   };
 
+  const fetchDiscoveredPages = async () => {
+    setLoadingPages(true);
+    try {
+      const res = await apiClient.get<MetaPageOption[]>("crm/meta-pages");
+      if (res) {
+        setPages(res);
+      }
+    } catch (err: any) {
+      console.error("Failed to load user pages:", err);
+    } finally {
+      setLoadingPages(false);
+    }
+  };
+
+  const handleConnectMeta = async () => {
+    setConnecting(true);
+    try {
+      const res = await apiClient.get<{ authorizeUrl: string }>("crm/meta-oauth/authorize");
+      if (res?.authorizeUrl) {
+        window.location.href = res.authorizeUrl;
+      } else {
+        toast.error("Could not generate Meta authorization link.");
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to initiate Meta OAuth connection.");
+    } finally {
+      setConnecting(false);
+    }
+  };
+
+  const handlePageSelect = async (pageId: string | null) => {
+    if (!pageId) return;
+    const pageObj = pages.find((p) => p.id === pageId);
+    const pName = pageObj ? pageObj.name : "";
+    setSelectedPageId(pageId);
+    setPageName(pName);
+
+    try {
+      const updated = await apiClient.post<MetaConfigResponse>("crm/meta-pages/select", {
+        pageId,
+        pageName: pName,
+      });
+      setConfig(updated);
+      toast.success(`Selected Facebook Page: ${pName}`);
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update selected page.");
+    }
+  };
+
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     setSaving(true);
     try {
       const payload = {
-        pageId,
+        pageId: selectedPageId,
         pageName,
         accessToken,
         verifyToken,
@@ -132,6 +209,73 @@ export function MetaIntegrationSettings() {
           </div>
         </CardHeader>
         <CardContent className="space-y-4">
+          {/* OAuth Authorization Banner */}
+          <div className="rounded-lg border bg-blue-500/5 p-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div className="space-y-1">
+              <div className="flex items-center gap-2">
+                <Webhook className="h-5 w-5 text-blue-600" />
+                <h3 className="text-sm font-semibold">
+                  {config?.isConnected ? `Connected as ${config.connectedUserName || "Facebook User"}` : "Connect Meta Business Account"}
+                </h3>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                {config?.isConnected
+                  ? `Connected on ${new Date(config.connectedAt!).toLocaleDateString()}. Fiyora automatically ingests leads from your authorized Facebook Lead Forms.`
+                  : "Authorize Fiyora via Meta Business Login (config_id: 939235305865838) to automatically fetch your Facebook Pages and Lead Ads."}
+              </p>
+            </div>
+            <Button
+              onClick={handleConnectMeta}
+              disabled={connecting}
+              className="bg-blue-600 hover:bg-blue-700 text-white gap-2 shrink-0 text-xs h-9"
+            >
+              {connecting ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <ExternalLink className="h-4 w-4" />
+              )}
+              {config?.isConnected ? "Reconnect Meta Account" : "Connect Meta Business"}
+            </Button>
+          </div>
+
+          {/* Page Selection dropdown if OAuth Connected */}
+          {config?.isConnected && (
+            <div className="rounded-lg border bg-card p-4 space-y-3">
+              <div className="flex items-center justify-between">
+                <Label className="text-xs font-semibold text-muted-foreground uppercase tracking-wider flex items-center gap-1.5">
+                  <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" /> Target Facebook Page
+                </Label>
+                <Button size="sm" variant="ghost" className="h-6 text-[11px] gap-1" onClick={fetchDiscoveredPages} disabled={loadingPages}>
+                  <RefreshCw className={`h-3 w-3 ${loadingPages ? "animate-spin" : ""}`} /> Refresh Pages
+                </Button>
+              </div>
+
+              {pages.length > 0 ? (
+                <div className="space-y-2">
+                  <Select value={selectedPageId} onValueChange={handlePageSelect}>
+                    <SelectTrigger className="h-9 text-xs">
+                      <SelectValue placeholder="Select Facebook Page" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {pages.map((p) => (
+                        <SelectItem key={p.id} value={p.id} className="text-xs">
+                          {p.name} ({p.id})
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-[11px] text-muted-foreground">
+                    Selected page is automatically subscribed to real-time Lead Ads notifications.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground italic">
+                  {loadingPages ? "Loading Facebook Pages..." : "No Facebook Pages found for this account. Ensure your Facebook account has admin access to at least one Facebook Page."}
+                </p>
+              )}
+            </div>
+          )}
+
           {/* Webhook Endpoint Box */}
           <div className="rounded-lg border bg-muted/40 p-4 space-y-2">
             <div className="flex items-center justify-between">
@@ -147,7 +291,7 @@ export function MetaIntegrationSettings() {
               {config?.webhookUrl}
             </div>
             <p className="text-[11px] text-muted-foreground">
-              Paste this URL into **Meta Developer Console** under Webhook Subscriptions (`leadgen` topic) to stream leads in real-time.
+              Meta Webhook notifications are received at this HTTPS URL in real-time.
             </p>
           </div>
 
@@ -164,91 +308,6 @@ export function MetaIntegrationSettings() {
               {syncing ? "Syncing..." : "Sync Missed Leads Now"}
             </Button>
           </div>
-        </CardContent>
-      </Card>
-
-      {/* Configuration Form Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2">
-            <ShieldCheck className="h-4 w-4 text-emerald-500" /> Meta API Credentials
-          </CardTitle>
-          <CardDescription>
-            Configure your Meta Facebook Page Access Token and security verify token.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <form onSubmit={handleSave} className="space-y-4">
-            <div className="flex items-center gap-3 rounded-lg border p-3">
-              <Checkbox
-                id="isActive"
-                checked={isActive}
-                onCheckedChange={(c) => setIsActive(!!c)}
-              />
-              <div className="grid gap-0.5 leading-none">
-                <Label htmlFor="isActive" className="text-sm font-medium cursor-pointer">
-                  Enable Meta Lead Ads Integration
-                </Label>
-                <p className="text-xs text-muted-foreground">Ingest leads from Facebook and Instagram forms into this CRM company.</p>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <Label htmlFor="pageId">Facebook Page ID</Label>
-                <Input
-                  id="pageId"
-                  placeholder="e.g. 109283746592817"
-                  value={pageId}
-                  onChange={(e) => setPageId(e.target.value)}
-                  className="h-9 text-xs"
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label htmlFor="pageName">Facebook Page Name</Label>
-                <Input
-                  id="pageName"
-                  placeholder="e.g. Fiyora Store"
-                  value={pageName}
-                  onChange={(e) => setPageName(e.target.value)}
-                  className="h-9 text-xs"
-                />
-              </div>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="accessToken">Page Access Token</Label>
-              <Input
-                id="accessToken"
-                type="password"
-                placeholder="EAAG..."
-                value={accessToken}
-                onChange={(e) => setAccessToken(e.target.value)}
-                className="h-9 text-xs font-mono"
-              />
-              <p className="text-[11px] text-muted-foreground">
-                Enter your long-lived Meta Page Access Token (generated in Meta Graph API Explorer or Developer Console).
-              </p>
-            </div>
-
-            <div className="space-y-1.5">
-              <Label htmlFor="verifyToken">Webhook Verify Token</Label>
-              <Input
-                id="verifyToken"
-                placeholder="Verification token string..."
-                value={verifyToken}
-                onChange={(e) => setVerifyToken(e.target.value)}
-                className="h-9 text-xs font-mono"
-              />
-            </div>
-
-            <div className="flex justify-end pt-2">
-              <Button type="submit" size="sm" className="gap-2" disabled={saving}>
-                {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Zap className="h-4 w-4 fill-primary" />}
-                {saving ? "Saving..." : "Save Meta Configuration"}
-              </Button>
-            </div>
-          </form>
         </CardContent>
       </Card>
     </div>

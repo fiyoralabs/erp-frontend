@@ -260,6 +260,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
   const transformRowToLead = (row: any[]): { lead: LeadBatchImportItem; restInfo: string[] } => {
     const lead: Record<string, any> = {};
     const unmappedPairs: string[] = [];
+    const customFieldsMap: Record<string, string> = {};
 
     headers.forEach((colHeader: any, colIdx: number) => {
       const cellVal = row[colIdx] != null ? String(row[colIdx]).trim() : "";
@@ -277,16 +278,15 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
           }
         }
       } else if (appendRestToDescription && colHeader && cellVal !== "") {
-        unmappedPairs.push(`${String(colHeader).trim()}: ${cellVal}`);
+        const headerStr = String(colHeader).trim();
+        unmappedPairs.push(`${headerStr}: ${cellVal}`);
+        customFieldsMap[headerStr] = cellVal;
       }
     });
 
-    let finalDesc = lead.description || "";
-    if (unmappedPairs.length > 0) {
-      const restFormatted = `--- Additional Details ---\n` + unmappedPairs.join("\n");
-      finalDesc = finalDesc ? `${finalDesc}\n\n${restFormatted}` : restFormatted;
+    if (Object.keys(customFieldsMap).length > 0) {
+      lead.customFields = JSON.stringify(customFieldsMap);
     }
-    if (finalDesc) lead.description = finalDesc;
 
     return { lead: lead as LeadBatchImportItem, restInfo: unmappedPairs };
   };
@@ -423,9 +423,9 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
                 </div>
                 <div className="p-3.5 rounded-lg bg-card border border-border space-y-1">
                   <div className="font-semibold text-primary flex items-center gap-1.5">
-                    <FileText className="h-3.5 w-3.5" /> Rest Columns to Description
+                    <FileText className="h-3.5 w-3.5" /> Rest Columns to Custom Fields
                   </div>
-                  <p className="text-muted-foreground">Unmapped columns will automatically be appended as structured details into Description.</p>
+                  <p className="text-muted-foreground">Unmapped extra columns will automatically be stored as structured Custom Fields.</p>
                 </div>
                 <div className="p-3.5 rounded-lg bg-card border border-border space-y-1 sm:col-span-2 lg:col-span-1">
                   <div className="font-semibold text-primary flex items-center gap-1.5">

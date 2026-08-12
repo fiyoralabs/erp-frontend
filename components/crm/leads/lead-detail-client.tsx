@@ -209,8 +209,52 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
               <Field label="Address" value={[lead.address, lead.city, lead.state, lead.country, lead.postalCode].filter(Boolean).join(", ") || null} />
               <Field label="Expected Closing Date" value={lead.expectedClosingDate ? formatDate(lead.expectedClosingDate) : null} />
               <Field label="Created" value={formatDateTime(lead.createdAt)} />
-              {lead.description && <div className="sm:col-span-2"><p className="text-muted-foreground text-sm">Description</p><p className="text-sm">{lead.description}</p></div>}
-              {lead.notes && <div className="sm:col-span-2"><p className="text-muted-foreground text-sm">Notes</p><p className="text-sm">{lead.notes}</p></div>}
+              {lead.description && (
+                <div className="sm:col-span-2 border-t pt-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-1.5">Description</p>
+                  <div
+                    className="text-sm prose max-w-none dark:prose-invert bg-muted/20 p-3 rounded-lg border"
+                    dangerouslySetInnerHTML={{ __html: lead.description }}
+                  />
+                </div>
+              )}
+              {lead.notes && <div className="sm:col-span-2"><p className="text-muted-foreground text-sm font-medium">Notes</p><p className="text-sm">{lead.notes}</p></div>}
+              {(lead.customFields || (lead.description && lead.description.includes("--- Additional Details ---"))) && (
+                <div className="sm:col-span-2 border-t pt-3">
+                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2">Meta &amp; Custom Form Responses</p>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-muted/30 p-3 rounded-lg border">
+                    {(() => {
+                      if (lead.customFields) {
+                        try {
+                          const parsed = JSON.parse(lead.customFields);
+                          return Object.entries(parsed).map(([key, val]) => (
+                            <div key={key}>
+                              <p className="text-xs text-muted-foreground capitalize">{key.replace(/_/g, " ")}</p>
+                              <p className="text-sm font-medium">{String(val)}</p>
+                            </div>
+                          ));
+                        } catch (e) {
+                          return <p className="text-xs text-muted-foreground">{lead.customFields}</p>;
+                        }
+                      }
+                      if (lead.description && lead.description.includes("--- Additional Details ---")) {
+                        const extraPart = lead.description.split("--- Additional Details ---")[1] || "";
+                        const matches = Array.from(extraPart.matchAll(/([a-zA-Z0-9_?]+):\s*([^:\s]+(?:\s+[^:\s]+)*?)(?=\s+[a-zA-Z0-9_?]+:|$)/g));
+                        if (matches.length > 0) {
+                          return matches.map((m) => (
+                            <div key={m[1]}>
+                              <p className="text-xs text-muted-foreground capitalize">{m[1].replace(/_/g, " ")}</p>
+                              <p className="text-sm font-medium">{m[2]}</p>
+                            </div>
+                          ));
+                        }
+                        return <p className="text-xs text-muted-foreground">{extraPart.trim()}</p>;
+                      }
+                      return null;
+                    })()}
+                  </div>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

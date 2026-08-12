@@ -175,6 +175,7 @@ export interface Lead {
   campaignId: number | null;
   description: string | null;
   notes: string | null;
+  customFields?: string | null;
   convertedAccountId: number | null;
   convertedContactId: number | null;
   convertedOpportunityId: number | null;
