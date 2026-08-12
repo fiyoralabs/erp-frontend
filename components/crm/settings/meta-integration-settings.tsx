@@ -242,7 +242,9 @@ export function MetaIntegrationSettings() {
                 <div className="space-y-2">
                   <Select value={selectedPageId} onValueChange={handlePageSelect}>
                     <SelectTrigger className="h-9 text-xs">
-                      <SelectValue placeholder="Select Facebook Page" />
+                      <SelectValue placeholder="Select Facebook Page">
+                        {pages.find((p) => p.id === selectedPageId)?.name || pageName || undefined}
+                      </SelectValue>
                     </SelectTrigger>
                     <SelectContent>
                       {pages.map((p) => (
