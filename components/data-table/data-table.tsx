@@ -80,29 +80,42 @@ export function DataTable<T>({
     <div className="flex flex-col gap-3">
       {/* Card list -- below md: */}
       <div className="flex flex-col gap-3 md:hidden">
-        {data.map((row) => (
-          <Card
-            key={rowKey(row)}
-            className={onRowClick ? "cursor-pointer transition-colors hover:bg-muted/50" : ""}
-            onClick={() => onRowClick?.(row)}
-          >
-            <CardContent className="flex flex-col gap-2">
-              {columns
-                .filter((c) => !c.hideOnCard)
-                .map((col) => (
-                  <div key={col.key} className="flex items-center justify-between gap-3 text-sm">
-                    <span className="text-muted-foreground">{col.header}</span>
-                    <span className="text-right font-medium">{col.render(row)}</span>
+        {data.map((row) => {
+          const visibleColumns = columns.filter((c) => !c.hideOnCard);
+          const [titleColumn, ...detailColumns] = visibleColumns;
+          return (
+            <Card
+              key={rowKey(row)}
+              className={onRowClick ? "cursor-pointer transition-colors hover:bg-muted/50" : ""}
+              onClick={() => onRowClick?.(row)}
+            >
+              <CardContent className="flex flex-col gap-3 p-4">
+                {titleColumn && (
+                  <div className="text-base font-semibold leading-tight">
+                    {titleColumn.render(row)}
                   </div>
-                ))}
-              {actions && (
-                <div className="mt-2 flex justify-end gap-2 border-t pt-2">
-                  {actions(row)}
-                </div>
-              )}
-            </CardContent>
-          </Card>
-        ))}
+                )}
+                {detailColumns.length > 0 && (
+                  <div className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm">
+                    {detailColumns.map((col) => (
+                      <div key={col.key} className="flex min-w-0 flex-col gap-0.5">
+                        <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                          {col.header}
+                        </span>
+                        <span className="truncate font-medium">{col.render(row)}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {actions && (
+                  <div className="flex justify-end gap-2 border-t pt-2">
+                    {actions(row)}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
       </div>
 
       {/* Real table -- md: and above */}
