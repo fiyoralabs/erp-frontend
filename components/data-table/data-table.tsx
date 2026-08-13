@@ -108,7 +108,7 @@ export function DataTable<T>({
                   </div>
                 )}
                 {actions && (
-                  <div className="flex justify-end gap-2 border-t pt-2">
+                  <div className="flex justify-end gap-2 border-t pt-2" onClick={(e) => e.stopPropagation()}>
                     {actions(row)}
                   </div>
                 )}
