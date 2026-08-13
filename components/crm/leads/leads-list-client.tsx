@@ -111,14 +111,14 @@ export function LeadsListClient() {
           <h1 className="text-xl font-semibold sm:text-2xl">Leads</h1>
           <p className="text-sm text-muted-foreground">Track and qualify incoming leads.</p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" className="h-11 gap-1.5 sm:h-8" onClick={() => setImportDialogOpen(true)}>
+        <div className="flex flex-col gap-2 sm:flex-row">
+          <Button variant="outline" className="h-11 w-full gap-1.5 sm:h-8 sm:w-auto" onClick={() => setImportDialogOpen(true)}>
             <FileSpreadsheet className="size-4 text-emerald-500" /> Import Excel / CSV
           </Button>
-          <Button variant="outline" className="h-11 gap-1.5 sm:h-8" onClick={exportCsv}>
+          <Button variant="outline" className="h-11 w-full gap-1.5 sm:h-8 sm:w-auto" onClick={exportCsv}>
             <Download className="size-4" /> Export
           </Button>
-          <Button nativeButton={false} className="h-11 gap-1.5 sm:h-8" render={<Link href="/crm/leads/new" />}>
+          <Button nativeButton={false} className="h-11 w-full gap-1.5 sm:h-8 sm:w-auto" render={<Link href="/crm/leads/new" />}>
             <Plus className="size-4" /> New Lead
           </Button>
         </div>
