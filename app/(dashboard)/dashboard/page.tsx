@@ -1,5 +1,14 @@
+import Link from "next/link";
 import { serverApiGet } from "@/lib/server-api";
-import type { DashboardOverview } from "@/lib/types/dashboard";
+import type {
+  DashboardOverview,
+  PagedReportResult,
+  SalesByDatePoint,
+  TopProduct,
+  TopCustomer,
+  LowStockItem,
+  ExpenseByCategory,
+} from "@/lib/types/dashboard";
 import { localDateInputValue } from "@/lib/date";
 import {
   Card,
@@ -8,6 +17,8 @@ import {
   CardDescription,
   CardContent,
 } from "@/components/ui/card";
+import { DateRangePicker } from "@/components/dashboard/date-range-picker";
+import { DashboardCharts } from "@/components/dashboard/dashboard-charts";
 
 function todayRange() {
   const to = new Date();
@@ -15,6 +26,17 @@ function todayRange() {
   from.setDate(1);
   from.setMonth(0); // Jan 1 of current year -- year-to-date default window
   return { from: localDateInputValue(from), to: localDateInputValue(to) };
+}
+
+// Trend chart always shows the last 30 days ending on `to`, independent of
+// the (potentially much wider, e.g. year-to-date) overview range -- report
+// endpoints cap page size at 100, and a daily trend over a full year would
+// blow past that as well as being unreadable as a bar/line chart.
+function last30Days(to: string) {
+  const toDate = new Date(to);
+  const from = new Date(toDate);
+  from.setDate(from.getDate() - 29);
+  return { from: localDateInputValue(from), to };
 }
 
 function formatCurrency(value: number) {
@@ -48,19 +70,45 @@ function StatCard({ label, value, tone = "default" }: StatCardProps) {
   );
 }
 
-export default async function DashboardPage() {
-  const { from, to } = todayRange();
-  const overview = await serverApiGet<DashboardOverview>(
-    `reports/dashboard/overview?from=${from}&to=${to}`
-  );
+export default async function DashboardPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ from?: string; to?: string }>;
+}) {
+  const params = await searchParams;
+  const defaults = todayRange();
+  const from = params.from || defaults.from;
+  const to = params.to || defaults.to;
+  const trend = last30Days(to);
+
+  const [overview, salesByDate, topProducts, topCustomers, lowStock, expenseByCategory] =
+    await Promise.all([
+      serverApiGet<DashboardOverview>(`reports/dashboard/overview?from=${from}&to=${to}`),
+      serverApiGet<PagedReportResult<SalesByDatePoint>>(
+        `reports/sales/by-date?from=${trend.from}&to=${trend.to}&size=31`
+      ),
+      serverApiGet<PagedReportResult<TopProduct>>(
+        `reports/sales/top-products?from=${from}&to=${to}&size=5`
+      ),
+      serverApiGet<PagedReportResult<TopCustomer>>(
+        `reports/sales/top-customers?from=${from}&to=${to}&size=5`
+      ),
+      serverApiGet<PagedReportResult<LowStockItem>>(`reports/inventory/low-stock?size=5`),
+      serverApiGet<PagedReportResult<ExpenseByCategory>>(
+        `reports/expenses/by-category?from=${from}&to=${to}&size=6`
+      ),
+    ]);
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-xl font-semibold sm:text-2xl">Dashboard</h1>
-        <p className="text-sm text-muted-foreground">
-          {from} to {to}
-        </p>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h1 className="text-xl font-semibold sm:text-2xl">Dashboard</h1>
+          <p className="text-sm text-muted-foreground">
+            {from} to {to}
+          </p>
+        </div>
+        <DateRangePicker key={`${from}|${to}`} from={from} to={to} />
       </div>
 
       {!overview ? (
@@ -98,6 +146,18 @@ export default async function DashboardPage() {
           />
         </div>
       )}
+
+      <DashboardCharts
+        salesByDate={salesByDate?.content ?? null}
+        topProducts={topProducts?.content ?? null}
+        topCustomers={topCustomers?.content ?? null}
+        lowStock={lowStock?.content ?? null}
+        expenseByCategory={expenseByCategory?.content ?? null}
+      />
+
+      <Link href="/reports" className="text-sm text-primary hover:underline">
+        View all reports →
+      </Link>
     </div>
   );
 }

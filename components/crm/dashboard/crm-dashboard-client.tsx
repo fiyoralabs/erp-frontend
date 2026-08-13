@@ -23,8 +23,8 @@ function ChartCard({ title, children }: { title: string; children: React.ReactNo
   return (
     <Card>
       <CardHeader><CardTitle className="text-base">{title}</CardTitle></CardHeader>
-      <CardContent className="h-64 overflow-x-auto">
-        <div className="h-full min-w-72">{children}</div>
+      <CardContent className="h-64">
+        <div className="h-full w-full">{children}</div>
       </CardContent>
     </Card>
   );
@@ -77,7 +77,7 @@ export function CrmDashboardClient() {
         </Card>
       ) : (
         <>
-          <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
+          <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 xl:grid-cols-4">
             <StatTile icon={Users} label="Total Leads" value={String(data.totalLeads)} />
             <StatTile icon={UserPlus} label="New Leads" value={String(data.newLeads)} />
             <StatTile icon={UserCheck} label="Qualified Leads" value={String(data.qualifiedLeads)} />
