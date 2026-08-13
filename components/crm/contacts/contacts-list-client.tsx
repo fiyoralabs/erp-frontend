@@ -2,17 +2,25 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { Plus, Search, Pencil } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { DataTable, type DataTableColumn } from "@/components/data-table/data-table";
-import { apiClient, type PagedResult } from "@/lib/api-client";
-import type { Contact } from "@/lib/types/crm";
+import { apiClient, ApiRequestError, type PagedResult } from "@/lib/api-client";
+import type { Contact, ContactLinks } from "@/lib/types/crm";
 import { ActiveBadge } from "@/components/shared/active-badge";
 import { ContactDialog } from "@/components/crm/contacts/contact-dialog";
+import { ContactLinkedLeadsDialog } from "@/components/crm/contacts/contact-linked-leads-dialog";
 import { useAccountNameLookup } from "@/components/crm/shared/account-select";
+
+function errorMessage(err: unknown) {
+  if (err instanceof ApiRequestError) return err.message;
+  if (err instanceof Error) return err.message;
+  return "Something went wrong";
+}
 
 function useDebounced<T>(value: T, delayMs = 300) {
   const [debounced, setDebounced] = React.useState(value);
@@ -24,10 +32,12 @@ function useDebounced<T>(value: T, delayMs = 300) {
 }
 
 export function ContactsListClient() {
+  const qc = useQueryClient();
   const [page, setPage] = React.useState(0);
   const [search, setSearch] = React.useState("");
   const debouncedSearch = useDebounced(search);
   const [dialogState, setDialogState] = React.useState<{ mode: "create" } | { mode: "edit"; row: Contact } | null>(null);
+  const [linkedInfo, setLinkedInfo] = React.useState<{ contactName: string; links: ContactLinks } | null>(null);
 
   const params = new URLSearchParams({ page: String(page), size: "20" });
   if (debouncedSearch) params.set("search", debouncedSearch);
@@ -38,6 +48,32 @@ export function ContactsListClient() {
   });
 
   const accountNameById = useAccountNameLookup();
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiClient.delete(`crm/contacts/${id}`),
+    onSuccess: () => {
+      toast.success("Contact deleted");
+      qc.invalidateQueries({ queryKey: ["crm", "contacts"] });
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  });
+
+  // Checks whether the contact is linked to any lead or opportunity before
+  // deleting -- both Lead.convertedContactId and Opportunity.primaryContactId
+  // are real FKs onto crm.contact, so the backend rejects the delete anyway
+  // while either link exists. If linked, show which record(s) instead.
+  const checkAndDeleteMutation = useMutation({
+    mutationFn: (row: Contact) =>
+      apiClient.get<ContactLinks>(`crm/contacts/${row.id}/linked-records`).then((links) => ({ row, links })),
+    onSuccess: ({ row, links }) => {
+      if (links.leads.length > 0 || links.opportunities.length > 0) {
+        setLinkedInfo({ contactName: `${row.firstName} ${row.lastName ?? ""}`.trim(), links });
+      } else {
+        deleteMutation.mutate(row.id);
+      }
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  });
 
   const columns: DataTableColumn<Contact>[] = [
     { key: "name", header: "Name", render: (r) => <Link href={`/crm/contacts/${r.id}`} className="font-medium text-primary hover:underline">{r.firstName} {r.lastName}</Link> },
@@ -80,6 +116,16 @@ export function ContactsListClient() {
             <Button variant="ghost" size="icon" className="size-8" onClick={() => setDialogState({ mode: "edit", row })} aria-label="Edit contact">
               <Pencil className="size-4" />
             </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 text-destructive hover:text-destructive"
+              aria-label="Delete contact"
+              disabled={checkAndDeleteMutation.isPending || deleteMutation.isPending}
+              onClick={() => checkAndDeleteMutation.mutate(row)}
+            >
+              <Trash2 className="size-4" />
+            </Button>
           </>
         )}
       />
@@ -88,6 +134,13 @@ export function ContactsListClient() {
         open={dialogState !== null}
         onOpenChange={(open) => !open && setDialogState(null)}
         contact={dialogState?.mode === "edit" ? dialogState.row : undefined}
+      />
+
+      <ContactLinkedLeadsDialog
+        open={!!linkedInfo}
+        onOpenChange={(open) => !open && setLinkedInfo(null)}
+        contactName={linkedInfo?.contactName ?? ""}
+        links={linkedInfo?.links ?? { leads: [], opportunities: [] }}
       />
     </div>
   );

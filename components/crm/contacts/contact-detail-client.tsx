@@ -2,8 +2,10 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, Pencil, Phone, Mail, MessageSquare, MoreVertical } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { ArrowLeft, Pencil, Trash2, Phone, Mail, MessageSquare, MoreVertical } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -11,10 +13,17 @@ import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { apiClient } from "@/lib/api-client";
-import type { Contact } from "@/lib/types/crm";
+import { apiClient, ApiRequestError } from "@/lib/api-client";
+import type { Contact, ContactLinks } from "@/lib/types/crm";
+
+function errorMessage(err: unknown) {
+  if (err instanceof ApiRequestError) return err.message;
+  if (err instanceof Error) return err.message;
+  return "Something went wrong";
+}
 import { ActiveBadge } from "@/components/shared/active-badge";
 import { ContactDialog } from "@/components/crm/contacts/contact-dialog";
+import { ContactLinkedLeadsDialog } from "@/components/crm/contacts/contact-linked-leads-dialog";
 import { ActivitiesTab } from "@/components/crm/activities/activities-tab";
 import { TasksTab } from "@/components/crm/tasks/tasks-tab";
 import { FollowUpsTab } from "@/components/crm/shared/follow-ups-tab";
@@ -23,7 +32,10 @@ import { ScrollableTabsList } from "@/components/crm/shared/scrollable-tabs";
 import { useAccountNameLookup } from "@/components/crm/shared/account-select";
 
 export function ContactDetailClient({ contactId }: { contactId: number }) {
+  const qc = useQueryClient();
+  const router = useRouter();
   const [editOpen, setEditOpen] = React.useState(false);
+  const [linkedRecords, setLinkedRecords] = React.useState<ContactLinks | null>(null);
 
   const contactQuery = useQuery({
     queryKey: ["crm", "contacts", contactId],
@@ -31,6 +43,29 @@ export function ContactDetailClient({ contactId }: { contactId: number }) {
   });
 
   const accountNameById = useAccountNameLookup();
+
+  const deleteMutation = useMutation({
+    mutationFn: () => apiClient.delete(`crm/contacts/${contactId}`),
+    onSuccess: () => {
+      toast.success("Contact deleted");
+      qc.invalidateQueries({ queryKey: ["crm", "contacts"] });
+      router.push("/crm/contacts");
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  });
+
+  // Checks whether the contact is linked to any lead or opportunity before
+  // deleting -- both are real FKs onto crm.contact, so the backend rejects
+  // the delete anyway while either link exists. If linked, show which
+  // record(s) instead.
+  const checkAndDeleteMutation = useMutation({
+    mutationFn: () => apiClient.get<ContactLinks>(`crm/contacts/${contactId}/linked-records`),
+    onSuccess: (links) => {
+      if (links.leads.length > 0 || links.opportunities.length > 0) setLinkedRecords(links);
+      else deleteMutation.mutate();
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  });
 
   if (contactQuery.isLoading) return <p className="text-sm text-muted-foreground">Loading contact...</p>;
   const contact = contactQuery.data;
@@ -74,6 +109,15 @@ export function ContactDetailClient({ contactId }: { contactId: number }) {
                 <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setEditOpen(true)}>
                   <Pencil className="size-4" /> Edit
                 </Button>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="gap-1.5 text-destructive hover:text-destructive"
+                  disabled={checkAndDeleteMutation.isPending || deleteMutation.isPending}
+                  onClick={() => checkAndDeleteMutation.mutate()}
+                >
+                  <Trash2 className="size-4" /> Delete
+                </Button>
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger render={<Button variant="outline" size="icon" className="sm:hidden" aria-label="More actions" />}>
@@ -98,6 +142,9 @@ export function ContactDetailClient({ contactId }: { contactId: number }) {
                   <DropdownMenuItem onClick={() => setEditOpen(true)} className="flex items-center gap-2">
                     <Pencil className="size-3.5" /> Edit
                   </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => checkAndDeleteMutation.mutate()} className="flex items-center gap-2 text-destructive">
+                    <Trash2 className="size-3.5" /> Delete
+                  </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
@@ -119,6 +166,13 @@ export function ContactDetailClient({ contactId }: { contactId: number }) {
       </Tabs>
 
       <ContactDialog open={editOpen} onOpenChange={setEditOpen} contact={contact} />
+
+      <ContactLinkedLeadsDialog
+        open={!!linkedRecords}
+        onOpenChange={(open) => !open && setLinkedRecords(null)}
+        contactName={`${contact.firstName} ${contact.lastName ?? ""}`.trim()}
+        links={linkedRecords ?? { leads: [], opportunities: [] }}
+      />
     </div>
   );
 }

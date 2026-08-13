@@ -2,14 +2,16 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ArrowLeft, Phone, Mail, MessageSquare, Pencil, Handshake, Loader2, MoreVertical, DollarSign, Radio, Clock3, CalendarClock } from "lucide-react";
+import { ArrowLeft, Phone, Mail, MessageSquare, Pencil, Trash2, Handshake, Loader2, MoreVertical, DollarSign, Radio, Clock3, CalendarClock } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import {
   DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
@@ -39,7 +41,9 @@ import { LeadPastInquiriesTab } from "@/components/crm/leads/lead-past-inquiries
 // ...
 export function LeadDetailClient({ leadId }: { leadId: number }) {
   const qc = useQueryClient();
+  const router = useRouter();
   const [convertOpen, setConvertOpen] = React.useState(false);
+  const [deleteOpen, setDeleteOpen] = React.useState(false);
 
   const leadQuery = useQuery({
     queryKey: ["crm", "leads", leadId],
@@ -66,6 +70,16 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
       toast.success("Contact recorded.");
       qc.invalidateQueries({ queryKey: ["crm", "leads", leadId] });
     },
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => apiClient.delete(`crm/leads/${leadId}`),
+    onSuccess: () => {
+      toast.success("Lead deleted");
+      qc.invalidateQueries({ queryKey: ["crm", "leads"] });
+      router.push("/crm/leads");
+    },
+    onError: (err) => toast.error(errorMessage(err)),
   });
 
   if (leadQuery.isLoading) return <p className="text-sm text-muted-foreground">Loading lead...</p>;
@@ -114,6 +128,9 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
                 <Button nativeButton={false} variant="ghost" size="sm" className="gap-1.5" render={<Link href={`/crm/leads/${lead.id}/edit`} />}>
                   <Pencil className="size-4" /> Edit
                 </Button>
+                <Button variant="ghost" size="sm" className="gap-1.5 text-destructive hover:text-destructive" onClick={() => setDeleteOpen(true)}>
+                  <Trash2 className="size-4" /> Delete
+                </Button>
               </div>
 
               <DropdownMenu>
@@ -138,6 +155,9 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
                   )}
                   <DropdownMenuItem render={<Link href={`/crm/leads/${lead.id}/edit`} className="flex items-center gap-2" />}>
                     <Pencil className="size-3.5" /> Edit
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onClick={() => setDeleteOpen(true)} className="flex items-center gap-2 text-destructive">
+                    <Trash2 className="size-3.5" /> Delete
                   </DropdownMenuItem>
                 </DropdownMenuContent>
               </DropdownMenu>
@@ -267,6 +287,17 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
       </Tabs>
 
       <LeadConvertDialog open={convertOpen} onOpenChange={setConvertOpen} lead={lead} />
+
+      <ConfirmDialog
+        open={deleteOpen}
+        onOpenChange={setDeleteOpen}
+        title="Delete Lead?"
+        description={`Are you sure you want to permanently delete "${lead.fullName}"? This cannot be undone.`}
+        confirmText="Delete Lead"
+        variant="destructive"
+        isLoading={deleteMutation.isPending}
+        onConfirm={() => deleteMutation.mutate()}
+      />
     </div>
   );
 }

@@ -142,6 +142,28 @@ export interface Contact {
   updatedAt: string | null;
 }
 
+// GET /crm/contacts/{id}/linked-records -- everything that blocks a hard
+// delete of this contact (Lead.convertedContactId and
+// Opportunity.primaryContactId are both real FKs onto crm.contact).
+export interface ContactLinkedLead {
+  id: number;
+  leadNumber: string;
+  fullName: string;
+  status: LeadStatus;
+}
+
+export interface ContactLinkedOpportunity {
+  id: number;
+  opportunityNumber: string;
+  name: string;
+  status: OpportunityStatus;
+}
+
+export interface ContactLinks {
+  leads: ContactLinkedLead[];
+  opportunities: ContactLinkedOpportunity[];
+}
+
 export interface Lead {
   id: number;
   leadNumber: string;

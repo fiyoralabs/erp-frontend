@@ -2,19 +2,27 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useQuery } from "@tanstack/react-query";
-import { Plus, Search, Download, FileSpreadsheet } from "lucide-react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
+import { Plus, Search, Download, FileSpreadsheet, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { DataTable, type DataTableColumn } from "@/components/data-table/data-table";
-import { apiClient, type PagedResult } from "@/lib/api-client";
+import { apiClient, ApiRequestError, type PagedResult } from "@/lib/api-client";
 import type { Lead, LeadStatus, LeadRating, LeadSource } from "@/lib/types/crm";
 import { LeadRatingBadge, LeadStatusBadge } from "@/components/crm/shared/status-badges";
 import { formatCurrency, formatDate } from "@/components/crm/shared/format";
 import { useUserNameLookup } from "@/components/crm/shared/user-select";
 import { LeadImportDialog } from "@/components/crm/leads/lead-import-dialog";
+
+function errorMessage(err: unknown) {
+  if (err instanceof ApiRequestError) return err.message;
+  if (err instanceof Error) return err.message;
+  return "Something went wrong";
+}
 
 const STATUS_OPTIONS: LeadStatus[] = [
   "NEW", "CONTACTED", "ATTEMPTED_CONTACT", "INTERESTED", "QUALIFIED",
@@ -36,12 +44,14 @@ import { useRouter } from "next/navigation";
 // ...
 export function LeadsListClient() {
   const router = useRouter();
+  const qc = useQueryClient();
   const [page, setPage] = React.useState(0);
   const [search, setSearch] = React.useState("");
   const [status, setStatus] = React.useState<string>("");
   const [rating, setRating] = React.useState<string>("");
   const [sourceId, setSourceId] = React.useState<string>("");
   const [importDialogOpen, setImportDialogOpen] = React.useState(false);
+  const [deleteTarget, setDeleteTarget] = React.useState<{ id: number; name: string } | null>(null);
   const debouncedSearch = useDebounced(search);
 
   const sourcesQuery = useQuery({
@@ -67,6 +77,16 @@ export function LeadsListClient() {
   }, [sourcesQuery.data]);
 
   const userNameById = useUserNameLookup();
+
+  const deleteMutation = useMutation({
+    mutationFn: (id: number) => apiClient.delete(`crm/leads/${id}`),
+    onSuccess: () => {
+      toast.success("Lead deleted");
+      qc.invalidateQueries({ queryKey: ["crm", "leads"] });
+      setDeleteTarget(null);
+    },
+    onError: (err) => toast.error(errorMessage(err)),
+  });
 
   const columns: DataTableColumn<Lead>[] = [
     {
@@ -172,9 +192,20 @@ export function LeadsListClient() {
         onPageChange={setPage}
         onRowClick={(row) => router.push(`/crm/leads/${row.id}`)}
         actions={(row) => (
-          <Button nativeButton={false} variant="ghost" size="sm" render={<Link href={`/crm/leads/${row.id}`} />}>
-            View
-          </Button>
+          <>
+            <Button nativeButton={false} variant="ghost" size="sm" render={<Link href={`/crm/leads/${row.id}`} />}>
+              View
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="size-8 text-destructive hover:text-destructive"
+              aria-label="Delete lead"
+              onClick={() => setDeleteTarget({ id: row.id, name: row.fullName })}
+            >
+              <Trash2 className="size-4" />
+            </Button>
+          </>
         )}
       />
 
@@ -186,6 +217,17 @@ export function LeadsListClient() {
         open={importDialogOpen}
         onOpenChange={setImportDialogOpen}
         onSuccess={() => listQuery.refetch()}
+      />
+
+      <ConfirmDialog
+        open={!!deleteTarget}
+        onOpenChange={(open) => !open && setDeleteTarget(null)}
+        title="Delete Lead?"
+        description={`Are you sure you want to permanently delete "${deleteTarget?.name}"? This cannot be undone.`}
+        confirmText="Delete Lead"
+        variant="destructive"
+        isLoading={deleteMutation.isPending}
+        onConfirm={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
       />
     </div>
   );
