@@ -11,7 +11,7 @@ import { apiClient } from "@/lib/api-client";
 import type { Campaign, CampaignStats } from "@/lib/types/crm";
 import { CampaignDialog } from "@/components/crm/campaigns/campaign-dialog";
 import { formatCurrency, formatDate } from "@/components/crm/shared/format";
-import { StatTile } from "@/components/crm/shared/stat-tile";
+import { StatTile } from "@/components/shared/stat-tile";
 
 export function CampaignDetailClient({ campaignId }: { campaignId: number }) {
   const [editOpen, setEditOpen] = React.useState(false);

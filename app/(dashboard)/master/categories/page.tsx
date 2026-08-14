@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ChevronsDownUp, ChevronsUpDown, Loader2, Plus } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, Loader2, Plus, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -59,6 +59,7 @@ function errorMessage(err: unknown): string {
 
 export default function CategoriesPage() {
   const qc = useQueryClient();
+  const [search, setSearch] = React.useState("");
   const [dialogState, setDialogState] = React.useState<
     { mode: "create"; parent: Category | null } | { mode: "edit"; row: Category } | null
   >(null);
@@ -84,7 +85,11 @@ export default function CategoriesPage() {
     [allCategories]
   );
 
-  const visibleTree = filterTree(tree, () => true);
+  const visibleTree = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
+    if (!q) return filterTree(tree, () => true);
+    return filterTree(tree, (cat) => cat.name.toLowerCase().includes(q) || cat.code.toLowerCase().includes(q));
+  }, [tree, search]);
 
   React.useEffect(() => {
     if (!hasAutoExpanded && allCategories.length > 0) {
@@ -212,16 +217,37 @@ export default function CategoriesPage() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold sm:text-2xl">Categories</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="font-heading text-2xl font-semibold tracking-tight text-[#1a1c1c] dark:text-white sm:text-3xl">
+            Categories
+          </h1>
+          <p className="mt-1 text-xs text-[#545f73] dark:text-[#a3cfcf] sm:text-sm">
             Product categories, organized by parent/subcategory hierarchy.
           </p>
         </div>
-        <div className="flex gap-2">
+        <Button
+          className="h-11 gap-1.5 rounded-xl bg-[#0F3D3E] text-white hover:bg-[#0F3D3E]/90 dark:bg-[#beebeb] dark:text-[#002020] dark:hover:bg-[#beebeb]/90 sm:h-9"
+          onClick={() => setDialogState({ mode: "create", parent: null })}
+        >
+          <Plus className="size-4" />
+          Add category
+        </Button>
+      </div>
+
+      <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="relative w-full sm:max-w-xs">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#717978]" />
+          <Input
+            placeholder="Search by name or code..."
+            className="h-10 rounded-xl border-[#c0c8c8] bg-white pl-9 text-sm focus-visible:border-[#0F3D3E] focus-visible:ring-[#0F3D3E]/15 dark:border-[#717978] dark:bg-[#1a1c1c]"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex gap-2.5">
           <Button
             variant="outline"
             size="sm"
-            className="gap-1.5"
+            className="h-10 gap-1.5 rounded-xl border-[#c0c8c8] text-[#1a1c1c] hover:bg-[#f3f4f3] dark:border-[#717978] dark:text-white dark:hover:bg-[#2f3131]"
             onClick={() => setExpandedIds(new Set(collectAllIds(tree)))}
           >
             <ChevronsUpDown className="size-4" />
@@ -230,28 +256,21 @@ export default function CategoriesPage() {
           <Button
             variant="outline"
             size="sm"
-            className="gap-1.5"
+            className="h-10 gap-1.5 rounded-xl border-[#c0c8c8] text-[#1a1c1c] hover:bg-[#f3f4f3] dark:border-[#717978] dark:text-white dark:hover:bg-[#2f3131]"
             onClick={() => setExpandedIds(new Set())}
           >
             <ChevronsDownUp className="size-4" />
             Collapse all
           </Button>
-          <Button
-            className="h-11 gap-1.5 sm:h-8"
-            onClick={() => setDialogState({ mode: "create", parent: null })}
-          >
-            <Plus className="size-4" />
-            Add category
-          </Button>
         </div>
       </div>
 
       {listQuery.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading categories...</p>
+        <p className="text-sm text-[#545f73] dark:text-[#a3cfcf]">Loading categories...</p>
       ) : visibleTree.length === 0 ? (
-        <p className="rounded-xl py-8 text-center text-sm text-muted-foreground ring-1 ring-foreground/10">
-          No categories yet.
-        </p>
+        <div className="rounded-2xl border border-[#e2e2e2] dark:border-[#404848] bg-white dark:bg-[#1a1c1c] py-10 text-center text-sm text-[#545f73] dark:text-[#a3cfcf]">
+          {search ? `No categories match "${search}".` : "No categories yet."}
+        </div>
       ) : (
         <CategoryTree
           nodes={visibleTree}

@@ -13,7 +13,7 @@ import { zodResolver } from "@hookform/resolvers/zod";
 import type { ZodType } from "zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Plus, Pencil, Trash2, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Loader2, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -94,7 +94,7 @@ export function MasterCrudPage<
   entityLabel,
 }: MasterCrudPageProps<TEntity, TForm>) {
   const qc = useQueryClient();
-  const [page, setPage] = React.useState(0);
+  const [search, setSearch] = React.useState("");
   const [dialogState, setDialogState] = React.useState<
     { mode: "create" } | { mode: "edit"; row: TEntity } | null
   >(null);
@@ -106,11 +106,29 @@ export function MasterCrudPage<
   // "lookup" queries other screens use to populate dropdowns (see
   // lib/hooks/use-master-data.ts) -- both share the ["master", queryKey]
   // prefix, so invalidating one refreshes the other too.
+  //
+  // These entities are small, closed reference sets (brands, tax rates,
+  // payment methods, ...) -- erp's list endpoints don't take a `search`
+  // param, so instead of building server-side search we just fetch the
+  // whole set in one page (size=200 comfortably covers any of them) and
+  // filter client-side, matching Leads' search-box feel without a backend
+  // change these entities don't need.
   const listQuery = useQuery({
-    queryKey: ["master", queryKey, page],
-    queryFn: () => apiClient.get<PagedResult<TEntity>>(`${apiPath}?page=${page}&size=20`),
+    queryKey: ["master", queryKey],
+    queryFn: () => apiClient.get<PagedResult<TEntity>>(`${apiPath}?page=0&size=200`),
     staleTime: 5 * 60_000,
   });
+
+  const filteredRows = React.useMemo(() => {
+    const rows = (listQuery.data?.content ?? []).filter((row) => row.isActive);
+    if (!search.trim()) return rows;
+    const q = search.trim().toLowerCase();
+    return rows.filter((row) =>
+      Object.values(row as Record<string, unknown>).some(
+        (value) => typeof value === "string" && value.toLowerCase().includes(q)
+      )
+    );
+  }, [listQuery.data, search]);
 
   // zod v4's inferred resolver generic, and react-hook-form's own
   // TFieldValues/TTransformedValues split, don't unify cleanly against a
@@ -178,36 +196,47 @@ export function MasterCrudPage<
   }
 
   const saving = createMutation.isPending || updateMutation.isPending;
-  const data = listQuery.data;
 
   return (
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold sm:text-2xl">{title}</h1>
-          <p className="text-sm text-muted-foreground">{description}</p>
+          <h1 className="font-heading text-2xl font-semibold tracking-tight text-[#1a1c1c] dark:text-white sm:text-3xl">
+            {title}
+          </h1>
+          <p className="mt-1 text-xs text-[#545f73] dark:text-[#a3cfcf] sm:text-sm">{description}</p>
         </div>
-        <Button className="h-11 gap-1.5 sm:h-8" onClick={() => setDialogState({ mode: "create" })}>
+        <Button
+          className="h-11 gap-1.5 rounded-xl bg-[#0F3D3E] text-white hover:bg-[#0F3D3E]/90 dark:bg-[#beebeb] dark:text-[#002020] dark:hover:bg-[#beebeb]/90 sm:h-9"
+          onClick={() => setDialogState({ mode: "create" })}
+        >
           <Plus className="size-4" />
           Add {entityLabel}
         </Button>
       </div>
 
+      <div className="relative w-full sm:max-w-sm">
+        <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#717978]" />
+        <Input
+          placeholder={`Search ${entityLabel}s...`}
+          className="h-10 rounded-xl border-[#c0c8c8] bg-white pl-9 text-sm focus-visible:border-[#0F3D3E] focus-visible:ring-[#0F3D3E]/15 dark:border-[#717978] dark:bg-[#1a1c1c]"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+        />
+      </div>
+
       <DataTable
         columns={columns}
-        data={(data?.content ?? []).filter((row) => row.isActive)}
+        data={filteredRows}
         rowKey={(row) => row.id}
         isLoading={listQuery.isLoading}
-        emptyMessage={`No ${entityLabel} records yet.`}
-        page={page}
-        totalPages={data?.totalPages}
-        onPageChange={setPage}
+        emptyMessage={search ? `No ${entityLabel} records match "${search}".` : `No ${entityLabel} records yet.`}
         actions={(row) => (
           <>
             <Button
               variant="ghost"
               size="icon"
-              className="size-11 sm:size-8"
+              className="size-11 rounded-xl text-[#545f73] hover:bg-[#f3f4f3] hover:text-[#1a1c1c] dark:text-[#a3cfcf] dark:hover:bg-[#2f3131] sm:size-8"
               aria-label={`Edit ${entityLabel}`}
               onClick={() => setDialogState({ mode: "edit", row })}
             >
@@ -216,7 +245,7 @@ export function MasterCrudPage<
             <Button
               variant="ghost"
               size="icon"
-              className="size-11 text-destructive hover:text-destructive sm:size-8"
+              className="size-11 rounded-xl text-destructive hover:bg-destructive/10 hover:text-destructive sm:size-8"
               aria-label={`Delete ${entityLabel}`}
               onClick={() => setDeleteTarget(row)}
             >

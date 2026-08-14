@@ -1,8 +1,10 @@
 "use client";
 
 import * as React from "react";
+import Image from "next/image";
 import Link from "next/link";
-import { ExternalLink, Building2, MapPin, User, LogOut, Menu } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { ExternalLink, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -15,7 +17,6 @@ import {
 interface CrmTopbarProps {
   userName?: string;
   userEmail?: string;
-  companyLabel?: string;
   locationContext?: {
     activeLocation: { id: number; name: string } | null;
     allowedLocations: { id: number; name: string }[];
@@ -25,39 +26,44 @@ interface CrmTopbarProps {
 export function CrmTopbar({
   userName = "User",
   userEmail = "user@fiyora.com",
-  companyLabel = "Company #1",
   locationContext,
 }: CrmTopbarProps) {
-  const activeLocName = locationContext?.activeLocation?.name ?? "All Locations";
+  const router = useRouter();
+  const [signingOut, setSigningOut] = React.useState(false);
+  const activeLocName = locationContext?.activeLocation?.name ?? "Main Branch";
+
+  async function handleLogout() {
+    setSigningOut(true);
+    await fetch("/api/auth/logout", { method: "POST" });
+    router.push("/login");
+    router.refresh();
+  }
 
   return (
-    <header className="flex h-14 items-center justify-between border-b bg-background px-4 shrink-0 gap-4">
-      {/* Left side info */}
-      <div className="flex items-center gap-2 min-w-0">
-        <div className="flex items-center gap-1.5 font-bold text-sm lg:hidden shrink-0">
-          <span className="p-1 rounded bg-primary text-primary-foreground text-xs">CRM</span>
-        </div>
-        <div className="flex items-center gap-2 text-xs text-muted-foreground truncate">
-          <Building2 className="h-3.5 w-3.5 shrink-0 hidden sm:inline" />
-          <span className="truncate hidden sm:inline">{companyLabel}</span>
-          <span className="hidden sm:inline">·</span>
-          <MapPin className="h-3.5 w-3.5 shrink-0" />
-          <span className="truncate font-medium text-foreground">{activeLocName}</span>
-        </div>
+    <header className="h-16 w-full border-b border-[#e2e2e2] dark:border-[#404848] bg-white dark:bg-[#1a1c1c] flex justify-between items-center px-4 sm:px-6 shrink-0 z-10">
+      {/* Left: Logo (below lg: only -- the sidebar already carries the Fiyora
+          mark once it's visible) + Breadcrumbs */}
+      <div className="flex items-center text-[#545f73] dark:text-[#a3cfcf] text-xs sm:text-sm font-medium gap-1.5 sm:gap-2 min-w-0">
+        <Link href="/crm" className="relative h-7 w-7 shrink-0 lg:hidden">
+          <Image src="/logo-light.png" alt="Fiyora ERP" fill className="object-contain" />
+        </Link>
+        <span className="text-[#1a1c1c] dark:text-white font-semibold truncate">
+          {activeLocName}
+        </span>
       </div>
 
-      {/* Right side actions */}
-      <div className="flex items-center gap-2">
-        {/* Open in New Tab Launcher Button */}
+      {/* Right Actions */}
+      <div className="flex items-center gap-3">
+        {/* Open in New Window Button */}
         <Button
           nativeButton={false}
           variant="outline"
           size="sm"
-          className="h-8 gap-1.5 text-xs hidden sm:inline-flex"
+          className="h-9 gap-1.5 text-xs rounded-xl border-[#e2e2e2] dark:border-[#404848] text-[#1a1c1c] dark:text-white hover:bg-[#f3f4f3] dark:hover:bg-[#2f3131] hidden sm:inline-flex"
           render={<a href="/crm" target="_blank" rel="noreferrer" />}
           title="Open CRM Workspace in a new window/tab"
         >
-          <ExternalLink className="h-3.5 w-3.5" />
+          <ExternalLink className="h-3.5 w-3.5 text-[#545f73]" />
           <span>New Window</span>
         </Button>
 
@@ -65,22 +71,25 @@ export function CrmTopbar({
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <Button variant="ghost" size="sm" className="h-8 gap-2 px-2 text-xs" />
+              <button
+                type="button"
+                className="flex items-center gap-2.5 p-1 rounded-xl hover:bg-[#f3f4f3] dark:hover:bg-[#2f3131] transition-colors outline-none cursor-pointer"
+              />
             }
           >
-            <div className="h-6 w-6 rounded-full bg-primary/10 text-primary flex items-center justify-center font-bold text-xs">
+            <div className="w-8 h-8 rounded-full bg-[#0F3D3E] text-white flex items-center justify-center font-bold text-xs shadow-xs">
               {userName.charAt(0).toUpperCase()}
             </div>
-            <span className="font-medium hidden md:inline-block max-w-[120px] truncate">
+            <span className="font-medium text-xs text-[#1a1c1c] dark:text-white hidden md:inline-block max-w-[120px] truncate">
               {userName}
             </span>
           </DropdownMenuTrigger>
-          <DropdownMenuContent align="end" className="w-56">
+          <DropdownMenuContent align="end" className="w-56 rounded-xl border-[#e2e2e2] dark:border-[#404848]">
             <div className="flex flex-col space-y-1 p-2">
-              <p className="text-sm font-medium leading-none">{userName}</p>
-              <p className="text-xs leading-none text-muted-foreground">{userEmail}</p>
+              <p className="text-sm font-medium leading-none text-[#1a1c1c] dark:text-white">{userName}</p>
+              <p className="text-xs leading-none text-[#545f73] dark:text-[#a3cfcf] mt-1">{userEmail}</p>
             </div>
-            <DropdownMenuSeparator />
+            <DropdownMenuSeparator className="bg-[#e2e2e2] dark:bg-[#404848]" />
             <DropdownMenuItem
               render={<Link href="/settings/profile" className="cursor-pointer text-xs flex items-center gap-2" />}
             >
@@ -88,7 +97,9 @@ export function CrmTopbar({
             </DropdownMenuItem>
             <DropdownMenuItem
               variant="destructive"
-              render={<a href="/api/auth/logout" className="text-xs flex items-center gap-2" />}
+              disabled={signingOut}
+              onClick={handleLogout}
+              className="text-xs flex items-center gap-2"
             >
               <LogOut className="h-3.5 w-3.5" /> Log out
             </DropdownMenuItem>

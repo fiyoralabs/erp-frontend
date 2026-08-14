@@ -11,6 +11,8 @@ export type LeadStatus =
 
 export type LeadRating = "HOT" | "WARM" | "COLD";
 
+export type LeadFollowUpFilter = "OVERDUE" | "DUE_TODAY" | "UPCOMING" | "NONE";
+
 export type AccountType = "PROSPECT" | "CUSTOMER" | "PARTNER" | "VENDOR" | "OTHER";
 
 export type OpportunityStatus = "OPEN" | "WON" | "LOST";
@@ -206,7 +208,9 @@ export interface Lead {
   createdAt: string;
   updatedAt: string | null;
   lastContactedAt: string | null;
-  nextFollowUpAt: string | null;
+  // Earliest PENDING follow-up date, read live from crm.follow_up -- the same
+  // source the dashboard's overdue count and the Leads Overdue filter use.
+  nextPendingFollowUpDate: string | null;
 }
 
 export interface LeadDuplicate {

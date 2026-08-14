@@ -8,13 +8,28 @@ import { Plus, Search, Pencil, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable, type DataTableColumn } from "@/components/data-table/data-table";
+import { FiltersButton, FiltersPanel, FilterField } from "@/components/crm/shared/filters-panel";
 import { apiClient, ApiRequestError, type PagedResult } from "@/lib/api-client";
 import type { Contact, ContactLinks } from "@/lib/types/crm";
 import { ActiveBadge } from "@/components/shared/active-badge";
 import { ContactDialog } from "@/components/crm/contacts/contact-dialog";
 import { ContactLinkedLeadsDialog } from "@/components/crm/contacts/contact-linked-leads-dialog";
-import { useAccountNameLookup } from "@/components/crm/shared/account-select";
+import { useAccountNameLookup, useCrmAccounts } from "@/components/crm/shared/account-select";
+import { useCrmUsers } from "@/components/crm/shared/user-select";
+
+const SORT_OPTIONS = [
+  { value: "firstName,asc", label: "Name: A to Z" },
+  { value: "firstName,desc", label: "Name: Z to A" },
+  { value: "createdAt,desc", label: "Newest first" },
+  { value: "createdAt,asc", label: "Oldest first" },
+];
+const ACTIVE_OPTIONS = [
+  { value: "", label: "Active & Inactive" },
+  { value: "true", label: "Active only" },
+  { value: "false", label: "Inactive only" },
+];
 
 function errorMessage(err: unknown) {
   if (err instanceof ApiRequestError) return err.message;
@@ -35,19 +50,38 @@ export function ContactsListClient() {
   const qc = useQueryClient();
   const [page, setPage] = React.useState(0);
   const [search, setSearch] = React.useState("");
+  const [accountId, setAccountId] = React.useState<string>("");
+  const [sort, setSort] = React.useState("firstName,asc");
+  const [assignedUserId, setAssignedUserId] = React.useState<string>("");
+  const [active, setActive] = React.useState<string>("");
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
   const debouncedSearch = useDebounced(search);
   const [dialogState, setDialogState] = React.useState<{ mode: "create" } | { mode: "edit"; row: Contact } | null>(null);
   const [linkedInfo, setLinkedInfo] = React.useState<{ contactName: string; links: ContactLinks } | null>(null);
 
-  const params = new URLSearchParams({ page: String(page), size: "20" });
+  const accountsQuery = useCrmAccounts();
+  const usersQuery = useCrmUsers();
+
+  const params = new URLSearchParams({ page: String(page), size: "20", sort });
   if (debouncedSearch) params.set("search", debouncedSearch);
+  if (accountId) params.set("accountId", accountId);
+  if (assignedUserId) params.set("assignedUserId", assignedUserId);
+  if (active) params.set("active", active);
 
   const listQuery = useQuery({
-    queryKey: ["crm", "contacts", page, debouncedSearch],
+    queryKey: ["crm", "contacts", page, sort, debouncedSearch, accountId, assignedUserId, active],
     queryFn: () => apiClient.get<PagedResult<Contact>>(`crm/contacts?${params.toString()}`),
   });
 
   const accountNameById = useAccountNameLookup();
+
+  const activeAdvancedFilterCount = [assignedUserId, active].filter(Boolean).length;
+
+  function clearAdvancedFilters() {
+    setAssignedUserId("");
+    setActive("");
+    setPage(0);
+  }
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) => apiClient.delete(`crm/contacts/${id}`),
@@ -96,9 +130,46 @@ export function ContactsListClient() {
         </Button>
       </div>
 
-      <div className="relative">
-        <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-        <Input placeholder="Search contacts..." className="pl-8" value={search} onChange={(e) => { setSearch(e.target.value); setPage(0); }} />
+      <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative w-full lg:max-w-md">
+          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input
+            placeholder="Search contacts..."
+            className="pl-8"
+            value={search}
+            onChange={(e) => { setSearch(e.target.value); setPage(0); }}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2.5">
+          <Select
+            items={{ "": "All Accounts", ...Object.fromEntries((accountsQuery.data ?? []).map((a) => [String(a.id), a.name])) }}
+            value={accountId}
+            onValueChange={(v) => { setAccountId(v ?? ""); setPage(0); }}
+          >
+            <SelectTrigger className="h-10 w-full sm:w-44">
+              <SelectValue placeholder="All Accounts" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">All Accounts</SelectItem>
+              {(accountsQuery.data ?? []).map((a) => <SelectItem key={a.id} value={String(a.id)}>{a.name}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <Select
+            items={Object.fromEntries(SORT_OPTIONS.map((s) => [s.value, s.label]))}
+            value={sort}
+            onValueChange={(v) => { setSort(v ?? "firstName,asc"); setPage(0); }}
+          >
+            <SelectTrigger className="h-10 w-full sm:w-44">
+              <SelectValue placeholder="Sort by" />
+            </SelectTrigger>
+            <SelectContent>
+              {SORT_OPTIONS.map((s) => <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+
+          <FiltersButton activeCount={activeAdvancedFilterCount} onClick={() => setFiltersOpen(true)} />
+        </div>
       </div>
 
       <DataTable
@@ -129,6 +200,39 @@ export function ContactsListClient() {
           </>
         )}
       />
+
+      <FiltersPanel open={filtersOpen} onOpenChange={setFiltersOpen} activeCount={activeAdvancedFilterCount} onClearAll={clearAdvancedFilters}>
+        <FilterField label="Assigned To">
+          <Select
+            items={{ "": "Anyone", ...Object.fromEntries((usersQuery.data ?? []).map((u) => [String(u.id), u.fullName])) }}
+            value={assignedUserId}
+            onValueChange={(v) => { setAssignedUserId(v ?? ""); setPage(0); }}
+          >
+            <SelectTrigger className="h-10 w-full">
+              <SelectValue placeholder="Anyone" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="">Anyone</SelectItem>
+              {(usersQuery.data ?? []).map((u) => <SelectItem key={u.id} value={String(u.id)}>{u.fullName}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </FilterField>
+
+        <FilterField label="Status">
+          <Select
+            items={Object.fromEntries(ACTIVE_OPTIONS.map((a) => [a.value, a.label]))}
+            value={active}
+            onValueChange={(v) => { setActive(v ?? ""); setPage(0); }}
+          >
+            <SelectTrigger className="h-10 w-full">
+              <SelectValue placeholder="Active & Inactive" />
+            </SelectTrigger>
+            <SelectContent>
+              {ACTIVE_OPTIONS.map((a) => <SelectItem key={a.value} value={a.value}>{a.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+        </FilterField>
+      </FiltersPanel>
 
       <ContactDialog
         open={dialogState !== null}

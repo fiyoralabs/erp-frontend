@@ -1,16 +1,15 @@
-// Validated default categorical palette (dataviz skill, references/palette.md) --
-// ordering is the CVD-safety mechanism, kept exactly as documented rather than
-// re-derived from the brand hues (re-validating a custom ordering was out of
-// scope for this pass). Status colors are the fixed pair from the same skill.
+// Stitch CRM Palette & Categorical Colors
 export const CATEGORICAL_COLORS = [
-  "#2a78d6", // blue
-  "#eb6834", // orange
-  "#1baf7a", // aqua
-  "#eda100", // yellow
-  "#e87ba4", // magenta
-  "#4a3aa7", // violet
+  "#0F3D3E", // Deep Teal
+  "#3b6566", // Medium Teal
+  "#545f73", // Slate Secondary
+  "#a3cfcf", // Soft Teal Dim
+  "#d8e3fb", // Soft Blue
+  "#502f19", // Warm Amber
 ];
 
-export const STATUS_GOOD = "#0ca30c";
-export const STATUS_CRITICAL = "#d03b3b";
-export const SEQUENTIAL_BLUE = "#2a78d6";
+export const STATUS_GOOD = "#10B981";
+export const STATUS_CRITICAL = "#BA1A1A";
+export const STATUS_WARNING = "#F59E0B";
+export const SEQUENTIAL_TEAL = "#0F3D3E";
+export const SEQUENTIAL_BLUE = "#3b6566";

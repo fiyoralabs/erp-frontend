@@ -8,7 +8,7 @@ import { cn } from "@/lib/utils";
 import { navItems, type NavItem } from "@/lib/nav-config";
 import { hasAllPermissions, hasAnyPermission } from "@/lib/permissions";
 
-function isVisible(item: NavItem, permissions: readonly string[]) {
+export function isVisible(item: NavItem, permissions: readonly string[]) {
   if (!item.requiredPermissions) return true;
   return item.permissionMode === "all"
     ? hasAllPermissions(permissions, item.requiredPermissions)
@@ -25,7 +25,7 @@ export function SidebarNav({
   const pathname = usePathname();
 
   return (
-    <nav className="flex flex-col gap-1 p-3">
+    <nav className="flex flex-col gap-1 px-3 py-3">
       {navItems
         .filter((item) => isVisible(item, permissions))
         .map((item) => {
@@ -77,17 +77,17 @@ function NavGroup({
     <div className="flex flex-col">
       <div
         className={cn(
-          "flex items-center justify-between rounded-md transition-colors group pr-1",
+          "flex items-center justify-between rounded-xl transition-colors group pr-1",
           isWithinGroup
-            ? "bg-primary/10 text-foreground"
-            : "text-foreground/80 hover:bg-muted hover:text-foreground"
+            ? "bg-[#0F3D3E]/10 text-[#1a1c1c] dark:bg-[#a3cfcf]/15 dark:text-white"
+            : "text-[#545f73] dark:text-[#a3cfcf] hover:bg-[#f3f4f3] dark:hover:bg-[#2f3131] hover:text-[#1a1c1c] dark:hover:text-white"
         )}
       >
         <button
           type="button"
           onClick={() => setOpen((v) => !v)}
           aria-expanded={open}
-          className="flex flex-1 items-center gap-3 px-3 py-2 text-sm font-medium min-h-11 text-left"
+          className="flex flex-1 items-center gap-3 px-3 py-2.5 text-sm font-medium min-h-11 text-left"
         >
           <Icon className="size-4 shrink-0" />
           <span className="flex-1">{item.title}</span>
@@ -103,7 +103,7 @@ function NavGroup({
             href={item.href}
             target="_blank"
             rel="noreferrer"
-            className="p-2 text-muted-foreground hover:text-primary transition-colors opacity-70 hover:opacity-100"
+            className="p-2 text-[#717978] hover:text-[#0F3D3E] dark:hover:text-[#a3cfcf] transition-colors opacity-70 hover:opacity-100"
             title={`Open ${item.title} Workspace in a new window/tab`}
             onClick={(e) => e.stopPropagation()}
           >
@@ -113,7 +113,7 @@ function NavGroup({
       </div>
 
       {open && (
-        <div className="ml-4 flex flex-col gap-1 border-l pl-3 pt-1">
+        <div className="ml-4 flex flex-col gap-1 border-l border-[#e2e2e2] dark:border-[#404848] pl-3 pt-1">
           {visibleChildren.map((child) => (
             <NavLink
               key={child.href}
@@ -149,7 +149,7 @@ function NavLink({
     return (
       <span
         aria-disabled
-        className="flex items-center gap-3 rounded-md px-3 py-2 text-sm text-muted-foreground/50 cursor-not-allowed select-none"
+        className="flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm text-[#545f73]/50 dark:text-[#a3cfcf]/40 cursor-not-allowed select-none"
         title="Coming soon"
       >
         <Icon className="size-4" />
@@ -162,15 +162,15 @@ function NavLink({
   }
 
   return (
-    <div className="flex items-center justify-between rounded-md transition-colors group">
+    <div className="flex items-center justify-between rounded-xl transition-colors group">
       <Link
         href={item.href}
         onClick={onNavigate}
         className={cn(
-          "flex flex-1 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors min-h-11",
+          "flex flex-1 items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-colors min-h-11",
           isActive
-            ? "bg-primary text-primary-foreground font-semibold"
-            : "text-foreground/80 hover:bg-muted hover:text-foreground"
+            ? "bg-[#0F3D3E] text-white font-semibold shadow-xs dark:bg-[#beebeb] dark:text-[#002020]"
+            : "text-[#545f73] dark:text-[#a3cfcf] hover:bg-[#f3f4f3] dark:hover:bg-[#2f3131] hover:text-[#1a1c1c] dark:hover:text-white"
         )}
       >
         <Icon className="size-4 shrink-0" />
@@ -181,7 +181,7 @@ function NavLink({
           href={item.href}
           target="_blank"
           rel="noreferrer"
-          className="p-2 text-muted-foreground hover:text-primary transition-colors opacity-70 hover:opacity-100"
+          className="p-2 text-[#717978] hover:text-[#0F3D3E] dark:hover:text-[#a3cfcf] transition-colors opacity-70 hover:opacity-100"
           title="Open CRM Workspace in a new window/tab"
           onClick={(e) => e.stopPropagation()}
         >

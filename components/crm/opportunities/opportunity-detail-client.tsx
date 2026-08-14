@@ -24,7 +24,7 @@ import { ActivitiesTab } from "@/components/crm/activities/activities-tab";
 import { TasksTab } from "@/components/crm/tasks/tasks-tab";
 import { FollowUpsTab } from "@/components/crm/shared/follow-ups-tab";
 import { CrmTimeline } from "@/components/crm/shared/crm-timeline";
-import { StatTile } from "@/components/crm/shared/stat-tile";
+import { StatTile } from "@/components/shared/stat-tile";
 import { ScrollableTabsList } from "@/components/crm/shared/scrollable-tabs";
 
 function errorMessage(err: unknown) {

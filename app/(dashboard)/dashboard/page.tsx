@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ArrowDownToLine, ArrowRight, ArrowUpFromLine, IndianRupee, ShoppingCart, Wallet } from "lucide-react";
 import { serverApiGet } from "@/lib/server-api";
 import type {
   DashboardOverview,
@@ -10,13 +11,7 @@ import type {
   ExpenseByCategory,
 } from "@/lib/types/dashboard";
 import { localDateInputValue } from "@/lib/date";
-import {
-  Card,
-  CardHeader,
-  CardTitle,
-  CardDescription,
-  CardContent,
-} from "@/components/ui/card";
+import { StatTile } from "@/components/shared/stat-tile";
 import { DateRangePicker } from "@/components/dashboard/date-range-picker";
 import { DashboardCharts } from "@/components/dashboard/dashboard-charts";
 
@@ -45,29 +40,6 @@ function formatCurrency(value: number) {
     currency: "INR",
     maximumFractionDigits: 0,
   }).format(value);
-}
-
-interface StatCardProps {
-  label: string;
-  value: string;
-  tone?: "default" | "positive" | "negative";
-}
-
-function StatCard({ label, value, tone = "default" }: StatCardProps) {
-  const toneClass =
-    tone === "positive"
-      ? "text-emerald-600 dark:text-emerald-400"
-      : tone === "negative"
-      ? "text-red-600 dark:text-red-400"
-      : "";
-  return (
-    <Card>
-      <CardHeader>
-        <CardDescription>{label}</CardDescription>
-        <CardTitle className={`text-2xl ${toneClass}`}>{value}</CardTitle>
-      </CardHeader>
-    </Card>
-  );
 }
 
 export default async function DashboardPage({
@@ -100,11 +72,13 @@ export default async function DashboardPage({
     ]);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="flex flex-col gap-8 max-w-7xl mx-auto pb-12">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold sm:text-2xl">Dashboard</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="font-heading text-2xl sm:text-3xl font-semibold tracking-tight text-[#1a1c1c] dark:text-white">
+            Dashboard
+          </h1>
+          <p className="mt-1 text-xs sm:text-sm text-[#545f73] dark:text-[#a3cfcf]">
             {from} to {to}
           </p>
         </div>
@@ -112,37 +86,42 @@ export default async function DashboardPage({
       </div>
 
       {!overview ? (
-        <Card>
-          <CardContent className="py-8 text-center text-sm text-muted-foreground">
-            Unable to load dashboard data. You may not have the required
-            report permissions, or the erp backend may be unreachable.
-          </CardContent>
-        </Card>
+        <div className="p-8 text-center bg-white dark:bg-[#1a1c1c] border border-red-200 dark:border-red-500/30 rounded-[18px] text-red-600 dark:text-red-400">
+          <p className="text-sm font-semibold">Unable to load dashboard data.</p>
+          <p className="mt-1 text-xs text-[#545f73] dark:text-[#a3cfcf]">
+            You may not have the required report permissions, or the erp backend may be unreachable.
+          </p>
+        </div>
       ) : (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          <StatCard
+        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 xl:grid-cols-3">
+          <StatTile
             label="Sales Total"
             value={formatCurrency(overview.salesTotal)}
-            tone="positive"
+            tone="success"
+            icon={IndianRupee}
           />
-          <StatCard
+          <StatTile
             label="Purchase Total"
             value={formatCurrency(overview.purchaseTotal)}
+            icon={ShoppingCart}
           />
-          <StatCard
+          <StatTile
             label="Expense Total"
             value={formatCurrency(overview.expenseTotal)}
-            tone="negative"
+            tone="danger"
+            icon={Wallet}
           />
-          <StatCard
+          <StatTile
             label="Outstanding Receivables"
             value={formatCurrency(overview.outstandingReceivables)}
-            tone="positive"
+            tone="success"
+            icon={ArrowDownToLine}
           />
-          <StatCard
+          <StatTile
             label="Outstanding Payables"
             value={formatCurrency(overview.outstandingPayables)}
-            tone="negative"
+            tone="danger"
+            icon={ArrowUpFromLine}
           />
         </div>
       )}
@@ -155,8 +134,11 @@ export default async function DashboardPage({
         expenseByCategory={expenseByCategory?.content ?? null}
       />
 
-      <Link href="/reports" className="text-sm text-primary hover:underline">
-        View all reports →
+      <Link
+        href="/reports"
+        className="inline-flex w-fit items-center gap-1.5 text-sm font-semibold text-[#0F3D3E] hover:text-[#002627] dark:text-[#a3cfcf] hover:underline"
+      >
+        View all reports <ArrowRight className="h-3.5 w-3.5" />
       </Link>
     </div>
   );

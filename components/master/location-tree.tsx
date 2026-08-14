@@ -9,6 +9,7 @@
 import Link from "next/link";
 import {
   ChevronRight,
+  MoreVertical,
   Pencil,
   Plus,
   RotateCcw,
@@ -19,6 +20,13 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ActiveBadge } from "@/components/shared/active-badge";
 import { buildTree, collectAllIds, filterTree, type PrunedNode } from "@/lib/tree";
 import { cn } from "@/lib/utils";
@@ -157,11 +165,16 @@ function LocationTreeRow({
               Reactivate
             </Button>
           )}
-          <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          {/* Below sm: a real hover state doesn't exist on touch, and these
+              buttons were reserving ~150px of layout width via opacity-0
+              (invisible but still taking space) which squeezed node.name's
+              flex-1 span down to nothing on narrow screens -- collapse to a
+              single overflow menu instead. */}
+          <div className="hidden gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 sm:flex">
             <Button
               variant="ghost"
               size="icon"
-              className="size-9 sm:size-8"
+              className="size-8"
               aria-label="Add child location"
               onClick={() => onAddChild(node)}
             >
@@ -170,7 +183,7 @@ function LocationTreeRow({
             <Button
               variant="ghost"
               size="icon"
-              className="size-9 sm:size-8"
+              className="size-8"
               aria-label="Edit location"
               onClick={() => onEdit(node)}
             >
@@ -179,7 +192,7 @@ function LocationTreeRow({
             <Button
               variant="ghost"
               size="icon"
-              className="size-9 sm:size-8"
+              className="size-8"
               aria-label="Location settings"
               nativeButton={false}
               render={<Link href={`/master/locations/${node.id}`} />}
@@ -190,7 +203,7 @@ function LocationTreeRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-9 text-destructive hover:text-destructive sm:size-8"
+                className="size-8 text-destructive hover:text-destructive"
                 aria-label="Deactivate location"
                 onClick={() => onDelete(node)}
               >
@@ -198,6 +211,40 @@ function LocationTreeRow({
               </Button>
             )}
           </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 sm:hidden"
+                  aria-label="Location actions"
+                />
+              }
+            >
+              <MoreVertical className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem onClick={() => onAddChild(node)}>
+                <Plus className="size-3.5" /> Add child
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onEdit(node)}>
+                <Pencil className="size-3.5" /> Edit
+              </DropdownMenuItem>
+              <DropdownMenuItem render={<Link href={`/master/locations/${node.id}`} />}>
+                <Settings2 className="size-3.5" /> Settings
+              </DropdownMenuItem>
+              {node.isActive && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onClick={() => onDelete(node)}>
+                    <Trash2 className="size-3.5" /> Deactivate
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

@@ -6,9 +6,25 @@
 // built on the shared lib/tree.ts algorithms since the two entities' parent
 // field is just named differently (parentId vs parentCategoryId).
 
-import { ChevronRight, FolderTree, ListFilter, Pencil, Plus, RotateCcw, Trash2 } from "lucide-react";
+import {
+  ChevronRight,
+  FolderTree,
+  ListFilter,
+  MoreVertical,
+  Pencil,
+  Plus,
+  RotateCcw,
+  Trash2,
+} from "lucide-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { ActiveBadge } from "@/components/shared/active-badge";
 import { cn } from "@/lib/utils";
 import type { PrunedNode } from "@/lib/tree";
@@ -122,11 +138,16 @@ function CategoryTreeRow({
               Reactivate
             </Button>
           )}
-          <div className="flex gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
+          {/* Below sm: a real hover state doesn't exist on touch, and these
+              buttons were reserving ~150px of layout width via opacity-0
+              (invisible but still taking space) which squeezed node.name's
+              flex-1 span down to nothing on narrow screens -- collapse to a
+              single overflow menu instead. */}
+          <div className="hidden gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100 sm:flex">
             <Button
               variant="ghost"
               size="icon"
-              className="size-9 sm:size-8"
+              className="size-8"
               nativeButton={false}
               render={<Link href={`/master/categories/${node.id}/attributes`} />}
               aria-label="Manage category attributes"
@@ -136,7 +157,7 @@ function CategoryTreeRow({
             <Button
               variant="ghost"
               size="icon"
-              className="size-9 sm:size-8"
+              className="size-8"
               aria-label="Add subcategory"
               onClick={() => onAddChild(node)}
             >
@@ -145,7 +166,7 @@ function CategoryTreeRow({
             <Button
               variant="ghost"
               size="icon"
-              className="size-9 sm:size-8"
+              className="size-8"
               aria-label="Edit category"
               onClick={() => onEdit(node)}
             >
@@ -155,7 +176,7 @@ function CategoryTreeRow({
               <Button
                 variant="ghost"
                 size="icon"
-                className="size-9 text-destructive hover:text-destructive sm:size-8"
+                className="size-8 text-destructive hover:text-destructive"
                 aria-label="Deactivate category"
                 onClick={() => onDelete(node)}
               >
@@ -163,6 +184,42 @@ function CategoryTreeRow({
               </Button>
             )}
           </div>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              render={
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="size-9 sm:hidden"
+                  aria-label="Category actions"
+                />
+              }
+            >
+              <MoreVertical className="size-4" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-44">
+              <DropdownMenuItem
+                render={<Link href={`/master/categories/${node.id}/attributes`} />}
+              >
+                <ListFilter className="size-3.5" /> Attributes
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onAddChild(node)}>
+                <Plus className="size-3.5" /> Add subcategory
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => onEdit(node)}>
+                <Pencil className="size-3.5" /> Edit
+              </DropdownMenuItem>
+              {node.isActive && (
+                <>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem variant="destructive" onClick={() => onDelete(node)}>
+                    <Trash2 className="size-3.5" /> Deactivate
+                  </DropdownMenuItem>
+                </>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 

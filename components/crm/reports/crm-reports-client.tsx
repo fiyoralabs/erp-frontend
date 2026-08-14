@@ -10,7 +10,7 @@ import { apiClient } from "@/lib/api-client";
 import type { CrmReports } from "@/lib/types/crm";
 import { formatCurrency } from "@/components/crm/shared/format";
 import { CATEGORICAL_COLORS, SEQUENTIAL_BLUE, STATUS_CRITICAL } from "@/components/crm/shared/chart-colors";
-import { StatTile } from "@/components/crm/shared/stat-tile";
+import { StatTile } from "@/components/shared/stat-tile";
 
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (

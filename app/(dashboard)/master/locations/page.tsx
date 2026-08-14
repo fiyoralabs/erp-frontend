@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { ChevronsDownUp, ChevronsUpDown, MessageSquare, Plus, Loader2 } from "lucide-react";
+import { ChevronsDownUp, ChevronsUpDown, MessageSquare, Plus, Loader2, Search } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -76,6 +76,7 @@ function errorMessage(err: unknown): string {
 
 export default function LocationsPage() {
   const qc = useQueryClient();
+  const [search, setSearch] = React.useState("");
   const [typeFilter, setTypeFilter] = React.useState<string>("ALL");
   const [cityFilter, setCityFilter] = React.useState<string>("ALL");
   const [dialogState, setDialogState] = React.useState<
@@ -109,12 +110,14 @@ export default function LocationsPage() {
   const tree = React.useMemo(() => buildLocationTree(allLocations), [allLocations]);
 
   const visibleTree = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
     return filterLocationTree(tree, (loc) => {
       if (typeFilter !== "ALL" && loc.type !== typeFilter) return false;
       if (cityFilter !== "ALL" && loc.city !== cityFilter) return false;
+      if (q && !loc.name.toLowerCase().includes(q) && !loc.code.toLowerCase().includes(q)) return false;
       return true;
     });
-  }, [tree, typeFilter, cityFilter]);
+  }, [tree, typeFilter, cityFilter, search]);
 
   // Expand every node by default the first time real data arrives, so the
   // hierarchy is visible immediately rather than requiring manual expansion.
@@ -263,8 +266,10 @@ export default function LocationsPage() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold sm:text-2xl">Locations</h1>
-          <p className="text-sm text-muted-foreground">
+          <h1 className="font-heading text-2xl font-semibold tracking-tight text-[#1a1c1c] dark:text-white sm:text-3xl">
+            Locations
+          </h1>
+          <p className="mt-1 text-xs text-[#545f73] dark:text-[#a3cfcf] sm:text-sm">
             Stores and warehouses, organized by parent/child hierarchy. Each has its own POS
             configuration and allowed price lists.
           </p>
@@ -272,14 +277,14 @@ export default function LocationsPage() {
         <div className="flex gap-2">
           <Button
             variant="outline"
-            className="h-11 gap-1.5 text-emerald-600 dark:text-emerald-400 border-emerald-200 sm:h-8"
+            className="h-11 gap-1.5 rounded-xl border-emerald-200 text-emerald-600 dark:text-emerald-400 sm:h-9"
             onClick={() => setIsWaConfigOpen(true)}
           >
             <MessageSquare className="size-4" />
             WhatsApp Config
           </Button>
           <Button
-            className="h-11 gap-1.5 sm:h-8"
+            className="h-11 gap-1.5 rounded-xl bg-[#0F3D3E] text-white hover:bg-[#0F3D3E]/90 dark:bg-[#beebeb] dark:text-[#002020] dark:hover:bg-[#beebeb]/90 sm:h-9"
             onClick={() => setDialogState({ mode: "create", parent: null })}
           >
             <Plus className="size-4" />
@@ -288,11 +293,19 @@ export default function LocationsPage() {
         </div>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">Type</span>
+      <div className="flex flex-col gap-2.5 lg:flex-row lg:items-center lg:justify-between">
+        <div className="relative w-full lg:max-w-xs">
+          <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-[#717978]" />
+          <Input
+            placeholder="Search by name or code..."
+            className="h-10 rounded-xl border-[#c0c8c8] bg-white pl-9 text-sm focus-visible:border-[#0F3D3E] focus-visible:ring-[#0F3D3E]/15 dark:border-[#717978] dark:bg-[#1a1c1c]"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+          />
+        </div>
+        <div className="flex flex-wrap items-center gap-2.5">
           <Select value={typeFilter} onValueChange={(value) => setTypeFilter(value ?? "ALL")}>
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="h-10 w-full rounded-xl border-[#c0c8c8] bg-white text-sm dark:border-[#717978] dark:bg-[#1a1c1c] sm:w-36">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -304,11 +317,8 @@ export default function LocationsPage() {
               ))}
             </SelectContent>
           </Select>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-sm text-muted-foreground">City</span>
           <Select value={cityFilter} onValueChange={(value) => setCityFilter(value ?? "ALL")}>
-            <SelectTrigger className="w-40">
+            <SelectTrigger className="h-10 w-full rounded-xl border-[#c0c8c8] bg-white text-sm dark:border-[#717978] dark:bg-[#1a1c1c] sm:w-36">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -320,12 +330,10 @@ export default function LocationsPage() {
               ))}
             </SelectContent>
           </Select>
-        </div>
-        <div className="ml-auto flex gap-2">
           <Button
             variant="outline"
             size="sm"
-            className="gap-1.5"
+            className="h-10 gap-1.5 rounded-xl border-[#c0c8c8] text-[#1a1c1c] hover:bg-[#f3f4f3] dark:border-[#717978] dark:text-white dark:hover:bg-[#2f3131]"
             onClick={() => setExpandedIds(new Set(collectAllIds(tree)))}
           >
             <ChevronsUpDown className="size-4" />
@@ -334,7 +342,7 @@ export default function LocationsPage() {
           <Button
             variant="outline"
             size="sm"
-            className="gap-1.5"
+            className="h-10 gap-1.5 rounded-xl border-[#c0c8c8] text-[#1a1c1c] hover:bg-[#f3f4f3] dark:border-[#717978] dark:text-white dark:hover:bg-[#2f3131]"
             onClick={() => setExpandedIds(new Set())}
           >
             <ChevronsDownUp className="size-4" />
@@ -344,11 +352,11 @@ export default function LocationsPage() {
       </div>
 
       {listQuery.isLoading ? (
-        <p className="text-sm text-muted-foreground">Loading locations...</p>
+        <p className="text-sm text-[#545f73] dark:text-[#a3cfcf]">Loading locations...</p>
       ) : visibleTree.length === 0 ? (
-        <p className="rounded-xl py-8 text-center text-sm text-muted-foreground ring-1 ring-foreground/10">
+        <div className="rounded-2xl border border-[#e2e2e2] dark:border-[#404848] bg-white dark:bg-[#1a1c1c] py-10 text-center text-sm text-[#545f73] dark:text-[#a3cfcf]">
           No locations match this filter.
-        </p>
+        </div>
       ) : (
         <LocationTree
           nodes={visibleTree}
