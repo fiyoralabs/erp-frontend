@@ -1,4 +1,5 @@
 import * as React from "react";
+import Link from "next/link";
 import { cn } from "@/lib/utils";
 
 const TONE_CLASSES: Record<NonNullable<StatTileProps["tone"]>, { iconBg: string; text: string; cardBg?: string; border?: string }> = {
@@ -30,6 +31,9 @@ export interface StatTileProps {
   variant?: "card" | "inline";
   className?: string;
   badge?: React.ReactNode;
+  // When set, the whole tile becomes a link into the filtered page/list this
+  // metric summarizes (e.g. "Overdue Follow-ups" -> /crm/activities?view=OVERDUE).
+  href?: string;
 }
 
 export function StatTile({
@@ -40,6 +44,7 @@ export function StatTile({
   variant = "card",
   className,
   badge,
+  href,
 }: StatTileProps) {
   const toneStyle = TONE_CLASSES[tone];
 
@@ -59,14 +64,14 @@ export function StatTile({
     );
   }
 
-  return (
-    <div
-      className={cn(
-        "bg-white dark:bg-[#1a1c1c] border border-[#e2e2e2] dark:border-[#404848] rounded-[18px] p-5 shadow-xs hover:shadow-[0_4px_20px_rgba(0,0,0,0.05)] transition-all duration-200 flex flex-col justify-between min-h-[96px]",
-        toneStyle.cardBg,
-        className
-      )}
-    >
+  const cardClassName = cn(
+    "bg-white dark:bg-[#1a1c1c] border border-[#e2e2e2] dark:border-[#404848] rounded-[18px] p-5 shadow-xs hover:shadow-[0_4px_20px_rgba(0,0,0,0.05)] transition-all duration-200 flex flex-col justify-between min-h-[96px]",
+    href && "cursor-pointer hover:border-[#0F3D3E]/30 dark:hover:border-[#a3cfcf]/30",
+    toneStyle.cardBg,
+    className
+  );
+  const cardContent = (
+    <>
       <div className="flex items-center justify-between gap-2 mb-2">
         <p className="text-xs font-semibold text-[#545f73] dark:text-[#a3cfcf] truncate">
           {label}
@@ -80,6 +85,16 @@ export function StatTile({
       <h3 className={cn("text-2xl font-bold tracking-tight", toneStyle.text)}>
         {value}
       </h3>
-    </div>
+    </>
   );
+
+  if (href) {
+    return (
+      <Link href={href} className={cardClassName}>
+        {cardContent}
+      </Link>
+    );
+  }
+
+  return <div className={cardClassName}>{cardContent}</div>;
 }

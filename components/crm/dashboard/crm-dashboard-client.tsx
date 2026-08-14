@@ -233,7 +233,10 @@ export function CrmDashboardClient() {
       {/* Overdue Alert Banner (only when there's something overdue) */}
       {/* ======================================================== */}
       {totalOverdue > 0 && (
-        <div className="flex items-center gap-3 rounded-2xl border border-[#ffdad6] bg-[#fff5f4] dark:border-[#5c2320] dark:bg-[#2a1615] px-4 py-3 sm:px-5 sm:py-3.5">
+        <Link
+          href="/crm/activities?view=OVERDUE"
+          className="flex items-center gap-3 rounded-2xl border border-[#ffdad6] bg-[#fff5f4] dark:border-[#5c2320] dark:bg-[#2a1615] px-4 py-3 sm:px-5 sm:py-3.5 transition-colors hover:bg-[#ffeceb] dark:hover:bg-[#331a19]"
+        >
           <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-[#ba1a1a] text-white">
             <AlertTriangle className="h-4.5 w-4.5" />
           </div>
@@ -248,7 +251,7 @@ export function CrmDashboardClient() {
           <span className="inline-flex h-7 min-w-[28px] shrink-0 items-center justify-center rounded-full bg-[#ba1a1a] px-2 text-xs font-bold text-white">
             {totalOverdue}
           </span>
-        </div>
+        </Link>
       )}
 
       {/* ======================================================== */}
@@ -261,6 +264,7 @@ export function CrmDashboardClient() {
           value={String(data.overdueFollowUps)}
           tone={data.overdueFollowUps > 0 ? "danger" : "default"}
           icon={AlertTriangle}
+          href="/crm/activities?view=OVERDUE"
           badge={
             data.overdueFollowUps > 0 ? (
               <span className="flex items-center gap-1 rounded-full bg-[#ba1a1a] px-2 py-0.5 text-[10px] font-bold text-white">
@@ -274,16 +278,19 @@ export function CrmDashboardClient() {
           label="Total Leads"
           value={String(data.totalLeads)}
           icon={Users}
+          href="/crm/leads"
         />
         <StatTile
           label="New Leads"
           value={String(data.newLeads)}
           icon={UserPlus}
+          href="/crm/leads?status=NEW"
         />
         <StatTile
           label="Qualified Leads"
           value={String(data.qualifiedLeads)}
           icon={UserCheck}
+          href="/crm/leads?status=QUALIFIED"
         />
 
         {/* Row 2 */}
@@ -291,6 +298,7 @@ export function CrmDashboardClient() {
           label="Converted Leads"
           value={String(data.convertedLeads)}
           tone="success"
+          href="/crm/leads?status=CONVERTED"
           badge={
             <div className="flex items-center text-xs font-semibold text-emerald-600">
               <TrendingUp className="h-3.5 w-3.5" />
@@ -301,18 +309,21 @@ export function CrmDashboardClient() {
           label="Open Opportunities"
           value={String(data.openOpportunities)}
           icon={Target}
+          href="/crm/opportunities?status=OPEN"
         />
         <StatTile
           label="Won Opportunities"
           value={String(data.wonOpportunities)}
           tone="success"
           icon={Trophy}
+          href="/crm/opportunities?status=WON"
         />
         <StatTile
           label="Lost Opportunities"
           value={String(data.lostOpportunities)}
           tone={data.lostOpportunities > 0 ? "danger" : "default"}
           icon={XCircle}
+          href="/crm/opportunities?status=LOST"
         />
 
         {/* Row 3 */}
@@ -320,22 +331,26 @@ export function CrmDashboardClient() {
           label="Pipeline Value"
           value={formatCurrency(data.pipelineValue)}
           icon={IndianRupee}
+          href="/crm/pipeline"
         />
         <StatTile
           label="Weighted Pipeline"
           value={formatCurrency(data.weightedPipelineValue)}
           icon={Scale}
+          href="/crm/pipeline"
         />
         <StatTile
           label="Conversion Rate"
           value={`${data.conversionRate.toFixed(1)}%`}
           icon={Percent}
+          href="/crm/reports"
         />
         <StatTile
           label="Tasks Due Today"
           value={String(data.tasksDueToday)}
           tone={data.tasksDueToday > 0 ? "warning" : "default"}
           icon={ListChecks}
+          href="/crm/tasks?view=TODAY"
         />
       </div>
 

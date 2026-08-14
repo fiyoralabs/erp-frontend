@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, LayoutList, KanbanSquare, Search } from "lucide-react";
 
@@ -38,9 +39,12 @@ function useDebounced<T>(value: T, delayMs = 300) {
 }
 
 export function OpportunitiesListClient() {
+  // Read once on mount so dashboard links like /crm/opportunities?status=WON
+  // land pre-filtered.
+  const initialParams = useSearchParams();
   const [page, setPage] = React.useState(0);
   const [search, setSearch] = React.useState("");
-  const [status, setStatus] = React.useState<string>("");
+  const [status, setStatus] = React.useState<string>(() => initialParams.get("status") ?? "");
   const [sort, setSort] = React.useState("createdAt,desc");
   const [pipelineId, setPipelineId] = React.useState<string>("");
   const [stageId, setStageId] = React.useState<string>("");
