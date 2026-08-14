@@ -99,29 +99,34 @@ export default async function DashboardPage({
             value={formatCurrency(overview.salesTotal)}
             tone="success"
             icon={IndianRupee}
+            href="/sales"
           />
           <StatTile
             label="Purchase Total"
             value={formatCurrency(overview.purchaseTotal)}
             icon={ShoppingCart}
+            href="/purchases"
           />
           <StatTile
             label="Expense Total"
             value={formatCurrency(overview.expenseTotal)}
             tone="danger"
             icon={Wallet}
+            href="/expenses"
           />
           <StatTile
             label="Outstanding Receivables"
             value={formatCurrency(overview.outstandingReceivables)}
             tone="success"
             icon={ArrowDownToLine}
+            href="/finance"
           />
           <StatTile
             label="Outstanding Payables"
             value={formatCurrency(overview.outstandingPayables)}
             tone="danger"
             icon={ArrowUpFromLine}
+            href="/finance"
           />
         </div>
       )}

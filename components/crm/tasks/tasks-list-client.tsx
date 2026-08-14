@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { Plus, CheckCircle2 } from "lucide-react";
@@ -24,9 +25,17 @@ const VIEWS = [
   { value: "COMPLETED", label: "Completed" },
 ];
 
+const VIEW_VALUES = new Set(VIEWS.map((v) => v.value));
+
 export function TasksListClient() {
   const qc = useQueryClient();
-  const [view, setView] = React.useState("MY");
+  // Read once on mount so dashboard links like /crm/tasks?view=TODAY land
+  // pre-filtered.
+  const initialParams = useSearchParams();
+  const [view, setView] = React.useState<string>(() => {
+    const requested = initialParams.get("view");
+    return requested && VIEW_VALUES.has(requested) ? requested : "MY";
+  });
   const [page, setPage] = React.useState(0);
   const [dialogOpen, setDialogOpen] = React.useState(false);
 

@@ -55,19 +55,22 @@ function useDebounced<T>(value: T, delayMs = 300) {
   return debounced;
 }
 
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 
 // ...
 export function LeadsListClient() {
   const router = useRouter();
   const qc = useQueryClient();
+  // Read once on mount so dashboard/sidebar links like
+  // /crm/leads?status=NEW or ?followUp=OVERDUE land pre-filtered.
+  const initialParams = useSearchParams();
   const [page, setPage] = React.useState(0);
   const [search, setSearch] = React.useState("");
-  const [status, setStatus] = React.useState<string>("");
+  const [status, setStatus] = React.useState<string>(() => initialParams.get("status") ?? "");
   const [rating, setRating] = React.useState<string>("");
   const [sourceId, setSourceId] = React.useState<string>("");
   const [assignedUserId, setAssignedUserId] = React.useState<string>("");
-  const [followUp, setFollowUp] = React.useState<string>("");
+  const [followUp, setFollowUp] = React.useState<string>(() => initialParams.get("followUp") ?? "");
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [importDialogOpen, setImportDialogOpen] = React.useState(false);
   const [deleteTarget, setDeleteTarget] = React.useState<{ id: number; name: string } | null>(null);

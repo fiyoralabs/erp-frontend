@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Phone, Mail, MessageSquare, StickyNote, CalendarCheck, MapPin, FileText, Clock, CheckCircle2, AlertCircle, ArrowUpRight } from "lucide-react";
 
@@ -43,9 +43,20 @@ const VIEWS = [
   { value: "OVERDUE", label: "Overdue" },
 ] as const;
 
+type ActivityViewFilter = "ALL" | "ACTIVITIES" | "FOLLOWUPS" | "PENDING" | "TODAY" | "OVERDUE";
+const VIEW_VALUES = new Set(VIEWS.map((v) => v.value));
+
 export function ActivitiesListClient() {
   const router = useRouter();
-  const [filter, setFilter] = React.useState<"ALL" | "ACTIVITIES" | "FOLLOWUPS" | "PENDING" | "TODAY" | "OVERDUE">("ALL");
+  // Read once on mount so dashboard links like /crm/activities?view=OVERDUE
+  // land pre-filtered.
+  const initialParams = useSearchParams();
+  const [filter, setFilter] = React.useState<ActivityViewFilter>(() => {
+    const requested = initialParams.get("view");
+    return requested && VIEW_VALUES.has(requested as ActivityViewFilter)
+      ? (requested as ActivityViewFilter)
+      : "ALL";
+  });
   const [page, setPage] = React.useState(0);
 
   const actQuery = useQuery({
