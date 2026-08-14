@@ -11,7 +11,6 @@ import {
   Users,
   Hash,
 } from "lucide-react";
-import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 
 const sections = [
   { title: "Locations", href: "/master/locations", icon: MapPin, description: "Stores and warehouses" },
@@ -28,10 +27,12 @@ const sections = [
 
 export default function MasterDataPage() {
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-6 max-w-7xl mx-auto pb-12">
       <div>
-        <h1 className="text-xl font-semibold sm:text-2xl">Master Data</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="font-heading text-2xl sm:text-3xl font-semibold tracking-tight text-[#1a1c1c] dark:text-white">
+          Master Data
+        </h1>
+        <p className="mt-1 text-xs sm:text-sm text-[#545f73] dark:text-[#a3cfcf]">
           Foundational reference data used across every other module.
         </p>
       </div>
@@ -40,16 +41,20 @@ export default function MasterDataPage() {
         {sections.map((section) => {
           const Icon = section.icon;
           return (
-            <Link key={section.href} href={section.href}>
-              <Card className="min-h-24 transition-colors hover:bg-muted/50">
-                <CardHeader className="flex-row items-center gap-3 space-y-0">
-                  <Icon className="size-5 text-muted-foreground" />
-                  <div>
-                    <CardTitle className="text-base">{section.title}</CardTitle>
-                    <CardDescription>{section.description}</CardDescription>
-                  </div>
-                </CardHeader>
-              </Card>
+            <Link
+              key={section.href}
+              href={section.href}
+              className="group flex items-center gap-3.5 rounded-2xl border border-[#e2e2e2] dark:border-[#404848] bg-white dark:bg-[#1a1c1c] p-5 shadow-xs hover:shadow-[0_4px_20px_rgba(0,0,0,0.05)] hover:border-[#0F3D3E]/30 dark:hover:border-[#a3cfcf]/40 transition-all duration-200"
+            >
+              <div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-[#0F3D3E]/10 text-[#0F3D3E] dark:bg-[#a3cfcf]/15 dark:text-[#a3cfcf]">
+                <Icon className="size-5" />
+              </div>
+              <div className="min-w-0">
+                <h2 className="text-sm font-semibold text-[#1a1c1c] dark:text-white group-hover:text-[#0F3D3E] dark:group-hover:text-[#a3cfcf] transition-colors">
+                  {section.title}
+                </h2>
+                <p className="truncate text-xs text-[#545f73] dark:text-[#a3cfcf]">{section.description}</p>
+              </div>
             </Link>
           );
         })}

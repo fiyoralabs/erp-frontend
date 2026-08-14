@@ -85,31 +85,36 @@ export async function refreshAccessToken(): Promise<
   const refreshToken = await getRefreshToken();
   if (!refreshToken) return { ok: false };
 
-  const erpResponse = await fetch(`${ERP_API_URL}/api/v1/auth/refresh-token`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ refreshToken }),
-    cache: "no-store",
-  });
+  try {
+    const erpResponse = await fetch(`${ERP_API_URL}/api/v1/auth/refresh-token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+      cache: "no-store",
+    });
 
-  if (!erpResponse.ok) {
+    if (!erpResponse.ok) {
+      await clearSessionCookies();
+      return { ok: false };
+    }
+
+    const erpData = await erpResponse.json();
+    if (!erpData.success) {
+      await clearSessionCookies();
+      return { ok: false };
+    }
+
+    await setSessionCookies({
+      accessToken: erpData.data.accessToken,
+      refreshToken: erpData.data.refreshToken,
+      expiresIn: erpData.data.expiresIn,
+    });
+
+    return { ok: true, accessToken: erpData.data.accessToken };
+  } catch {
     await clearSessionCookies();
     return { ok: false };
   }
-
-  const erpData = await erpResponse.json();
-  if (!erpData.success) {
-    await clearSessionCookies();
-    return { ok: false };
-  }
-
-  await setSessionCookies({
-    accessToken: erpData.data.accessToken,
-    refreshToken: erpData.data.refreshToken,
-    expiresIn: erpData.data.expiresIn,
-  });
-
-  return { ok: true, accessToken: erpData.data.accessToken };
 }
 
 // Decodes the (already-verified-by-erp) JWT payload without checking the

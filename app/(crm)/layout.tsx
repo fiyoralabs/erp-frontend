@@ -45,7 +45,6 @@ export default async function StandaloneCrmLayout({
         <CrmTopbar
           userName={user?.fullName ?? session.sub}
           userEmail={user?.email ?? session.sub}
-          companyLabel={`Company #${session.companyId}`}
           locationContext={locationContext}
         />
         <CrmSubNav />

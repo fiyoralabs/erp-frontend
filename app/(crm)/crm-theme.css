@@ -1,70 +1,75 @@
 /*
- * CRM-only visual theme: brand accent color + subtle elevation.
- *
- * Scoped to `body.crm-theme` (not a wrapper div) because Dialog/Sheet/Select/
- * DropdownMenu all portal their content directly onto `document.body` (see
- * components/ui/dialog.tsx, sheet.tsx, select.tsx, dropdown-menu.tsx) --
- * portaled nodes are NOT DOM descendants of the CRM layout's own wrapper
- * div, so a `.crm-shell` class there would never reach them. The
- * `crm-theme` class is added to `<body>` by CrmThemeScope
- * (components/crm/shared/crm-theme-scope.tsx) while any CRM route is
- * mounted, and removed on unmount, so the rest of the ERP (Sales, Purchase,
- * Inventory, the main dashboard, etc.) is completely unaffected.
+ * CRM-only visual theme: Fiyora Professional Modernism (Deep Teal #0F3D3E palette)
+ * Scoped to `body.crm-theme` so the rest of the ERP is unaffected.
  */
 
 body.crm-theme {
-  --primary: oklch(0.52 0.18 264);
-  --primary-foreground: oklch(0.985 0 0);
-  --ring: oklch(0.62 0.16 264);
-  --sidebar-primary: oklch(0.52 0.18 264);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
-  --sidebar-ring: oklch(0.62 0.16 264);
+  --primary: #0f3d3e;
+  --primary-foreground: #ffffff;
+  --ring: #3b6566;
+  --sidebar: #ffffff;
+  --sidebar-foreground: #1a1c1c;
+  --sidebar-primary: #0f3d3e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #f3f4f3;
+  --sidebar-accent-foreground: #1a1c1c;
+  --sidebar-border: #e2e2e2;
+  --sidebar-ring: #3b6566;
+  --background: #f9f9f9;
+  --foreground: #1a1c1c;
+  --card: #ffffff;
+  --card-foreground: #1a1c1c;
+  --popover: #ffffff;
+  --popover-foreground: #1a1c1c;
+  --muted: #f3f4f3;
+  --muted-foreground: #545f73;
+  --border: #e2e2e2;
+  --input: #c0c8c8;
 }
 
 .dark body.crm-theme {
-  --primary: oklch(0.68 0.16 264);
-  --primary-foreground: oklch(0.145 0 0);
-  --ring: oklch(0.68 0.16 264);
-  --sidebar-primary: oklch(0.68 0.16 264);
-  --sidebar-primary-foreground: oklch(0.145 0 0);
-  --sidebar-ring: oklch(0.68 0.16 264);
+  --primary: #a3cfcf;
+  --primary-foreground: #002627;
+  --ring: #a3cfcf;
+  --sidebar: #1a1c1c;
+  --sidebar-foreground: #f9f9f9;
+  --sidebar-primary: #0f3d3e;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #2f3131;
+  --sidebar-accent-foreground: #f9f9f9;
+  --sidebar-border: #404848;
+  --sidebar-ring: #a3cfcf;
+  --background: #121414;
+  --foreground: #f9f9f9;
+  --card: #1a1c1c;
+  --card-foreground: #f9f9f9;
+  --popover: #1a1c1c;
+  --popover-foreground: #f9f9f9;
+  --muted: #2f3131;
+  --muted-foreground: #a3cfcf;
+  --border: #404848;
+  --input: #404848;
 }
 
-/* Elevation -- shared Card/Dialog primitives are flat (ring-only, no
- * shadow) app-wide; CRM gets real elevation via data-slot targeting so the
- * shared components themselves stay untouched for the rest of the ERP. */
+/* CRM Card & Container Elevation (Level 1 & Level 2) */
 body.crm-theme [data-slot="card"] {
-  box-shadow: 0 1px 2px oklch(0 0 0 / 6%), 0 1px 3px oklch(0 0 0 / 8%);
+  border-radius: 18px;
+  border-color: #e2e2e2;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.02);
+  transition: box-shadow 0.2s ease, transform 0.2s ease;
 }
 
-body.crm-theme [data-slot="card"].cursor-pointer:hover {
-  box-shadow: 0 2px 6px oklch(0 0 0 / 8%), 0 4px 12px oklch(0 0 0 / 10%);
+body.crm-theme [data-slot="card"]:hover {
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.05);
 }
 
 body.crm-theme [data-slot="dialog-content"],
 body.crm-theme [data-slot="sheet-content"] {
-  box-shadow: 0 12px 32px oklch(0 0 0 / 14%);
+  border-radius: 18px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.12);
 }
 
-.dark body.crm-theme [data-slot="card"] {
-  box-shadow: 0 1px 2px oklch(0 0 0 / 30%), 0 1px 3px oklch(0 0 0 / 40%);
-}
-
-.dark body.crm-theme [data-slot="card"].cursor-pointer:hover {
-  box-shadow: 0 2px 6px oklch(0 0 0 / 35%), 0 4px 12px oklch(0 0 0 / 45%);
-}
-
-.dark body.crm-theme [data-slot="dialog-content"],
-.dark body.crm-theme [data-slot="sheet-content"] {
-  box-shadow: 0 12px 32px oklch(0 0 0 / 55%);
-}
-
-/* Real thin-scrollbar rendering. Several CRM files already reference
- * `scrollbar-thin`/`scrollbar-thumb-*`/`scrollbar-none` utility class names
- * (crm-sidebar.tsx, crm-sub-nav.tsx, pipeline-board-client.tsx,
- * tasks-list-client.tsx, and detail-page tab strips) but no
- * `tailwind-scrollbar` plugin is installed (checked package.json), so
- * those classes are silent no-ops. This makes them actually do something. */
+/* Custom scrollbars */
 body.crm-theme .scrollbar-thin {
   scrollbar-width: thin;
 }
@@ -83,6 +88,10 @@ body.crm-theme .scrollbar-thin::-webkit-scrollbar {
 }
 
 body.crm-theme .scrollbar-thin::-webkit-scrollbar-thumb {
-  background-color: var(--border);
+  background-color: #d9dad9;
   border-radius: 9999px;
+}
+
+body.crm-theme .scrollbar-thin::-webkit-scrollbar-thumb:hover {
+  background-color: #c0c8c8;
 }

@@ -13,6 +13,9 @@ import {
   Layers,
   FileText,
   Check,
+  X,
+  Sliders,
+  RotateCcw,
 } from "lucide-react";
 
 import {
@@ -25,7 +28,13 @@ import {
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { apiClient } from "@/lib/api-client";
 import type { LeadBatchImportItem, LeadBatchImportRequest, LeadBatchImportResponse } from "@/lib/types/crm";
 import { toast } from "sonner";
@@ -74,7 +83,7 @@ const TARGET_FIELDS: TargetField[] = [
 function autoMatchColumn(headerName: string): string | null {
   const normalized = headerName.trim().toLowerCase();
   for (const field of TARGET_FIELDS) {
-    if (field.aliases.some(alias => alias === normalized || normalized.includes(alias) || alias.includes(normalized))) {
+    if (field.aliases.some((alias) => alias === normalized || normalized.includes(alias) || alias.includes(normalized))) {
       return field.key;
     }
   }
@@ -82,10 +91,10 @@ function autoMatchColumn(headerName: string): string | null {
 }
 
 const STEP_LABELS = {
-  1: "Upload File",
+  1: "Upload",
   2: "Map Columns",
   3: "Select Rows",
-  4: "Import Status",
+  4: "Success",
 };
 
 export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDialogProps) {
@@ -293,7 +302,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
 
   // Perform Batch Import
   const handleExecuteImport = async () => {
-    const selectedIndices = dataRowsIndices.filter(idx => selectedRows[idx]);
+    const selectedIndices = dataRowsIndices.filter((idx) => selectedRows[idx]);
     if (selectedIndices.length === 0) {
       toast.error("Please select at least one row to import.");
       return;
@@ -350,128 +359,220 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
     }
   };
 
-  const activeSelectedCount = dataRowsIndices.filter(idx => selectedRows[idx]).length;
+  const activeSelectedCount = dataRowsIndices.filter((idx) => selectedRows[idx]).length;
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="w-[95vw] sm:w-[90vw] lg:max-w-4xl max-h-[92vh] flex flex-col p-0 overflow-hidden bg-background text-foreground border border-border rounded-xl shadow-xl">
-        {/* Header */}
-        <div className="px-4 sm:px-6 py-4 border-b border-border bg-card/60 flex flex-col md:flex-row md:items-center justify-between gap-3">
-          <div className="flex items-center gap-3 min-w-0">
-            <div className="p-2 rounded-lg bg-primary/10 text-primary border border-primary/20 flex-shrink-0">
-              <FileSpreadsheet className="h-5 w-5" />
+      <DialogContent className="w-[96vw] sm:w-[92vw] lg:max-w-5xl max-h-[92vh] flex flex-col p-0 overflow-hidden bg-surface-container-lowest dark:bg-card text-on-surface border border-outline-variant dark:border-border rounded-2xl shadow-2xl">
+        {/* Modal Header */}
+        <div className="px-6 py-5 border-b border-outline-variant dark:border-border bg-surface-bright dark:bg-card/90 flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-primary-container/10 dark:bg-primary/20 text-primary-container dark:text-primary flex items-center justify-center font-bold">
+                <FileSpreadsheet className="h-5 w-5 text-[#0f3d3e] dark:text-[#a3cfcf]" />
+              </div>
+              <div>
+                <DialogTitle className="text-lg sm:text-xl font-bold tracking-tight text-foreground">
+                  Import Leads from Excel / CSV
+                </DialogTitle>
+                <DialogDescription className="text-xs text-muted-foreground">
+                  Dynamic Column Matching, Custom Fields Fallback & Interactive Row Selection
+                </DialogDescription>
+              </div>
             </div>
-            <div className="min-w-0">
-              <DialogTitle className="text-base sm:text-lg font-semibold text-foreground truncate">Import Leads from Excel / CSV</DialogTitle>
-              <DialogDescription className="text-xs text-muted-foreground truncate">
-                Dynamically map columns, select rows, and import leads directly into CRM
-              </DialogDescription>
-            </div>
+            <button
+              onClick={() => handleOpenChange(false)}
+              className="text-muted-foreground hover:text-foreground p-1.5 rounded-full hover:bg-muted/60 transition-colors"
+              aria-label="Close"
+            >
+              <X className="h-5 w-5" />
+            </button>
           </div>
 
-          {/* Stepper indicator - Mobile vs Desktop */}
-          <div className="flex items-center gap-2">
-            {/* Mobile Step Badge */}
-            <div className="sm:hidden px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-semibold">
-              Step {step} of 4: {STEP_LABELS[step]}
+          {/* Stepper Progress Bar (Desktop & Mobile Responsive) */}
+          <div className="flex items-center justify-between sm:justify-start gap-2 pt-2 overflow-x-auto">
+            {/* Step 1 */}
+            <div className="flex items-center gap-2">
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  step === 1
+                    ? "bg-[#0f3d3e] text-[#beebeb] dark:bg-[#beebeb] dark:text-[#002020] shadow-sm"
+                    : step > 1
+                    ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {step > 1 ? <Check className="h-3 w-3" /> : "1."} Upload
+              </span>
             </div>
 
-            {/* Desktop / Tablet Stepper Chips */}
-            <div className="hidden sm:flex items-center gap-1.5 lg:gap-2 text-xs overflow-x-auto">
-              <span className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${step === 1 ? "bg-primary text-primary-foreground shadow-xs" : "bg-muted text-muted-foreground"}`}>1. Upload</span>
-              <span className="text-muted-foreground/60">&rarr;</span>
-              <span className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${step === 2 ? "bg-primary text-primary-foreground shadow-xs" : "bg-muted text-muted-foreground"}`}>2. Map Columns</span>
-              <span className="text-muted-foreground/60">&rarr;</span>
-              <span className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${step === 3 ? "bg-primary text-primary-foreground shadow-xs" : "bg-muted text-muted-foreground"}`}>3. Select Rows</span>
-              <span className="text-muted-foreground/60">&rarr;</span>
-              <span className={`px-2.5 py-1 rounded-full text-xs font-medium whitespace-nowrap transition-colors ${step === 4 ? "bg-primary text-primary-foreground shadow-xs" : "bg-muted text-muted-foreground"}`}>4. Import</span>
+            <div className="w-6 sm:w-10 h-[2px] bg-outline-variant dark:bg-border shrink-0" />
+
+            {/* Step 2 */}
+            <div className="flex items-center gap-2">
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  step === 2
+                    ? "bg-[#0f3d3e] text-[#beebeb] dark:bg-[#beebeb] dark:text-[#002020] shadow-sm"
+                    : step > 2
+                    ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {step > 2 ? <Check className="h-3 w-3" /> : "2."} Map Columns
+              </span>
+            </div>
+
+            <div className="w-6 sm:w-10 h-[2px] bg-outline-variant dark:bg-border shrink-0" />
+
+            {/* Step 3 */}
+            <div className="flex items-center gap-2">
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  step === 3
+                    ? "bg-[#0f3d3e] text-[#beebeb] dark:bg-[#beebeb] dark:text-[#002020] shadow-sm"
+                    : step > 3
+                    ? "bg-emerald-100 dark:bg-emerald-950/60 text-emerald-700 dark:text-emerald-300"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {step > 3 ? <Check className="h-3 w-3" /> : "3."} Select Rows
+              </span>
+            </div>
+
+            <div className="w-6 sm:w-10 h-[2px] bg-outline-variant dark:bg-border shrink-0" />
+
+            {/* Step 4 */}
+            <div className="flex items-center gap-2">
+              <span
+                className={`px-3 py-1 rounded-full text-xs font-semibold flex items-center gap-1.5 transition-all ${
+                  step === 4
+                    ? "bg-[#0f3d3e] text-[#beebeb] dark:bg-[#beebeb] dark:text-[#002020] shadow-sm"
+                    : "bg-muted text-muted-foreground"
+                }`}
+              >
+                4. Done
+              </span>
             </div>
           </div>
         </div>
 
-        {/* Content Body */}
-        <div className="flex-1 overflow-y-auto p-4 sm:p-6 space-y-6">
+        {/* Modal Body */}
+        <div className="flex-1 overflow-y-auto p-6 space-y-6 bg-surface-bright dark:bg-background/50">
           {/* STEP 1: Upload File */}
           {step === 1 && (
-            <div className="space-y-6 py-2 sm:py-4">
-              <div className="border-2 border-dashed border-muted-foreground/30 hover:border-primary rounded-xl p-6 sm:p-10 text-center transition-colors bg-muted/10 hover:bg-muted/20 flex flex-col items-center justify-center cursor-pointer relative group">
+            <div className="space-y-6 py-2">
+              {/* Dropzone Container */}
+              <div className="border-2 border-dashed border-[#a3cfcf] dark:border-[#3b6566] rounded-2xl bg-[#beebeb]/10 hover:bg-[#beebeb]/20 dark:bg-card/40 dark:hover:bg-card/70 transition-all p-8 sm:p-12 flex flex-col items-center justify-center cursor-pointer group relative">
                 <input
                   type="file"
                   accept=".xlsx, .xls, .csv"
                   onChange={handleFileUpload}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                 />
-                <div className="p-3.5 sm:p-4 rounded-full bg-primary/10 text-primary mb-3 group-hover:scale-110 transition-transform">
-                  <Upload className="h-7 w-7 sm:h-8 sm:w-8" />
+                <div className="p-4 rounded-full bg-background dark:bg-card shadow-md mb-4 group-hover:scale-110 transition-transform">
+                  <Upload className="h-9 w-9 text-[#0f3d3e] dark:text-[#a3cfcf]" />
                 </div>
-                <h3 className="text-sm sm:text-base font-semibold text-foreground mb-1">Click or Drag & Drop Excel / CSV file</h3>
-                <p className="text-xs text-muted-foreground max-w-sm mb-4">
-                  Supports .xlsx, .xls, and .csv files. Automatic sheet detection and smart column matching.
+                <h3 className="text-base sm:text-lg font-bold text-foreground mb-1 text-center">
+                  Click or Drag & Drop Excel / CSV file
+                </h3>
+                <p className="text-xs text-muted-foreground mb-5 text-center max-w-sm">
+                  Maximum file size: 50MB. Supported formats: .xlsx, .xls, .csv
                 </p>
-                <Button size="sm" className="pointer-events-none">
-                  Browse File
+                <Button
+                  size="sm"
+                  className="px-6 py-2 bg-card text-foreground border border-border rounded-xl font-semibold shadow-xs hover:bg-muted pointer-events-none"
+                >
+                  Browse Files
                 </Button>
               </div>
 
-              {/* Information Cards */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 sm:gap-4 text-xs text-muted-foreground">
-                <div className="p-3.5 rounded-lg bg-card border border-border space-y-1">
-                  <div className="font-semibold text-primary flex items-center gap-1.5">
-                    <Sparkles className="h-3.5 w-3.5" /> Dynamic Column Match
+              {/* What to expect next cards */}
+              <div>
+                <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-3">
+                  What to expect next
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  {/* Card 1 */}
+                  <div className="bg-card p-5 rounded-2xl border border-border shadow-xs flex flex-col gap-2.5">
+                    <div className="w-10 h-10 rounded-xl bg-[#d5e0f8] dark:bg-[#223049] flex items-center justify-center text-[#111c2d] dark:text-[#d8e3fb]">
+                      <Sparkles className="h-5 w-5 text-[#3c475a] dark:text-[#d8e3fb]" />
+                    </div>
+                    <h4 className="font-semibold text-sm text-foreground">Dynamic Column Match</h4>
+                    <p className="text-xs text-muted-foreground leading-relaxed flex-1">
+                      Our system automatically matches your spreadsheet column headers with the CRM lead fields.
+                    </p>
                   </div>
-                  <p className="text-muted-foreground">Headers like Name, Mobile, Mail, Company will be auto-matched to lead database attributes.</p>
-                </div>
-                <div className="p-3.5 rounded-lg bg-card border border-border space-y-1">
-                  <div className="font-semibold text-primary flex items-center gap-1.5">
-                    <FileText className="h-3.5 w-3.5" /> Rest Columns to Custom Fields
+
+                  {/* Card 2 */}
+                  <div className="bg-card p-5 rounded-2xl border border-border shadow-xs flex flex-col gap-2.5">
+                    <div className="w-10 h-10 rounded-xl bg-[#ffdbc8] dark:bg-[#502f19] flex items-center justify-center text-[#2f1403] dark:text-[#ffdbc8]">
+                      <FileText className="h-5 w-5 text-[#623e27] dark:text-[#ffdbc8]" />
+                    </div>
+                    <h4 className="font-semibold text-sm text-foreground">Rest Columns to Custom Fields</h4>
+                    <p className="text-xs text-muted-foreground leading-relaxed flex-1">
+                      Unmapped columns are automatically formatted and preserved as structured Custom Fields in notes.
+                    </p>
                   </div>
-                  <p className="text-muted-foreground">Unmapped extra columns will automatically be stored as structured Custom Fields.</p>
-                </div>
-                <div className="p-3.5 rounded-lg bg-card border border-border space-y-1 sm:col-span-2 lg:col-span-1">
-                  <div className="font-semibold text-primary flex items-center gap-1.5">
-                    <Layers className="h-3.5 w-3.5" /> Interactive Row Picker
+
+                  {/* Card 3 */}
+                  <div className="bg-card p-5 rounded-2xl border border-border shadow-xs flex flex-col gap-2.5">
+                    <div className="w-10 h-10 rounded-xl bg-[#beebeb] dark:bg-[#0f3d3e] flex items-center justify-center text-[#002020] dark:text-[#beebeb]">
+                      <Layers className="h-5 w-5 text-[#224d4e] dark:text-[#beebeb]" />
+                    </div>
+                    <h4 className="font-semibold text-sm text-foreground">Interactive Row Picker</h4>
+                    <p className="text-xs text-muted-foreground leading-relaxed flex-1">
+                      Filter, inspect, and select specific rows before importing to ensure 100% clean data entry.
+                    </p>
                   </div>
-                  <p className="text-muted-foreground">Select specific rows or range of rows to import with live validation checks.</p>
                 </div>
               </div>
             </div>
           )}
 
-          {/* STEP 2: Header & Column Mapping */}
+          {/* STEP 2: Map Columns */}
           {step === 2 && (
-            <div className="space-y-6">
-              {/* File Info Bar */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg bg-muted/40 border border-border text-xs">
-                <div className="flex items-center gap-2 min-w-0">
-                  <FileSpreadsheet className="h-4 w-4 text-emerald-600 dark:text-emerald-400 flex-shrink-0" />
-                  <span className="font-medium text-foreground truncate">{fileName}</span>
-                  <span className="text-muted-foreground flex-shrink-0">({rawRows.length} total rows)</span>
+            <div className="space-y-5">
+              {/* File Info Bar & Configuration Options */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-4 rounded-xl bg-card border border-border">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-[#d5e0f8] dark:bg-[#223049] flex items-center justify-center text-[#111c2d] dark:text-[#d8e3fb]">
+                    <FileSpreadsheet className="h-5 w-5 text-[#3c475a] dark:text-[#d8e3fb]" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-sm text-foreground truncate max-w-xs sm:max-w-md">{fileName}</p>
+                    <p className="text-xs text-muted-foreground">
+                      {rawRows.length > 0 ? `${rawRows.length - 1} total rows detected` : "File loaded"} • {headers.length} columns
+                    </p>
+                  </div>
                 </div>
 
-                <div className="flex flex-wrap items-center gap-3 sm:gap-4">
+                <div className="flex flex-wrap items-center gap-3">
                   {sheetNames.length > 1 && (
-                    <div className="flex items-center gap-2">
-                      <Label className="text-muted-foreground text-xs whitespace-nowrap">Sheet:</Label>
+                    <div className="flex items-center gap-1.5">
+                      <Label className="text-xs text-muted-foreground whitespace-nowrap">Sheet:</Label>
                       <Select value={selectedSheet} onValueChange={handleSheetChange}>
-                        <SelectTrigger className="h-8 text-xs w-32 sm:w-40 bg-background border-input">
+                        <SelectTrigger className="h-8 text-xs w-36 bg-background">
                           <SelectValue />
                         </SelectTrigger>
-                        <SelectContent className="bg-popover text-popover-foreground">
+                        <SelectContent>
                           {sheetNames.map((s) => (
-                            <SelectItem key={s} value={s}>{s}</SelectItem>
+                            <SelectItem key={s} value={s}>
+                              {s}
+                            </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
                     </div>
                   )}
 
-                  <div className="flex items-center gap-2">
-                    <Label className="text-muted-foreground text-xs whitespace-nowrap">Header Row:</Label>
+                  <div className="flex items-center gap-1.5">
+                    <Label className="text-xs text-muted-foreground whitespace-nowrap">Header Row:</Label>
                     <Select value={String(headerRowIndex)} onValueChange={handleHeaderRowChange}>
-                      <SelectTrigger className="h-8 text-xs w-28 sm:w-32 bg-background border-input">
+                      <SelectTrigger className="h-8 text-xs w-32 bg-background">
                         <SelectValue />
                       </SelectTrigger>
-                      <SelectContent className="bg-popover text-popover-foreground">
+                      <SelectContent>
                         {rawRows.slice(0, 10).map((_, idx) => (
                           <SelectItem key={idx} value={String(idx)}>
                             Row {idx + 1} {idx === 0 ? "(Default)" : ""}
@@ -484,69 +585,98 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
               </div>
 
               {/* Toggles */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg bg-primary/5 border border-primary/15">
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-foreground font-medium">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-xl bg-muted/40 border border-border text-xs">
+                <label className="flex items-center gap-2 cursor-pointer text-foreground font-medium">
                   <input
                     type="checkbox"
                     checked={appendRestToDescription}
                     onChange={(e) => setAppendRestToDescription(e.target.checked)}
-                    className="rounded border-input text-primary focus:ring-primary"
+                    className="rounded border-input text-primary focus:ring-primary w-4 h-4 cursor-pointer"
                   />
-                  <span>Append unmapped ("rest") columns into Lead <strong>Description</strong></span>
+                  <span>Append unmapped ("rest") columns to Custom Fields / Notes</span>
                 </label>
 
-                <label className="flex items-center gap-2 cursor-pointer text-xs text-foreground font-medium">
+                <label className="flex items-center gap-2 cursor-pointer text-foreground font-medium">
                   <input
                     type="checkbox"
                     checked={skipDuplicates}
                     onChange={(e) => setSkipDuplicates(e.target.checked)}
-                    className="rounded border-input text-primary focus:ring-primary"
+                    className="rounded border-input text-primary focus:ring-primary w-4 h-4 cursor-pointer"
                   />
-                  <span>Skip duplicate leads (matching email / phone)</span>
+                  <span>Skip duplicate leads (matched by email / phone)</span>
                 </label>
               </div>
 
               {/* Column Mapping Table */}
-              <div className="border border-border rounded-lg overflow-hidden bg-card">
-                <div className="px-4 py-2.5 bg-muted/60 border-b border-border text-xs font-semibold text-foreground flex justify-between items-center">
-                  <span>Excel Column Header</span>
-                  <span>Match to Lead Database Field</span>
+              <div className="bg-card rounded-2xl border border-border overflow-hidden shadow-xs">
+                <div className="grid grid-cols-2 gap-4 px-6 py-3.5 border-b border-border bg-muted/50 text-xs font-semibold text-muted-foreground uppercase tracking-wider">
+                  <div>Excel Column Header</div>
+                  <div>Match to Lead Database Field</div>
                 </div>
-                <div className="divide-y divide-border max-h-[350px] overflow-y-auto">
+
+                <div className="divide-y divide-border max-h-[380px] overflow-y-auto">
                   {headers.map((colHeader: any, idx: number) => {
                     const headerStr = colHeader ? String(colHeader).trim() : `Column ${idx + 1}`;
                     const currentMapped = columnMappings[idx] || "IGNORE";
                     const isMapped = currentMapped !== "IGNORE";
 
+                    // Preview first sample value
+                    const sampleValue =
+                      rawRows[headerRowIndex + 1] && rawRows[headerRowIndex + 1][idx] != null
+                        ? String(rawRows[headerRowIndex + 1][idx]).trim()
+                        : "";
+
                     return (
-                      <div key={idx} className="px-4 py-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 sm:gap-4 hover:bg-muted/40 transition-colors">
-                        <div className="flex items-center gap-2.5 min-w-0">
-                          <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${isMapped ? "bg-emerald-500" : "bg-muted-foreground/40"}`} />
-                          <span className="text-xs font-medium text-foreground truncate">{headerStr}</span>
-                          <span className="text-[11px] text-muted-foreground flex-shrink-0">(Col {idx + 1})</span>
+                      <div
+                        key={idx}
+                        className="grid grid-cols-1 sm:grid-cols-2 gap-4 px-6 py-3.5 items-center hover:bg-muted/30 transition-colors group"
+                      >
+                        <div className="flex flex-col gap-0.5 min-w-0">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-sm text-foreground truncate">{headerStr}</span>
+                            <span className="text-[11px] text-muted-foreground font-mono">(Col {idx + 1})</span>
+                          </div>
+                          {sampleValue && (
+                            <span className="text-xs text-muted-foreground truncate italic">
+                              e.g. "{sampleValue}"
+                            </span>
+                          )}
                         </div>
 
-                        <div className="w-full sm:w-64">
-                          <Select
-                            value={currentMapped}
-                            onValueChange={(val) => {
-                              if (val) setColumnMappings((prev) => ({ ...prev, [idx]: val }));
-                            }}
-                          >
-                            <SelectTrigger className={`h-8 text-xs w-full ${isMapped ? "bg-primary/10 border-primary/40 text-primary font-medium" : "bg-background border-input text-muted-foreground"}`}>
-                              <SelectValue placeholder="Ignore / Move to Description" />
-                            </SelectTrigger>
-                            <SelectContent className="bg-popover text-popover-foreground max-h-60">
-                              <SelectItem value="IGNORE" className="text-muted-foreground italic">
-                                -- Ignore (Move to Description) --
-                              </SelectItem>
-                              {TARGET_FIELDS.map((field) => (
-                                <SelectItem key={field.key} value={field.key}>
-                                  {field.label} {field.required ? "*" : ""}
+                        <div className="flex items-center gap-2">
+                          <div className="relative flex-1">
+                            <Select
+                              value={currentMapped}
+                              onValueChange={(val) => {
+                                if (val) setColumnMappings((prev) => ({ ...prev, [idx]: val }));
+                              }}
+                            >
+                              <SelectTrigger
+                                className={`h-10 text-xs w-full rounded-xl transition-all ${
+                                  isMapped
+                                    ? "bg-[#0f3d3e]/10 dark:bg-[#0f3d3e]/30 border-[#0f3d3e]/30 text-foreground font-semibold"
+                                    : "bg-background border-input text-muted-foreground"
+                                }`}
+                              >
+                                <SelectValue placeholder="Ignore / Move to Custom Fields" />
+                              </SelectTrigger>
+                              <SelectContent className="max-h-60">
+                                <SelectItem value="IGNORE" className="text-muted-foreground italic">
+                                  -- Ignore (Move to Custom Fields) --
                                 </SelectItem>
-                              ))}
-                            </SelectContent>
-                          </Select>
+                                {TARGET_FIELDS.map((field) => (
+                                  <SelectItem key={field.key} value={field.key}>
+                                    {field.label} {field.required ? "*" : ""}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {isMapped && (
+                            <div className="w-6 h-6 rounded-full bg-emerald-100 dark:bg-emerald-950/60 text-emerald-600 dark:text-emerald-400 flex items-center justify-center shrink-0">
+                              <CheckCircle2 className="h-4 w-4" />
+                            </div>
+                          )}
                         </div>
                       </div>
                     );
@@ -556,49 +686,49 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
             </div>
           )}
 
-          {/* STEP 3: Dynamic Row Selection & Preview */}
+          {/* STEP 3: Select Rows & Validate */}
           {step === 3 && (
             <div className="space-y-4">
               {/* Row Selector Toolbar */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3 rounded-lg bg-muted/40 border border-border text-xs">
-                <div className="flex flex-wrap items-center gap-2 sm:gap-3">
-                  <span className="font-medium text-foreground whitespace-nowrap">Select Row Range:</span>
-                  <div className="flex items-center gap-1.5">
+              <div className="flex flex-col md:flex-row md:items-center justify-between gap-4 p-4 rounded-xl bg-card border border-border">
+                <div className="flex flex-wrap items-center gap-3">
+                  <span className="text-xs font-semibold text-foreground whitespace-nowrap">Select Rows Range:</span>
+                  <div className="flex items-center gap-2">
                     <Input
                       type="number"
                       min={1}
                       max={dataRowsIndices.length}
                       value={startRow}
                       onChange={(e) => setStartRow(parseInt(e.target.value, 10) || 1)}
-                      className="h-8 w-16 text-xs text-center bg-background border-input"
+                      className="h-8 w-20 text-xs text-center bg-background rounded-lg"
                     />
-                    <span className="text-muted-foreground">to</span>
+                    <span className="text-xs text-muted-foreground">to</span>
                     <Input
                       type="number"
                       min={1}
                       max={dataRowsIndices.length}
                       value={endRow}
                       onChange={(e) => setEndRow(parseInt(e.target.value, 10) || dataRowsIndices.length)}
-                      className="h-8 w-16 text-xs text-center bg-background border-input"
+                      className="h-8 w-20 text-xs text-center bg-background rounded-lg"
                     />
                     <Button
                       size="sm"
                       variant="outline"
                       onClick={() => handleApplyRowRange(startRow, endRow)}
-                      className="h-8 text-xs border-border bg-background hover:bg-muted"
+                      className="h-8 text-xs rounded-lg hover:bg-muted"
                     >
                       Apply
                     </Button>
                   </div>
                 </div>
 
-                <div className="flex items-center justify-between sm:justify-end gap-2">
-                  <div className="flex items-center gap-1">
+                <div className="flex items-center justify-between md:justify-end gap-3">
+                  <div className="flex items-center gap-1.5">
                     <Button
                       size="sm"
                       variant="ghost"
                       onClick={() => handleSelectAll(true)}
-                      className="h-8 text-xs text-primary hover:text-primary/80 px-2"
+                      className="h-8 text-xs text-primary font-medium hover:bg-primary/10"
                     >
                       Select All
                     </Button>
@@ -606,38 +736,39 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
                       size="sm"
                       variant="ghost"
                       onClick={() => handleSelectAll(false)}
-                      className="h-8 text-xs text-muted-foreground hover:text-foreground px-2"
+                      className="h-8 text-xs text-muted-foreground hover:text-foreground"
                     >
                       Deselect
                     </Button>
                   </div>
-                  <span className="px-2.5 py-1 rounded-md bg-primary/10 text-primary font-semibold border border-primary/20 whitespace-nowrap">
-                    {activeSelectedCount} Selected
-                  </span>
+                  <div className="px-3.5 py-1.5 rounded-full bg-[#d8e3fb] dark:bg-[#223049] text-[#111c2d] dark:text-[#d8e3fb] font-semibold text-xs flex items-center gap-1.5">
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>{activeSelectedCount} Selected</span>
+                  </div>
                 </div>
               </div>
 
-              {/* Data Preview Table */}
-              <div className="border border-border rounded-lg overflow-hidden bg-card">
-                <div className="max-h-[350px] overflow-x-auto overflow-y-auto">
-                  <table className="w-full text-left text-xs border-collapse min-w-[650px]">
-                    <thead className="sticky top-0 bg-muted border-b border-border text-foreground">
+              {/* Data Table */}
+              <div className="border border-border rounded-2xl overflow-hidden bg-card shadow-xs">
+                <div className="max-h-[380px] overflow-x-auto overflow-y-auto">
+                  <table className="w-full text-left text-xs border-collapse min-w-[700px]">
+                    <thead className="sticky top-0 bg-muted/80 backdrop-blur-xs border-b border-border text-foreground font-semibold z-10">
                       <tr>
-                        <th className="p-2.5 w-10 text-center">
+                        <th className="p-3 w-12 text-center">
                           <input
                             type="checkbox"
                             checked={activeSelectedCount === dataRowsIndices.length}
                             onChange={(e) => handleSelectAll(e.target.checked)}
-                            className="rounded border-input text-primary"
+                            className="rounded border-input text-primary focus:ring-primary w-4 h-4 cursor-pointer"
                           />
                         </th>
-                        <th className="p-2.5 w-12 text-muted-foreground">Row</th>
-                        <th className="p-2.5 font-semibold text-primary">First Name</th>
-                        <th className="p-2.5 font-semibold">Last Name</th>
-                        <th className="p-2.5 font-semibold">Company</th>
-                        <th className="p-2.5 font-semibold">Phone</th>
-                        <th className="p-2.5 font-semibold">Email</th>
-                        <th className="p-2.5 font-semibold">Description Preview</th>
+                        <th className="p-3 w-14 text-muted-foreground font-mono">Row</th>
+                        <th className="p-3 font-semibold text-primary">First Name</th>
+                        <th className="p-3 font-semibold">Last Name</th>
+                        <th className="p-3 font-semibold">Company</th>
+                        <th className="p-3 font-semibold">Phone</th>
+                        <th className="p-3 font-semibold">Email</th>
+                        <th className="p-3 font-semibold">Custom Fields Preview</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
@@ -649,18 +780,18 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
                         return (
                           <tr
                             key={rowIdx}
-                            className={`hover:bg-muted/50 transition-colors ${!isChecked ? "opacity-40 bg-muted/20" : ""}`}
+                            className={`hover:bg-muted/40 transition-colors ${!isChecked ? "opacity-40 bg-muted/10" : ""}`}
                           >
-                            <td className="p-2.5 text-center">
+                            <td className="p-3 text-center">
                               <input
                                 type="checkbox"
                                 checked={isChecked}
                                 onChange={(e) => setSelectedRows((prev) => ({ ...prev, [rowIdx]: e.target.checked }))}
-                                className="rounded border-input text-primary"
+                                className="rounded border-input text-primary focus:ring-primary w-4 h-4 cursor-pointer"
                               />
                             </td>
-                            <td className="p-2.5 text-muted-foreground font-mono">{relativeIdx + 1}</td>
-                            <td className="p-2.5 font-medium text-foreground">
+                            <td className="p-3 text-muted-foreground font-mono">{relativeIdx + 1}</td>
+                            <td className="p-3 font-semibold text-foreground">
                               {lead.firstName ? (
                                 lead.firstName
                               ) : (
@@ -669,11 +800,11 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
                                 </span>
                               )}
                             </td>
-                            <td className="p-2.5 text-foreground">{lead.lastName || "-"}</td>
-                            <td className="p-2.5 text-foreground">{lead.companyName || "-"}</td>
-                            <td className="p-2.5 text-foreground">{lead.phone || "-"}</td>
-                            <td className="p-2.5 text-foreground">{lead.email || "-"}</td>
-                            <td className="p-2.5 text-muted-foreground max-w-xs truncate" title={lead.description || ""}>
+                            <td className="p-3 text-foreground">{lead.lastName || "-"}</td>
+                            <td className="p-3 text-foreground font-medium">{lead.companyName || "-"}</td>
+                            <td className="p-3 text-foreground font-mono">{lead.phone || "-"}</td>
+                            <td className="p-3 text-foreground">{lead.email || "-"}</td>
+                            <td className="p-3 text-muted-foreground max-w-xs truncate" title={lead.description || ""}>
                               {lead.description || "-"}
                             </td>
                           </tr>
@@ -686,77 +817,104 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
             </div>
           )}
 
-          {/* STEP 4: Import Status / Results */}
+          {/* STEP 4: Success / Import Summary */}
           {step === 4 && (
-            <div className="py-6 space-y-6">
+            <div className="py-8 flex flex-col items-center text-center space-y-6">
               {isSubmitting ? (
-                <div className="text-center py-10 space-y-4">
-                  <div className="inline-block animate-spin rounded-full h-10 w-10 border-4 border-primary border-t-transparent"></div>
-                  <h3 className="text-base font-semibold text-foreground">Importing Leads into Database...</h3>
-                  <p className="text-xs text-muted-foreground">Creating lead records, auto-linking accounts and contacts.</p>
+                <div className="py-12 space-y-4 flex flex-col items-center">
+                  <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#0f3d3e] dark:border-[#beebeb] border-t-transparent" />
+                  <h3 className="text-lg font-bold text-foreground">Importing Leads into Database...</h3>
+                  <p className="text-xs text-muted-foreground max-w-md">
+                    Creating database lead records, standardizing phone numbers, and attaching custom fields.
+                  </p>
                 </div>
               ) : importResult ? (
-                <div className="space-y-6">
-                  {/* Results Summary Box */}
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 sm:gap-4">
-                    <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-center">
-                      <div className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">{importResult.importedCount}</div>
-                      <div className="text-xs text-emerald-700 dark:text-emerald-300 font-medium">Successfully Imported</div>
+                <div className="w-full max-w-2xl space-y-6 flex flex-col items-center">
+                  {/* Big Success Icon */}
+                  <div className="w-20 h-20 rounded-full bg-emerald-100 dark:bg-emerald-950/60 flex items-center justify-center shadow-inner">
+                    <CheckCircle2 className="h-10 w-10 text-emerald-600 dark:text-emerald-400" />
+                  </div>
+
+                  {/* Heading & Subtext */}
+                  <div>
+                    <h3 className="text-xl sm:text-2xl font-bold text-foreground">Import Complete</h3>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      {importResult.importedCount} leads successfully imported into your CRM.
+                    </p>
+                  </div>
+
+                  {/* Stats Card Row */}
+                  <div className="grid grid-cols-3 gap-3 w-full bg-card rounded-2xl p-4 border border-border shadow-xs">
+                    <div className="flex flex-col items-center p-2">
+                      <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                        {importResult.importedCount}
+                      </span>
+                      <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                        Imported
+                      </span>
                     </div>
-                    <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 text-center">
-                      <div className="text-2xl font-bold text-amber-600 dark:text-amber-400">{importResult.skippedCount}</div>
-                      <div className="text-xs text-amber-700 dark:text-amber-300 font-medium">Skipped Duplicates</div>
+
+                    <div className="flex flex-col items-center p-2 border-x border-border">
+                      <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                        {importResult.skippedCount}
+                      </span>
+                      <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
+                        Skipped
+                      </span>
                     </div>
-                    <div className="p-4 rounded-xl bg-destructive/10 border border-destructive/30 text-center">
-                      <div className="text-2xl font-bold text-destructive">{importResult.errors.length}</div>
-                      <div className="text-xs text-destructive font-medium">Validation Errors</div>
+
+                    <div className="flex flex-col items-center p-2">
+                      <span className="text-2xl font-bold text-destructive">
+                        {importResult.errors.length}
+                      </span>
+                      <span className="text-[11px] font-semibold text-destructive uppercase tracking-wider">
+                        Failed
+                      </span>
                     </div>
                   </div>
 
-                  {/* Errors Detail List if any */}
+                  {/* Error Log if any */}
                   {importResult.errors.length > 0 && (
-                    <div className="p-4 rounded-xl bg-destructive/5 border border-destructive/30 space-y-2">
+                    <div className="w-full p-4 rounded-xl bg-destructive/10 border border-destructive/30 text-left space-y-2">
                       <h4 className="text-xs font-semibold text-destructive flex items-center gap-1.5">
-                        <AlertTriangle className="h-4 w-4" /> Import Error Logs:
+                        <AlertTriangle className="h-4 w-4" /> Validation / Import Warnings:
                       </h4>
-                      <div className="max-h-40 overflow-y-auto space-y-1 text-xs font-mono text-destructive">
-                        {importResult.errors.map((err: string, i: number) => (
+                      <div className="max-h-36 overflow-y-auto space-y-1 text-xs font-mono text-destructive">
+                        {importResult.errors.map((err, i) => (
                           <div key={i}>&bull; {err}</div>
                         ))}
                       </div>
                     </div>
                   )}
-
-                  <div className="p-4 rounded-xl bg-primary/10 border border-primary/20 text-xs text-foreground flex items-center gap-3">
-                    <CheckCircle2 className="h-5 w-5 text-primary flex-shrink-0" />
-                    <div>
-                      <strong>Batch Import Complete!</strong> All selected leads have been saved to your company tenant. Newly created leads have auto-generated Lead Numbers and associated Prospect Contacts.
-                    </div>
-                  </div>
                 </div>
               ) : null}
             </div>
           )}
         </div>
 
-        {/* Footer Actions */}
-        <div className="px-4 sm:px-6 py-4 border-t border-border bg-card/60 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-2.5">
+        {/* Modal Footer Actions */}
+        <div className="px-6 py-4 border-t border-outline-variant dark:border-border bg-surface-container-lowest dark:bg-card/90 flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-between gap-3">
           <div>
             {step > 1 && step < 4 && (
               <Button
                 size="sm"
                 variant="outline"
                 onClick={() => setStep((s) => (s - 1) as any)}
-                className="w-full sm:w-auto gap-1.5 text-xs"
+                className="w-full sm:w-auto gap-1.5 text-xs rounded-xl font-semibold"
               >
-                <ArrowLeft className="h-3.5 w-3.5" /> Back
+                <ArrowLeft className="h-4 w-4" /> Back
               </Button>
             )}
           </div>
 
           <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
             {step === 1 && (
-              <Button size="sm" variant="ghost" onClick={() => handleOpenChange(false)} className="w-full sm:w-auto text-xs">
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => handleOpenChange(false)}
+                className="w-full sm:w-auto text-xs rounded-xl"
+              >
                 Cancel
               </Button>
             )}
@@ -765,9 +923,9 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
               <Button
                 size="sm"
                 onClick={() => setStep(3)}
-                className="w-full sm:w-auto gap-1.5 text-xs"
+                className="w-full sm:w-auto gap-1.5 text-xs rounded-xl font-semibold bg-[#0f3d3e] hover:bg-[#0f3d3e]/90 text-white dark:bg-[#beebeb] dark:text-[#002020] dark:hover:bg-[#beebeb]/90 shadow-sm"
               >
-                Next: Select Rows <ArrowRight className="h-3.5 w-3.5" />
+                Next: Select Rows <ArrowRight className="h-4 w-4" />
               </Button>
             )}
 
@@ -776,9 +934,9 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
                 size="sm"
                 onClick={handleExecuteImport}
                 disabled={activeSelectedCount === 0}
-                className="w-full sm:w-auto bg-emerald-600 hover:bg-emerald-500 text-white gap-1.5 text-xs font-semibold"
+                className="w-full sm:w-auto gap-1.5 text-xs rounded-xl font-semibold bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm"
               >
-                <Check className="h-4 w-4" /> Import {activeSelectedCount} Selected Leads
+                <Check className="h-4 w-4" /> Import {activeSelectedCount} Leads
               </Button>
             )}
 
@@ -786,9 +944,9 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
               <Button
                 size="sm"
                 onClick={() => handleOpenChange(false)}
-                className="w-full sm:w-auto text-xs"
+                className="w-full sm:w-auto text-xs rounded-xl font-semibold bg-[#0f3d3e] hover:bg-[#0f3d3e]/90 text-white dark:bg-[#beebeb] dark:text-[#002020] shadow-sm"
               >
-                Done & View Leads List
+                Done & View Leads
               </Button>
             )}
           </div>

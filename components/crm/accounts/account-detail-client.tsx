@@ -20,7 +20,7 @@ import { FollowUpsTab } from "@/components/crm/shared/follow-ups-tab";
 import { CrmTimeline } from "@/components/crm/shared/crm-timeline";
 import { OpportunityStatusBadge } from "@/components/crm/shared/status-badges";
 import { formatCurrency, formatDate } from "@/components/crm/shared/format";
-import { StatTile } from "@/components/crm/shared/stat-tile";
+import { StatTile } from "@/components/shared/stat-tile";
 import { ScrollableTabsList } from "@/components/crm/shared/scrollable-tabs";
 
 function errorMessage(err: unknown) {

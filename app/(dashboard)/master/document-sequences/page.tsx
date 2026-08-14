@@ -17,14 +17,6 @@ import { Loader2, Pencil } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { Badge } from "@/components/ui/badge";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -114,8 +106,10 @@ export default function DocumentSequencesPage() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-xl font-semibold sm:text-2xl">Document Sequences</h1>
-        <p className="text-sm text-muted-foreground">
+        <h1 className="font-heading text-2xl font-semibold tracking-tight text-[#1a1c1c] dark:text-white sm:text-3xl">
+          Document Sequences
+        </h1>
+        <p className="mt-1 text-xs text-[#545f73] dark:text-[#a3cfcf] sm:text-sm">
           Numbering series for invoices, purchase orders, and other documents. Changing these
           affects real document numbers going forward.
         </p>
@@ -125,34 +119,39 @@ export default function DocumentSequencesPage() {
         {DOCUMENT_TYPES.map((type) => {
           const configured = configuredByType.get(type);
           return (
-            <Card key={type}>
-              <CardHeader>
-                <CardTitle className="text-base">{DOCUMENT_TYPE_LABELS[type] ?? type}</CardTitle>
-                <CardDescription>
-                  {configured ? (
-                    <span className="font-mono">{configured.nextFormattedNumber}</span>
-                  ) : (
-                    "Not configured -- using backend defaults"
-                  )}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="flex items-center justify-between">
-                {configured ? (
-                  <Badge variant="outline">Padding {configured.padding}</Badge>
-                ) : (
-                  <span />
-                )}
+            <div
+              key={type}
+              className="flex flex-col gap-3 rounded-2xl border border-[#e2e2e2] dark:border-[#404848] bg-white dark:bg-[#1a1c1c] p-5 shadow-xs hover:shadow-[0_4px_20px_rgba(0,0,0,0.05)] transition-all duration-200"
+            >
+              <div className="flex items-start justify-between gap-2">
+                <div className="min-w-0">
+                  <h2 className="text-sm font-semibold text-[#1a1c1c] dark:text-white">
+                    {DOCUMENT_TYPE_LABELS[type] ?? type}
+                  </h2>
+                  <p className="mt-0.5 text-xs text-[#545f73] dark:text-[#a3cfcf]">
+                    {configured ? (
+                      <span className="font-mono">{configured.nextFormattedNumber}</span>
+                    ) : (
+                      "Not configured -- using backend defaults"
+                    )}
+                  </p>
+                </div>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="size-11 sm:size-8"
+                  className="size-11 shrink-0 rounded-xl text-[#545f73] hover:bg-[#f3f4f3] hover:text-[#1a1c1c] dark:text-[#a3cfcf] dark:hover:bg-[#2f3131] sm:size-8"
                   aria-label="Edit sequence"
                   onClick={() => setEditingType(type)}
                 >
                   <Pencil className="size-4" />
                 </Button>
-              </CardContent>
-            </Card>
+              </div>
+              {configured && (
+                <span className="inline-flex w-fit items-center rounded-full border border-[#e2e2e2] dark:border-[#404848] px-2.5 py-0.5 text-[11px] font-semibold text-[#545f73] dark:text-[#a3cfcf]">
+                  Padding {configured.padding}
+                </span>
+              )}
+            </div>
           );
         })}
       </div>

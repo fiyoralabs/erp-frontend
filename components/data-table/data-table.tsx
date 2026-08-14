@@ -16,6 +16,7 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { ChevronLeft, ChevronRight, Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 export interface DataTableColumn<T> {
   key: string;
@@ -37,6 +38,7 @@ interface DataTableProps<T> {
   totalPages?: number;
   onPageChange?: (page: number) => void;
   onRowClick?: (row: T) => void;
+  rowClassName?: (row: T) => string | undefined;
 }
 
 export function DataTable<T>({
@@ -50,6 +52,7 @@ export function DataTable<T>({
   totalPages,
   onPageChange,
   onRowClick,
+  rowClassName,
 }: DataTableProps<T>) {
   if (isLoading) {
     return (
@@ -86,7 +89,7 @@ export function DataTable<T>({
           return (
             <Card
               key={rowKey(row)}
-              className={onRowClick ? "cursor-pointer transition-colors hover:bg-muted/50" : ""}
+              className={cn(onRowClick && "cursor-pointer transition-colors hover:bg-muted/50", rowClassName?.(row))}
               onClick={() => onRowClick?.(row)}
             >
               <CardContent className="flex flex-col gap-3 p-4">
@@ -135,7 +138,7 @@ export function DataTable<T>({
             {data.map((row) => (
               <TableRow
                 key={rowKey(row)}
-                className={onRowClick ? "cursor-pointer transition-colors hover:bg-muted/50" : ""}
+                className={cn(onRowClick && "cursor-pointer transition-colors hover:bg-muted/50", rowClassName?.(row))}
                 onClick={() => onRowClick?.(row)}
               >
                 {columns.map((col) => (
@@ -163,7 +166,7 @@ export function DataTable<T>({
             <Button
               variant="outline"
               size="icon"
-              className="size-11"
+              className="size-11 rounded-xl hover:border-[#0F3D3E]/40 hover:text-[#0F3D3E] dark:hover:border-[#a3cfcf]/40 dark:hover:text-[#a3cfcf]"
               disabled={page === 0}
               onClick={() => onPageChange!(page! - 1)}
               aria-label="Previous page"
@@ -173,7 +176,7 @@ export function DataTable<T>({
             <Button
               variant="outline"
               size="icon"
-              className="size-11"
+              className="size-11 rounded-xl hover:border-[#0F3D3E]/40 hover:text-[#0F3D3E] dark:hover:border-[#a3cfcf]/40 dark:hover:text-[#a3cfcf]"
               disabled={page! + 1 >= totalPages!}
               onClick={() => onPageChange!(page! + 1)}
               aria-label="Next page"

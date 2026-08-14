@@ -29,11 +29,20 @@ function tokenIsUsable(token: string | undefined) {
 async function refreshForNavigation(request: NextRequest) {
   const refreshToken = request.cookies.get(REFRESH_TOKEN_COOKIE)?.value;
   if (!refreshToken) return null;
-  const response = await fetch(`${ERP_API_URL}/api/v1/auth/refresh-token`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ refreshToken }), cache: "no-store" });
-  if (!response.ok) return null;
-  const body = await response.json();
-  if (!body.success) return null;
-  return body.data as { accessToken: string; refreshToken: string };
+  try {
+    const response = await fetch(`${ERP_API_URL}/api/v1/auth/refresh-token`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ refreshToken }),
+      cache: "no-store",
+    });
+    if (!response.ok) return null;
+    const body = await response.json();
+    if (!body.success) return null;
+    return body.data as { accessToken: string; refreshToken: string };
+  } catch {
+    return null;
+  }
 }
 
 export async function proxy(request: NextRequest) {
@@ -72,5 +81,7 @@ export async function proxy(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!api|_next/static|_next/image|favicon.ico).*)"],
+  matcher: [
+    "/((?!api|_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|gif|svg|webp|ico|css|js|woff|woff2|ttf)$).*)",
+  ],
 };

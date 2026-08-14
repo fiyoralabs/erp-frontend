@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Image from "next/image";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { Menu, LogOut, UserCircle, Settings, ChevronDown, MapPin, Loader2 } from "lucide-react";
+import { LogOut, UserCircle, Settings, ChevronDown, MapPin, Loader2 } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
-import { Button } from "@/components/ui/button";
-import { Sheet, SheetContent, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -17,8 +17,6 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-import { SidebarNav } from "@/components/layout/sidebar-nav";
 import { hasAnyPermission, SETTINGS_PERMISSIONS } from "@/lib/permissions";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { apiClient } from "@/lib/api-client";
@@ -27,7 +25,6 @@ import type { Location } from "@/lib/types/master";
 interface TopbarProps {
   userName: string;
   userEmail: string;
-  companyLabel: string;
   permissions: readonly string[];
   locationContext: { activeLocation: Location | null; allowedLocations: Location[]; locationRequired: boolean };
 }
@@ -42,7 +39,7 @@ function initials(name: string) {
     .toUpperCase();
 }
 
-export function Topbar({ userName, userEmail, companyLabel, permissions, locationContext }: TopbarProps) {
+export function Topbar({ userName, userEmail, permissions, locationContext }: TopbarProps) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const [signingOut, setSigningOut] = useState(false);
@@ -67,56 +64,79 @@ export function Topbar({ userName, userEmail, companyLabel, permissions, locatio
   const locationItems = Object.fromEntries(locationContext.allowedLocations.map((location) => [String(location.id), location.name]));
 
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-3 border-b bg-background px-4">
-      {/* Mobile nav trigger -- hidden at lg: and above where the fixed sidebar takes over */}
-      <Sheet>
-        <SheetTrigger
-          render={
-            <Button
-              variant="ghost"
-              size="icon"
-              className="lg:hidden size-11"
-              aria-label="Open navigation menu"
-            >
-              <Menu className="size-5" />
-            </Button>
-          }
-        />
-        <SheetContent side="left" className="w-72 p-0 flex flex-col h-full overflow-hidden">
-          <SheetTitle className="sr-only">Navigation</SheetTitle>
-          <div className="flex h-14 items-center border-b px-4 font-semibold shrink-0">
-            Fiyora ERP
-          </div>
-          <div className="flex-1 overflow-y-auto">
-            <SidebarNav permissions={permissions} />
-          </div>
-        </SheetContent>
-      </Sheet>
+    <header className="sticky top-0 z-30 flex h-16 items-center gap-3 bg-white dark:bg-[#1a1c1c] px-4 sm:px-6">
+      {/* Logo -- below lg: only, where the fixed sidebar's own branding isn't
+          visible. Navigation itself now lives in the bottom nav's "More"
+          drawer on mobile, so there's no hamburger trigger here anymore. */}
+      <Link href="/dashboard" className="relative h-8 w-8 shrink-0 lg:hidden">
+        <Image src="/logo-light.png" alt="Fiyora ERP" fill priority className="object-contain" />
+      </Link>
 
-      <span className="hidden text-sm text-muted-foreground sm:inline truncate">{companyLabel}</span>
-
-      <div className="min-w-0 sm:ml-2">
-        {locationContext.allowedLocations.length === 0 ? <div className="flex h-9 items-center gap-2 rounded-md border border-amber-300 bg-amber-50 px-3 text-xs text-amber-800"><MapPin className="size-4"/><span className="truncate">No store access assigned</span></div> : <Select items={locationItems} value={locationContext.activeLocation ? String(locationContext.activeLocation.id) : ""} onValueChange={(value) => value && switchLocation.mutate(value)} disabled={switchLocation.isPending}><SelectTrigger className="h-9 w-[180px] max-w-[48vw] sm:w-[240px]"><span className="flex min-w-0 items-center gap-2">{switchLocation.isPending ? <Loader2 className="size-4 shrink-0 animate-spin"/> : <MapPin className="size-4 shrink-0"/>}<SelectValue placeholder="Select working store"/></span></SelectTrigger><SelectContent>{locationContext.allowedLocations.map((location) => <SelectItem key={location.id} value={String(location.id)}><span className="flex flex-col"><span>{location.name}</span><span className="text-xs text-muted-foreground">{location.type} · {location.code}{location.isUserDefault ? " · Default" : ""}</span></span></SelectItem>)}</SelectContent></Select>}
+      <div className="min-w-0">
+        {locationContext.allowedLocations.length === 0 ? (
+          <div className="flex h-9 items-center gap-2 rounded-xl border border-amber-300 bg-amber-50 dark:border-amber-500/30 dark:bg-amber-500/10 px-3 text-xs text-amber-800 dark:text-amber-400">
+            <MapPin className="size-4" />
+            <span className="truncate">No store access assigned</span>
+          </div>
+        ) : (
+          <Select
+            items={locationItems}
+            value={locationContext.activeLocation ? String(locationContext.activeLocation.id) : ""}
+            onValueChange={(value) => value && switchLocation.mutate(value)}
+            disabled={switchLocation.isPending}
+          >
+            <SelectTrigger className="h-9 w-[180px] max-w-[48vw] sm:w-[240px] rounded-xl border-[#c0c8c8] bg-white dark:border-[#717978] dark:bg-[#1a1c1c] text-xs sm:text-sm">
+              <span className="flex min-w-0 items-center gap-2">
+                {switchLocation.isPending ? <Loader2 className="size-4 shrink-0 animate-spin" /> : <MapPin className="size-4 shrink-0 text-[#545f73] dark:text-[#a3cfcf]" />}
+                {/* The trigger's built-in truncation only targets a *direct*
+                    child with data-slot="select-value" -- wrapping it in this
+                    icon+value span breaks that match, so it's re-applied here
+                    explicitly (plus min-w-0, required for a flex child to
+                    shrink/truncate at all) instead of overflowing the pill. */}
+                <SelectValue placeholder="Select working store" className="min-w-0 truncate" />
+              </span>
+            </SelectTrigger>
+            {/* min-w so wrapped two-line item text (name + type/code) has room
+                to breathe instead of being squeezed to the trigger's width. */}
+            <SelectContent className="min-w-[240px]">
+              {locationContext.allowedLocations.map((location) => (
+                <SelectItem key={location.id} value={String(location.id)}>
+                  {/* SelectItem's own text wrapper forces whitespace-nowrap,
+                      which is inherited into these spans too -- overridden
+                      back to normal so long names wrap onto a second line
+                      instead of overflowing the popup. */}
+                  <span className="flex flex-col whitespace-normal py-0.5">
+                    <span>{location.name}</span>
+                    <span className="text-xs text-[#545f73] dark:text-[#a3cfcf]">
+                      {location.type} · {location.code}{location.isUserDefault ? " · Default" : ""}
+                    </span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
       </div>
 
       <div className="ml-auto flex items-center gap-2">
         <DropdownMenu>
           <DropdownMenuTrigger
             render={
-              <Button variant="ghost" className="gap-2 h-11 px-2">
-                <Avatar className="size-7">
-                  <AvatarFallback className="text-xs">
-                    {initials(userName)}
-                  </AvatarFallback>
-                </Avatar>
-                <span className="hidden sm:inline text-sm font-medium">
-                  {userName}
-                </span>
-                <ChevronDown className="size-4 text-muted-foreground" />
-              </Button>
+              <button
+                type="button"
+                className="flex items-center gap-2.5 p-1 rounded-xl hover:bg-[#f3f4f3] dark:hover:bg-[#2f3131] transition-colors outline-none cursor-pointer"
+              />
             }
-          />
-          <DropdownMenuContent align="end" className="w-56">
+          >
+            <div className="w-8 h-8 rounded-full bg-[#0F3D3E] text-white flex items-center justify-center font-bold text-xs shadow-xs shrink-0">
+              {initials(userName)}
+            </div>
+            <span className="hidden sm:inline text-sm font-medium text-[#1a1c1c] dark:text-white max-w-[140px] truncate">
+              {userName}
+            </span>
+            <ChevronDown className="size-4 text-[#717978] hidden sm:inline" />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" className="w-56 rounded-xl border-[#e2e2e2] dark:border-[#404848]">
             {/* Menu.GroupLabel (what DropdownMenuLabel wraps) throws at
                 runtime if it isn't inside a Menu.Group -- "MenuGroupContext
                 is missing" -- confirmed live via the dev server log (an
