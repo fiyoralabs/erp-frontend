@@ -157,9 +157,11 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
               </div>
             </div>
 
-            {/* Quick Action Toolbar: Call & WhatsApp stay one tap away, everything
-                else (Email, Edit, Convert, Delete) lives behind the overflow menu. */}
-            <div className="flex items-center gap-2 shrink-0">
+            {/* Quick Action Toolbar: Call, WhatsApp & Edit stay one tap away;
+                everything else (Email, Convert, Delete) lives behind the
+                overflow menu. flex-wrap keeps this from overflowing on
+                narrow phones instead of clipping off-screen. */}
+            <div className="flex flex-wrap items-center gap-2">
               {lead.phone && (
                 <Button
                   nativeButton={false}
@@ -188,6 +190,15 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
                   <MessageSquare className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> WhatsApp
                 </Button>
               )}
+              <Button
+                nativeButton={false}
+                variant="outline"
+                size="sm"
+                className="rounded-xl h-9 gap-1.5 text-xs font-semibold"
+                render={<Link href={`/crm/leads/${lead.id}/edit`} />}
+              >
+                <Pencil className="h-3.5 w-3.5" /> Edit
+              </Button>
 
               <DropdownMenu>
                 <DropdownMenuTrigger
@@ -208,9 +219,6 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
                       <Mail className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" /> Email
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem render={<Link href={`/crm/leads/${lead.id}/edit`} />}>
-                    <Pencil className="h-3.5 w-3.5" /> Edit
-                  </DropdownMenuItem>
                   {!isConverted && (
                     <DropdownMenuItem onClick={() => setConvertOpen(true)}>
                       <Handshake className="h-3.5 w-3.5" /> Convert Lead

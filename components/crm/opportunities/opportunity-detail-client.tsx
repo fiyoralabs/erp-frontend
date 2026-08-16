@@ -129,11 +129,18 @@ export function OpportunityDetailClient({ opportunityId }: { opportunityId: numb
             <div className="flex flex-wrap items-center gap-2">
               {isOpen && (
                 <>
-                  {/* Informational/setup actions -- inline on sm+, collapsed below */}
+                  {/* Edit stays one tap away at every screen size; Create
+                      Quotation is informational/setup so it collapses into
+                      the overflow menu on mobile. */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl h-9 gap-1.5 text-xs font-semibold"
+                    onClick={() => setEditOpen(true)}
+                  >
+                    <Pencil className="h-3.5 w-3.5" /> Edit
+                  </Button>
                   <div className="hidden items-center gap-2 sm:flex">
-                    <Button variant="ghost" size="sm" className="gap-1.5" onClick={() => setEditOpen(true)}>
-                      <Pencil className="size-4" /> Edit
-                    </Button>
                     <Button variant="ghost" size="sm" className="gap-1.5" disabled={createQuotationMutation.isPending} onClick={() => createQuotationMutation.mutate()}>
                       {createQuotationMutation.isPending ? <Loader2 className="animate-spin" /> : <FileText className="size-4" />}
                       Create Quotation
@@ -144,9 +151,6 @@ export function OpportunityDetailClient({ opportunityId }: { opportunityId: numb
                       <MoreVertical className="size-4" />
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="start">
-                      <DropdownMenuItem onClick={() => setEditOpen(true)} className="flex items-center gap-2">
-                        <Pencil className="size-3.5" /> Edit
-                      </DropdownMenuItem>
                       <DropdownMenuItem
                         disabled={createQuotationMutation.isPending}
                         onClick={() => createQuotationMutation.mutate()}

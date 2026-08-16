@@ -193,11 +193,22 @@ export function LeadForm({ lead }: { lead?: Lead }) {
   });
 
   const checkLiveDuplicate = React.useCallback(async (email?: string, phone?: string) => {
+    // In edit mode, only check a field against the rest of the company once
+    // its value actually differs from what's already saved on this lead --
+    // otherwise retyping (or just leaving) the lead's own unchanged phone
+    // still bundles in its unchanged email on every keystroke, and if that
+    // email happens to collide with some other lead, editing the phone box
+    // alone was enough to resurface an unrelated warning every time.
+    if (lead && email === (lead.email ?? "")) email = undefined;
+    if (lead && phone === (lead.phone ?? "")) phone = undefined;
     if (!email && !phone) return;
     try {
       const params = new URLSearchParams();
       if (email) params.set("email", email);
       if (phone) params.set("phone", phone);
+      // Exclude this lead itself, otherwise editing a lead and leaving its
+      // own (unchanged) phone/email flags it as a "duplicate" of itself.
+      if (lead) params.set("excludeLeadId", String(lead.id));
       const found = await apiClient.get<LeadDuplicate[]>(`crm/leads/duplicates?${params.toString()}`);
       if (found && found.length > 0) {
         setDuplicates(found);
@@ -205,7 +216,7 @@ export function LeadForm({ lead }: { lead?: Lead }) {
     } catch {
       // Ignore background check errors
     }
-  }, []);
+  }, [lead]);
 
   function onSubmit(values: LeadFormValues) {
     if (isEdit) {

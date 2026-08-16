@@ -2,6 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, Search, Pencil } from "lucide-react";
 
@@ -42,12 +43,18 @@ function useDebounced<T>(value: T, delayMs = 300) {
 }
 
 export function AccountsListClient() {
-  const [page, setPage] = React.useState(0);
-  const [search, setSearch] = React.useState("");
-  const [accountType, setAccountType] = React.useState<string>("");
-  const [sort, setSort] = React.useState("createdAt,desc");
-  const [assignedUserId, setAssignedUserId] = React.useState<string>("");
-  const [active, setActive] = React.useState<string>("");
+  const router = useRouter();
+  const pathname = usePathname();
+  // Read once on mount so links like /crm/accounts?accountType=CUSTOMER
+  // land pre-filtered, and so coming back from an account's detail page
+  // restores exactly what was applied (see the URL-sync effect below).
+  const initialParams = useSearchParams();
+  const [page, setPage] = React.useState(() => Number(initialParams.get("page") ?? 0));
+  const [search, setSearch] = React.useState(() => initialParams.get("search") ?? "");
+  const [accountType, setAccountType] = React.useState<string>(() => initialParams.get("accountType") ?? "");
+  const [sort, setSort] = React.useState(() => initialParams.get("sort") ?? "createdAt,desc");
+  const [assignedUserId, setAssignedUserId] = React.useState<string>(() => initialParams.get("assignedUserId") ?? "");
+  const [active, setActive] = React.useState<string>(() => initialParams.get("active") ?? "");
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const debouncedSearch = useDebounced(search);
   const [dialogState, setDialogState] = React.useState<{ mode: "create" } | { mode: "edit"; row: Account } | null>(null);
@@ -64,6 +71,15 @@ export function AccountsListClient() {
     queryKey: ["crm", "accounts", page, sort, debouncedSearch, accountType, assignedUserId, active],
     queryFn: () => apiClient.get<PagedResult<Account>>(`crm/accounts?${params.toString()}`),
   });
+
+  // Keep the URL in sync with the active filters (via replace, so this
+  // doesn't spam browser history) -- that way navigating into an account and
+  // hitting Back returns to this exact filtered/paged view instead of a
+  // blank list.
+  React.useEffect(() => {
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, sort, debouncedSearch, accountType, assignedUserId, active]);
 
   const activeAdvancedFilterCount = [assignedUserId, active].filter(Boolean).length;
 

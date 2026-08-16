@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
 import { Plus, LayoutList, KanbanSquare, Search } from "lucide-react";
 
@@ -39,19 +39,22 @@ function useDebounced<T>(value: T, delayMs = 300) {
 }
 
 export function OpportunitiesListClient() {
+  const router = useRouter();
+  const pathname = usePathname();
   // Read once on mount so dashboard links like /crm/opportunities?status=WON
-  // land pre-filtered.
+  // land pre-filtered, and so coming back from a deal's detail page restores
+  // exactly what was applied (see the URL-sync effect below).
   const initialParams = useSearchParams();
-  const [page, setPage] = React.useState(0);
-  const [search, setSearch] = React.useState("");
+  const [page, setPage] = React.useState(() => Number(initialParams.get("page") ?? 0));
+  const [search, setSearch] = React.useState(() => initialParams.get("search") ?? "");
   const [status, setStatus] = React.useState<string>(() => initialParams.get("status") ?? "");
-  const [sort, setSort] = React.useState("createdAt,desc");
-  const [pipelineId, setPipelineId] = React.useState<string>("");
-  const [stageId, setStageId] = React.useState<string>("");
-  const [assignedUserId, setAssignedUserId] = React.useState<string>("");
-  const [accountId, setAccountId] = React.useState<string>("");
-  const [closeFrom, setCloseFrom] = React.useState("");
-  const [closeTo, setCloseTo] = React.useState("");
+  const [sort, setSort] = React.useState(() => initialParams.get("sort") ?? "createdAt,desc");
+  const [pipelineId, setPipelineId] = React.useState<string>(() => initialParams.get("pipelineId") ?? "");
+  const [stageId, setStageId] = React.useState<string>(() => initialParams.get("stageId") ?? "");
+  const [assignedUserId, setAssignedUserId] = React.useState<string>(() => initialParams.get("assignedUserId") ?? "");
+  const [accountId, setAccountId] = React.useState<string>(() => initialParams.get("accountId") ?? "");
+  const [closeFrom, setCloseFrom] = React.useState(() => initialParams.get("expectedCloseFrom") ?? "");
+  const [closeTo, setCloseTo] = React.useState(() => initialParams.get("expectedCloseTo") ?? "");
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [createOpen, setCreateOpen] = React.useState(false);
   const debouncedSearch = useDebounced(search);
@@ -82,6 +85,15 @@ export function OpportunitiesListClient() {
     queryKey: ["crm", "opportunities", "list", page, sort, debouncedSearch, status, pipelineId, stageId, assignedUserId, accountId, closeFrom, closeTo],
     queryFn: () => apiClient.get<PagedResult<Opportunity>>(`crm/opportunities?${params.toString()}`),
   });
+
+  // Keep the URL in sync with the active filters (via replace, so this
+  // doesn't spam browser history) -- that way navigating into a deal and
+  // hitting Back returns to this exact filtered/paged view instead of a
+  // blank list.
+  React.useEffect(() => {
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, sort, debouncedSearch, status, pipelineId, stageId, assignedUserId, accountId, closeFrom, closeTo]);
 
   const accountNameById = React.useMemo(() => {
     const map = new Map<number, string>();
