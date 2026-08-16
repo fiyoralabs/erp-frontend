@@ -136,9 +136,11 @@ export function ContactDetailClient({ contactId }: { contactId: number }) {
               </div>
             </div>
 
-            {/* Quick Actions Bar: Call & WhatsApp stay one tap away, Email/Edit/Delete
-                live behind the overflow menu. */}
-            <div className="flex items-center gap-2 shrink-0">
+            {/* Quick Actions Bar: Call, WhatsApp & Edit stay one tap away,
+                Email/Delete live behind the overflow menu. flex-wrap keeps
+                this from overflowing on narrow phones instead of clipping
+                off-screen. */}
+            <div className="flex flex-wrap items-center gap-2">
               {(contact.mobile ?? contact.phone) && (
                 <Button
                   nativeButton={false}
@@ -167,6 +169,14 @@ export function ContactDetailClient({ contactId }: { contactId: number }) {
                   <MessageSquare className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" /> WhatsApp
                 </Button>
               )}
+              <Button
+                variant="outline"
+                size="sm"
+                className="rounded-xl h-9 gap-1.5 text-xs font-semibold"
+                onClick={() => setEditOpen(true)}
+              >
+                <Pencil className="h-3.5 w-3.5" /> Edit
+              </Button>
 
               <DropdownMenu>
                 <DropdownMenuTrigger
@@ -187,9 +197,6 @@ export function ContactDetailClient({ contactId }: { contactId: number }) {
                       <Mail className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" /> Email
                     </DropdownMenuItem>
                   )}
-                  <DropdownMenuItem onClick={() => setEditOpen(true)}>
-                    <Pencil className="h-3.5 w-3.5" /> Edit
-                  </DropdownMenuItem>
                   <DropdownMenuSeparator />
                   <DropdownMenuItem
                     variant="destructive"

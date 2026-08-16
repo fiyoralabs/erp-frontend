@@ -55,22 +55,31 @@ function useDebounced<T>(value: T, delayMs = 300) {
   return debounced;
 }
 
-import { useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 
 // ...
 export function LeadsListClient() {
   const router = useRouter();
+  const pathname = usePathname();
   const qc = useQueryClient();
-  // Read once on mount so dashboard/sidebar links like
-  // /crm/leads?status=NEW or ?followUp=OVERDUE land pre-filtered.
+  // Read once on mount so dashboard/sidebar links like /crm/leads?status=NEW
+  // land pre-filtered, and so coming back from a lead's detail page restores
+  // exactly what was applied (see the URL-sync effect below).
   const initialParams = useSearchParams();
-  const [page, setPage] = React.useState(0);
-  const [search, setSearch] = React.useState("");
+  const [page, setPage] = React.useState(() => Number(initialParams.get("page") ?? 0));
+  const [search, setSearch] = React.useState(() => initialParams.get("search") ?? "");
   const [status, setStatus] = React.useState<string>(() => initialParams.get("status") ?? "");
-  const [rating, setRating] = React.useState<string>("");
-  const [sourceId, setSourceId] = React.useState<string>("");
-  const [assignedUserId, setAssignedUserId] = React.useState<string>("");
+  const [rating, setRating] = React.useState<string>(() => initialParams.get("rating") ?? "");
+  const [sourceId, setSourceId] = React.useState<string>(() => initialParams.get("leadSourceId") ?? "");
+  const [assignedUserId, setAssignedUserId] = React.useState<string>(() => initialParams.get("assignedUserId") ?? "");
   const [followUp, setFollowUp] = React.useState<string>(() => initialParams.get("followUp") ?? "");
+  // Lost/Unqualified leads are dead ends -- hidden from the working list by
+  // default (true unless the URL says otherwise), with an explicit toggle
+  // to bring them back when someone actually needs to review them.
+  const [excludeLostAndUnqualified, setExcludeLostAndUnqualified] = React.useState<boolean>(() => {
+    const raw = initialParams.get("excludeLostAndUnqualified");
+    return raw === null ? true : raw === "true";
+  });
   const [filtersOpen, setFiltersOpen] = React.useState(false);
   const [importDialogOpen, setImportDialogOpen] = React.useState(false);
   const [deleteTarget, setDeleteTarget] = React.useState<{ id: number; name: string } | null>(null);
@@ -82,7 +91,11 @@ export function LeadsListClient() {
   });
   const usersQuery = useCrmUsers();
 
-  const params = new URLSearchParams({ page: String(page), size: "20" });
+  const params = new URLSearchParams({
+    page: String(page),
+    size: "20",
+    excludeLostAndUnqualified: String(excludeLostAndUnqualified),
+  });
   if (debouncedSearch) params.set("search", debouncedSearch);
   if (status) params.set("status", status);
   if (rating) params.set("rating", rating);
@@ -91,9 +104,18 @@ export function LeadsListClient() {
   if (followUp) params.set("followUp", followUp);
 
   const listQuery = useQuery({
-    queryKey: ["crm", "leads", page, debouncedSearch, status, rating, sourceId, assignedUserId, followUp],
+    queryKey: ["crm", "leads", page, debouncedSearch, status, rating, sourceId, assignedUserId, followUp, excludeLostAndUnqualified],
     queryFn: () => apiClient.get<PagedResult<Lead>>(`crm/leads?${params.toString()}`),
   });
+
+  // Keep the URL in sync with the active filters (via replace, so this
+  // doesn't spam browser history) -- that way navigating into a lead and
+  // hitting Back returns to this exact filtered/paged view instead of a
+  // blank list, and the view is bookmarkable/shareable as-is.
+  React.useEffect(() => {
+    router.replace(`${pathname}?${params.toString()}`, { scroll: false });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [page, debouncedSearch, status, rating, sourceId, assignedUserId, followUp, excludeLostAndUnqualified]);
 
   // Small always-on spotlight of the newest unactioned leads, independent of
   // whatever filters are applied to the main table below.
@@ -283,15 +305,29 @@ export function LeadsListClient() {
           </div>
           <div className="flex flex-wrap items-center gap-2.5">
             <Select
-              items={{ "": "All Statuses", ...Object.fromEntries(STATUS_OPTIONS.map((s) => [s, s.replaceAll("_", " ")])) }}
-              value={status}
-              onValueChange={(v) => { setStatus(v ?? ""); setPage(0); }}
+              items={{
+                "": "All Statuses",
+                ALL_INCLUDE_LOST_UNQUALIFIED: "All Statuses (incl. Lost/Unqualified)",
+                ...Object.fromEntries(STATUS_OPTIONS.map((s) => [s, s.replaceAll("_", " ")])),
+              }}
+              value={status || (excludeLostAndUnqualified ? "" : "ALL_INCLUDE_LOST_UNQUALIFIED")}
+              onValueChange={(v) => {
+                if (v === "ALL_INCLUDE_LOST_UNQUALIFIED") {
+                  setStatus("");
+                  setExcludeLostAndUnqualified(false);
+                } else {
+                  setStatus(v ?? "");
+                  setExcludeLostAndUnqualified(true);
+                }
+                setPage(0);
+              }}
             >
               <SelectTrigger className="h-10 w-full border-[#c0c8c8] bg-white text-sm dark:border-[#717978] dark:bg-[#1a1c1c] sm:w-40">
                 <SelectValue placeholder="All Statuses" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">All Statuses</SelectItem>
+                <SelectItem value="ALL_INCLUDE_LOST_UNQUALIFIED">All Statuses (incl. Lost/Unqualified)</SelectItem>
                 {STATUS_OPTIONS.map((s) => <SelectItem key={s} value={s}>{s.replaceAll("_", " ")}</SelectItem>)}
               </SelectContent>
             </Select>
