@@ -8,6 +8,7 @@ import {
   ArrowLeft,
   Barcode,
   Building2,
+  Camera,
   CheckCircle2,
   CreditCard,
   Download,
@@ -48,6 +49,8 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
+import { CameraScannerDialog, isMobileDevice } from "@/components/shared/camera-scanner-dialog";
 import { apiClient, PagedResult } from "@/lib/api-client";
 import type { Location } from "@/lib/types/master";
 import type { ProductSummary, Variant, Barcode as ProductBarcode } from "@/lib/types/product";
@@ -167,6 +170,8 @@ export function POSClient() {
 
   // Cart & Payment
   const [cart, setCart] = React.useState<CartItem[]>([]);
+  const [mobileCartOpen, setMobileCartOpen] = React.useState(false);
+  const [isCameraScannerOpen, setIsCameraScannerOpen] = React.useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = React.useState(false);
   const [paymentMethod, setPaymentMethod] = React.useState<"CASH" | "UPI" | "CARD" | "NETBANKING">("UPI");
   const [tenderedCash, setTenderedCash] = React.useState("");
@@ -901,20 +906,314 @@ export function POSClient() {
   const storeUpiId = activeLocation?.upiId || "fiyoraerp@upi";
   const storeName = activeLocation?.name || "Fiyora Store";
 
-  return (
-    <div className="flex flex-col h-screen overflow-hidden bg-background">
-      {/* Top POS Header Bar */}
-      <header className="h-14 border-b bg-card px-4 flex items-center justify-between shrink-0 shadow-sm z-10">
-        <div className="flex items-center gap-3">
-          <Button variant="ghost" size="sm" onClick={() => router.push("/sales")}>
-            <ArrowLeft className="h-4 w-4 mr-1" /> Sales
+  const cartItemCount = parseFloat(cart.reduce((a, c) => a + c.quantity, 0).toFixed(3));
+
+  const customerAndCartContent = (
+    <div className="flex flex-col flex-1 h-full min-h-0 overflow-hidden bg-card">
+      {/* Customer Selection & Auto-Suggest */}
+      <div className="p-3 border-b space-y-2 bg-muted/20 shrink-0">
+        <div className="flex items-center justify-between">
+          <Label className="text-xs font-semibold flex items-center gap-1.5">
+            <ShoppingBag className="h-3.5 w-3.5 text-primary" /> Customer Info *
+          </Label>
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={() => setIsAddCustomerOpen(true)}
+            className="h-7 text-xs text-primary hover:text-primary gap-1 px-2"
+          >
+            <UserPlus className="h-3.5 w-3.5" /> + On-The-Go
           </Button>
-          <div className="h-4 w-px bg-border" />
-          <div className="flex items-center gap-2">
-            <Store className="h-4 w-4 text-primary" />
-            <span className="font-bold text-sm tracking-tight">{activeLocation?.name || "Main Store Terminal"}</span>
+        </div>
+
+        {selectedCustomer ? (
+          <div className="p-2.5 rounded-lg border bg-background flex items-center justify-between">
+            <div className="min-w-0 pr-2">
+              <div className="font-semibold text-xs text-foreground truncate">{selectedCustomer.name}</div>
+              <div className="text-[11px] text-muted-foreground truncate">
+                {selectedCustomer.phone || "No phone"} • {selectedCustomer.code}
+              </div>
+            </div>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-6 w-6 text-muted-foreground hover:text-destructive shrink-0"
+              onClick={() => setSelectedCustomer(null)}
+            >
+              <X className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+        ) : null}
+
+        {selectedCustomer && priorBalanceDue > 0 && (
+          <div className="px-2.5 py-1.5 rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 text-[11px] text-amber-700 dark:text-amber-400 font-medium">
+            Owes {money.format(priorBalanceDue)} from previous purchases
+          </div>
+        )}
+
+        {selectedCustomer && availableCredit > 0 && (
+          <label className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-900 text-[11px] text-emerald-700 dark:text-emerald-400 font-medium cursor-pointer">
+            <span className="flex items-center gap-1.5 min-w-0">
+              <input
+                type="checkbox"
+                checked={applyStoreCredit}
+                onChange={(e) => setApplyStoreCredit(e.target.checked)}
+                className="h-3.5 w-3.5 shrink-0"
+              />
+              <span className="truncate">Store credit: {money.format(availableCredit)}</span>
+            </span>
+            {applyStoreCredit && <span className="shrink-0">Applying {money.format(creditToApply)}</span>}
+          </label>
+        )}
+
+        {!selectedCustomer && (
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+            <Input
+              placeholder="Enter phone number or customer name..."
+              value={customerPhoneQuery}
+              onChange={(e) => setCustomerPhoneQuery(e.target.value)}
+              className="pl-8 text-xs h-9"
+            />
+            {/* Auto-suggest Dropdown */}
+            {customerPhoneQuery.trim() !== "" && (
+              <div className="absolute left-0 right-0 top-10 bg-popover border rounded-md shadow-lg max-h-48 overflow-auto z-50 divide-y">
+                {matchingCustomers.length === 0 ? (
+                  <div className="p-3 text-center">
+                    <p className="text-xs text-muted-foreground">No customer matching "{customerPhoneQuery}"</p>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => {
+                        setNewCustPhone(customerPhoneQuery);
+                        setIsAddCustomerOpen(true);
+                      }}
+                      className="mt-2 text-xs h-7 gap-1"
+                    >
+                      <UserPlus className="h-3 w-3" /> Add "{customerPhoneQuery}"
+                    </Button>
+                  </div>
+                ) : (
+                  matchingCustomers.map((c) => (
+                    <div
+                      key={c.id}
+                      onClick={() => {
+                        setSelectedCustomer(c);
+                        setCustomerPhoneQuery("");
+                      }}
+                      className="p-2 text-xs hover:bg-accent cursor-pointer flex items-center justify-between"
+                    >
+                      <div className="min-w-0 pr-2">
+                        <div className="font-medium text-foreground truncate">{c.name}</div>
+                        <div className="text-[10px] text-muted-foreground">{c.phone || "No phone"}</div>
+                      </div>
+                      <Badge variant="outline" className="text-[10px] shrink-0">
+                        {c.code}
+                      </Badge>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Barcode Scanner Input */}
+      <div className="p-3 border-b bg-background shrink-0">
+        <form onSubmit={handleBarcodeSubmit} className="relative">
+          <Barcode className="absolute left-2.5 top-2.5 h-4 w-4 text-primary" />
+          <Input
+            ref={barcodeInputRef}
+            placeholder="Scan barcode or type SKU & press Enter..."
+            value={barcodeInput}
+            onChange={(e) => setBarcodeInput(e.target.value)}
+            className="pl-9 pr-12 text-xs h-9 font-mono"
+          />
+          <Button type="submit" size="sm" variant="ghost" className="absolute right-1 top-1 h-7 px-2 text-xs">
+            Scan
+          </Button>
+        </form>
+      </div>
+
+      {/* Cart Table Area */}
+      <div className="flex-1 overflow-y-auto p-0 min-h-0">
+        {cart.length === 0 ? (
+          <div className="p-8 text-center text-muted-foreground space-y-2">
+            <ShoppingCart className="h-10 w-10 mx-auto opacity-30" />
+            <p className="text-xs">Cart is empty. Scan barcode or click items to add.</p>
+          </div>
+        ) : (
+          <Table>
+            <TableHeader className="bg-muted/30 sticky top-0 bg-background z-10">
+              <TableRow>
+                <TableHead className="min-w-[120px]">Item</TableHead>
+                <TableHead className="text-center w-[90px]">Qty</TableHead>
+                <TableHead className="text-right w-[80px]">Price</TableHead>
+                <TableHead className="w-[36px]"></TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {cart.map((item, idx) => (
+                <TableRow key={idx}>
+                  <TableCell className="font-medium text-xs p-2.5">
+                    <div className="line-clamp-2 leading-snug">{item.sellable.name}</div>
+                    {item.sellable.variantName && (
+                      <div className="text-[10px] text-muted-foreground">{item.sellable.variantName}</div>
+                    )}
+                    <div className="text-[10px] text-muted-foreground font-mono">{item.sellable.sku}</div>
+                  </TableCell>
+                  <TableCell className="p-2 text-center">
+                    <div className="flex items-center justify-center gap-1">
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-5 w-5 shrink-0"
+                        onClick={() => updateCartQty(idx, -1)}
+                      >
+                        <Minus className="h-2.5 w-2.5" />
+                      </Button>
+                      <Input
+                        type="number"
+                        step="any"
+                        min="0.001"
+                        value={item.quantity}
+                        onChange={(e) => updateCartQtyExact(idx, Number(e.target.value))}
+                        className="h-6 w-12 text-center text-xs font-bold px-1"
+                      />
+                      <Button
+                        variant="outline"
+                        size="icon"
+                        className="h-5 w-5 shrink-0"
+                        onClick={() => updateCartQty(idx, 1)}
+                      >
+                        <Plus className="h-2.5 w-2.5" />
+                      </Button>
+                    </div>
+                  </TableCell>
+                  <TableCell className="p-2.5 text-right text-xs font-semibold whitespace-nowrap">
+                    {money.format(item.lineTotal)}
+                  </TableCell>
+                  <TableCell className="p-2 text-center">
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                      onClick={() => removeCartItem(idx)}
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </div>
+
+      {/* Cart Footer Summary */}
+      <div className="p-3 border-t bg-muted/20 space-y-2 shrink-0">
+        <div className="flex justify-between text-xs text-muted-foreground">
+          <span>Items ({cartItemCount})</span>
+          <span>{money.format(cartSubtotal)}</span>
+        </div>
+        <div className="flex items-center justify-between gap-2 text-xs">
+          <Label htmlFor="posDiscount" className="text-muted-foreground shrink-0 text-xs">
+            Discount (₹){!canOverrideDiscount && ` — up to ₹${DISCOUNT_SELF_SERVICE_LIMIT}`}
+          </Label>
+          <Input
+            id="posDiscount"
+            type="number"
+            min={0}
+            max={canOverrideDiscount ? undefined : DISCOUNT_SELF_SERVICE_LIMIT}
+            placeholder="0"
+            value={discountInput}
+            onChange={(e) => handleDiscountChange(e.target.value)}
+            className="h-7 w-20 text-right text-xs"
+          />
+        </div>
+        {(() => {
+          const cartTaxRates = Array.from(new Set(cart.map((item) => item.sellable.taxPercentage ?? 18)));
+          const cartTaxLabel = cartTaxRates.length === 1 ? `GST / Tax (${cartTaxRates[0]}%)` : "GST / Tax";
+          return (
+            <div className="flex justify-between text-xs text-muted-foreground">
+              <span>{cartTaxLabel}</span>
+              <span className="font-medium">+{money.format(cartTax)}</span>
+            </div>
+          );
+        })()}
+        <div className="flex justify-between text-xs font-medium text-foreground pt-1 border-t">
+          <span>Bill Subtotal</span>
+          <span>{money.format(cartGrandTotal)}</span>
+        </div>
+
+        {priorBalanceDue > 0 && (
+          <div className="flex justify-between text-xs text-amber-600 font-semibold">
+            <span>Previous Customer Balance</span>
+            <span>+{money.format(priorBalanceDue)}</span>
+          </div>
+        )}
+
+        <div className="flex justify-between text-sm sm:text-base font-bold pt-1 border-t">
+          <span>Total Payable</span>
+          <span className="text-primary">{money.format(cartGrandTotal + priorBalanceDue)}</span>
+        </div>
+        {creditToApply > 0 && (
+          <>
+            <div className="flex justify-between text-xs text-emerald-600 font-semibold">
+              <span>Store Credit Applied</span>
+              <span>-{money.format(creditToApply)}</span>
+            </div>
+            <div className="flex justify-between text-xs sm:text-sm font-bold">
+              <span>Amount Due</span>
+              <span>{money.format(amountDueAfterCredit + priorBalanceDue)}</span>
+            </div>
+          </>
+        )}
+
+        <Button
+          onClick={() => {
+            if (!selectedCustomer) {
+              toast.error("Please select or add a customer first");
+              return;
+            }
+            if (cart.length === 0) {
+              toast.error("Cart is empty");
+              return;
+            }
+            if (discountAmount > DISCOUNT_SELF_SERVICE_LIMIT && !canOverrideDiscount) {
+              toast.error(`Discounts above ₹${DISCOUNT_SELF_SERVICE_LIMIT} require Admin, Owner, or Manager approval`);
+              return;
+            }
+            setTenderedCash("");
+            setMobileCartOpen(false);
+            setIsPaymentOpen(true);
+          }}
+          disabled={cart.length === 0}
+          className="w-full h-11 text-xs sm:text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-lg shadow-emerald-600/20"
+        >
+          <CreditCard className="h-4 w-4" /> Pay & Generate Invoice ({money.format(amountDueAfterCredit + priorBalanceDue)})
+        </Button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col h-screen overflow-hidden bg-background w-full max-w-full">
+      {/* Top POS Header Bar */}
+      <header className="h-14 border-b bg-card px-3 sm:px-4 flex items-center justify-between shrink-0 shadow-xs z-10 gap-2">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <Button variant="ghost" size="sm" onClick={() => router.push("/sales")} className="h-8 px-2 text-xs">
+            <ArrowLeft className="h-4 w-4 mr-1 shrink-0" /> <span className="hidden sm:inline">Sales</span>
+          </Button>
+          <div className="h-4 w-px bg-border shrink-0" />
+          <div className="flex items-center gap-1.5 min-w-0">
+            <Store className="h-4 w-4 text-primary shrink-0" />
+            <span className="font-bold text-xs sm:text-sm tracking-tight truncate max-w-[130px] sm:max-w-[200px]">
+              {activeLocation?.name || "Main Store Terminal"}
+            </span>
             {activeLocation?.code && (
-              <Badge variant="outline" className="text-[10px] font-mono">
+              <Badge variant="outline" className="text-[10px] font-mono shrink-0 hidden sm:inline-flex">
                 {activeLocation.code}
               </Badge>
             )}
@@ -922,13 +1221,13 @@ export function POSClient() {
         </div>
 
         {/* Header Actions */}
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 shrink-0">
           {storePriceLists.length > 0 && (
-            <div className="flex items-center gap-1.5 bg-muted/60 border rounded-lg px-2.5 py-1 text-xs shadow-inner">
+            <div className="flex items-center gap-1 bg-muted/60 border rounded-lg px-2 py-1 text-xs">
               <Tag className="h-3.5 w-3.5 text-primary shrink-0" />
-              <span className="font-semibold text-muted-foreground hidden sm:inline">Price List:</span>
+              <span className="font-semibold text-muted-foreground hidden md:inline">Price List:</span>
               <select
-                className="bg-transparent font-bold text-foreground focus:outline-none cursor-pointer pr-1"
+                className="bg-transparent font-bold text-foreground focus:outline-none cursor-pointer pr-1 text-xs max-w-[110px] sm:max-w-none"
                 value={selectedPriceListId || ""}
                 onChange={(e) => handlePriceListChange(Number(e.target.value))}
               >
@@ -940,87 +1239,82 @@ export function POSClient() {
               </select>
             </div>
           )}
-          <Badge variant="secondary" className="text-xs font-semibold px-2.5 py-1">
-            POS Ready
-          </Badge>
+
+          {/* Mobile Cart Toggle Button (<lg) */}
+          <Button
+            variant="default"
+            size="sm"
+            className="lg:hidden h-8 px-2.5 text-xs font-bold gap-1.5 bg-primary text-primary-foreground"
+            onClick={() => setMobileCartOpen(true)}
+          >
+            <ShoppingCart className="h-3.5 w-3.5" />
+            <span>Cart</span>
+            {cart.length > 0 && (
+              <Badge variant="secondary" className="px-1.5 py-0 text-[10px] bg-background text-foreground font-bold">
+                {cartItemCount}
+              </Badge>
+            )}
+          </Button>
         </div>
       </header>
 
-      {/* Main POS 2-Column Split */}
-      <div className="flex flex-1 overflow-hidden">
-        {/* Left Column: Customer & Cart */}
-        <div className="w-[420px] lg:w-[460px] border-r flex flex-col bg-card shrink-0">
-          {/* Customer Selection & Auto-Suggest */}
-          <div className="p-3 border-b space-y-2 bg-muted/20">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-semibold flex items-center gap-1.5">
-                <ShoppingBag className="h-3.5 w-3.5 text-primary" /> Customer Info *
-              </Label>
+      {/* Main POS Container: Responsive Grid / Flex */}
+      <div className="flex flex-1 overflow-hidden relative w-full max-w-full">
+        {/* Left Column: Customer & Cart (Desktop: lg:w-[420px] xl:w-[460px], Mobile: hidden lg:flex) */}
+        <div className="hidden lg:flex lg:w-[420px] xl:w-[460px] border-r flex-col bg-card shrink-0 h-full overflow-hidden">
+          {customerAndCartContent}
+        </div>
+
+        {/* Right Column: Visual Product Grid & Search */}
+        <div className="flex-1 flex flex-col bg-muted/10 overflow-hidden w-full min-w-0">
+          {/* Mobile Customer & Scanner Strip (<lg) */}
+          <div className="p-2.5 border-b bg-card space-y-2 lg:hidden shrink-0">
+            {/* Customer Section on Mobile */}
+            <div className="flex items-center justify-between gap-2">
+              <span className="text-xs font-semibold flex items-center gap-1">
+                <ShoppingBag className="h-3.5 w-3.5 text-primary" /> Customer:
+              </span>
               <Button
                 variant="ghost"
                 size="sm"
                 onClick={() => setIsAddCustomerOpen(true)}
-                className="h-7 text-xs text-primary hover:text-primary gap-1 px-2"
+                className="h-6 text-[11px] text-primary hover:text-primary gap-1 px-1.5"
               >
-                <UserPlus className="h-3.5 w-3.5" /> + On-The-Go
+                <UserPlus className="h-3 w-3" /> + Quick Add
               </Button>
             </div>
 
             {selectedCustomer ? (
-              <div className="p-2.5 rounded-lg border bg-background flex items-center justify-between">
-                <div>
-                  <div className="font-semibold text-xs text-foreground">{selectedCustomer.name}</div>
-                  <div className="text-[11px] text-muted-foreground">
+              <div className="p-2 rounded-lg border bg-background flex items-center justify-between text-xs">
+                <div className="min-w-0 flex-1 pr-2">
+                  <div className="font-semibold truncate text-foreground">{selectedCustomer.name}</div>
+                  <div className="text-[10px] text-muted-foreground truncate">
                     {selectedCustomer.phone || "No phone"} • {selectedCustomer.code}
                   </div>
                 </div>
                 <Button
                   variant="ghost"
                   size="icon"
-                  className="h-6 w-6 text-muted-foreground hover:text-destructive"
+                  className="h-6 w-6 shrink-0 text-muted-foreground hover:text-destructive"
                   onClick={() => setSelectedCustomer(null)}
                 >
                   <X className="h-3.5 w-3.5" />
                 </Button>
               </div>
-            ) : null}
-
-            {selectedCustomer && priorBalanceDue > 0 && (
-              <div className="px-2.5 py-1.5 rounded-md border border-amber-200 bg-amber-50 dark:bg-amber-950/20 dark:border-amber-900 text-[11px] text-amber-700 dark:text-amber-400 font-medium">
-                Owes {money.format(priorBalanceDue)} from previous purchases
-              </div>
-            )}
-
-            {selectedCustomer && availableCredit > 0 && (
-              <label className="flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md border border-emerald-200 bg-emerald-50 dark:bg-emerald-950/20 dark:border-emerald-900 text-[11px] text-emerald-700 dark:text-emerald-400 font-medium cursor-pointer">
-                <span className="flex items-center gap-1.5">
-                  <input
-                    type="checkbox"
-                    checked={applyStoreCredit}
-                    onChange={(e) => setApplyStoreCredit(e.target.checked)}
-                    className="h-3.5 w-3.5"
-                  />
-                  Store credit available: {money.format(availableCredit)}
-                </span>
-                {applyStoreCredit && <span>Applying {money.format(creditToApply)}</span>}
-              </label>
-            )}
-
-            {!selectedCustomer && (
+            ) : (
               <div className="relative">
                 <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
                 <Input
-                  placeholder="Enter phone number or customer name..."
+                  placeholder="Customer phone or name..."
                   value={customerPhoneQuery}
                   onChange={(e) => setCustomerPhoneQuery(e.target.value)}
-                  className="pl-8 text-xs h-9"
+                  className="pl-8 text-xs h-8"
                 />
-                {/* Auto-suggest Dropdown */}
                 {customerPhoneQuery.trim() !== "" && (
-                  <div className="absolute left-0 right-0 top-10 bg-popover border rounded-md shadow-lg max-h-48 overflow-auto z-50 divide-y">
+                  <div className="absolute left-0 right-0 top-9 bg-popover border rounded-md shadow-lg max-h-44 overflow-auto z-50 divide-y">
                     {matchingCustomers.length === 0 ? (
-                      <div className="p-3 text-center">
-                        <p className="text-xs text-muted-foreground">No customer matching "{customerPhoneQuery}"</p>
+                      <div className="p-2.5 text-center">
+                        <p className="text-xs text-muted-foreground">No match for "{customerPhoneQuery}"</p>
                         <Button
                           variant="outline"
                           size="sm"
@@ -1028,7 +1322,7 @@ export function POSClient() {
                             setNewCustPhone(customerPhoneQuery);
                             setIsAddCustomerOpen(true);
                           }}
-                          className="mt-2 text-xs h-7 gap-1"
+                          className="mt-1.5 text-xs h-7 gap-1"
                         >
                           <UserPlus className="h-3 w-3" /> Add "{customerPhoneQuery}"
                         </Button>
@@ -1043,11 +1337,11 @@ export function POSClient() {
                           }}
                           className="p-2 text-xs hover:bg-accent cursor-pointer flex items-center justify-between"
                         >
-                          <div>
-                            <div className="font-medium text-foreground">{c.name}</div>
+                          <div className="min-w-0 pr-2">
+                            <div className="font-medium text-foreground truncate">{c.name}</div>
                             <div className="text-[10px] text-muted-foreground">{c.phone || "No phone"}</div>
                           </div>
-                          <Badge variant="outline" className="text-[10px]">
+                          <Badge variant="outline" className="text-[10px] shrink-0">
                             {c.code}
                           </Badge>
                         </div>
@@ -1057,194 +1351,46 @@ export function POSClient() {
                 )}
               </div>
             )}
-          </div>
 
-          {/* Barcode Scanner Input */}
-          <div className="p-3 border-b bg-background">
-            <form onSubmit={handleBarcodeSubmit} className="relative">
-              <Barcode className="absolute left-2.5 top-2.5 h-4 w-4 text-primary" />
-              <Input
-                ref={barcodeInputRef}
-                placeholder="Scan barcode or type SKU & press Enter..."
-                value={barcodeInput}
-                onChange={(e) => setBarcodeInput(e.target.value)}
-                className="pl-9 pr-12 text-xs h-9 font-mono"
-                autoFocus
-              />
-              <Button type="submit" size="sm" variant="ghost" className="absolute right-1 top-1 h-7 px-2 text-xs">
-                Scan
+            {/* Mobile Barcode Input & Camera Scan Button */}
+            <form onSubmit={handleBarcodeSubmit} className="relative flex items-center gap-1.5">
+              <div className="relative flex-1">
+                <Barcode className="absolute left-2.5 top-2 h-4 w-4 text-primary" />
+                <Input
+                  placeholder="Scan barcode or type SKU..."
+                  value={barcodeInput}
+                  onChange={(e) => setBarcodeInput(e.target.value)}
+                  className="pl-9 pr-12 text-xs h-8 font-mono"
+                />
+                <Button type="submit" size="sm" variant="ghost" className="absolute right-0.5 top-0.5 h-7 px-2 text-xs">
+                  Go
+                </Button>
+              </div>
+              <Button
+                type="button"
+                variant="default"
+                size="sm"
+                onClick={() => {
+                  if (isMobileDevice()) {
+                    setIsCameraScannerOpen(true);
+                  } else {
+                    toast.info("Camera barcode scanning is available on mobile devices only.");
+                  }
+                }}
+                className="h-8 px-2.5 text-xs font-bold gap-1 shrink-0 bg-primary text-primary-foreground hover:bg-primary/90"
+              >
+                <Camera className="h-3.5 w-3.5" />
+                <span>Scan</span>
               </Button>
             </form>
           </div>
 
-          {/* Cart Table */}
-          <div className="flex-1 overflow-auto p-0">
-            {cart.length === 0 ? (
-              <div className="p-8 text-center text-muted-foreground space-y-2">
-                <ShoppingCart className="h-10 w-10 mx-auto opacity-30" />
-                <p className="text-xs">Cart is empty. Scan barcode or click items to add.</p>
-              </div>
-            ) : (
-              <Table>
-                <TableHeader className="bg-muted/30">
-                  <TableRow>
-                    <TableHead className="w-[180px]">Item</TableHead>
-                    <TableHead className="text-center w-[90px]">Qty</TableHead>
-                    <TableHead className="text-right w-[90px]">Price</TableHead>
-                    <TableHead className="w-[40px]"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {cart.map((item, idx) => (
-                    <TableRow key={idx}>
-                      <TableCell className="font-medium text-xs p-2.5">
-                        <div className="line-clamp-1">{item.sellable.name}</div>
-                        {item.sellable.variantName && (
-                          <div className="text-[10px] text-muted-foreground">{item.sellable.variantName}</div>
-                        )}
-                        <div className="text-[10px] text-muted-foreground font-mono">{item.sellable.sku}</div>
-                      </TableCell>
-                      <TableCell className="p-2 text-center">
-                        <div className="flex items-center justify-center gap-1">
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-5 w-5 shrink-0"
-                            onClick={() => updateCartQty(idx, -1)}
-                          >
-                            <Minus className="h-2.5 w-2.5" />
-                          </Button>
-                          <Input
-                            type="number"
-                            step="any"
-                            min="0.001"
-                            value={item.quantity}
-                            onChange={(e) => updateCartQtyExact(idx, Number(e.target.value))}
-                            className="h-6 w-14 text-center text-xs font-bold px-1"
-                          />
-                          <Button
-                            variant="outline"
-                            size="icon"
-                            className="h-5 w-5 shrink-0"
-                            onClick={() => updateCartQty(idx, 1)}
-                          >
-                            <Plus className="h-2.5 w-2.5" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                      <TableCell className="p-2.5 text-right text-xs font-semibold">
-                        {money.format(item.lineTotal)}
-                      </TableCell>
-                      <TableCell className="p-2 text-center">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-6 w-6 text-muted-foreground hover:text-destructive"
-                          onClick={() => removeCartItem(idx)}
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
-
-          {/* Cart Footer Summary */}
-          <div className="p-3 border-t bg-muted/20 space-y-2">
-            <div className="flex justify-between text-xs text-muted-foreground">
-              <span>Items ({parseFloat(cart.reduce((a, c) => a + c.quantity, 0).toFixed(3))})</span>
-              <span>{money.format(cartSubtotal)}</span>
-            </div>
-            <div className="flex items-center justify-between gap-2 text-xs">
-              <Label htmlFor="posDiscount" className="text-muted-foreground shrink-0">
-                Discount (₹){!canOverrideDiscount && ` — up to ₹${DISCOUNT_SELF_SERVICE_LIMIT}`}
-              </Label>
-              <Input
-                id="posDiscount"
-                type="number"
-                min={0}
-                max={canOverrideDiscount ? undefined : DISCOUNT_SELF_SERVICE_LIMIT}
-                placeholder="0"
-                value={discountInput}
-                onChange={(e) => handleDiscountChange(e.target.value)}
-                className="h-7 w-24 text-right text-xs"
-              />
-            </div>
-            {(() => {
-              const cartTaxRates = Array.from(new Set(cart.map((item) => item.sellable.taxPercentage ?? 18)));
-              const cartTaxLabel = cartTaxRates.length === 1 ? `GST / Tax (${cartTaxRates[0]}%)` : "GST / Tax";
-              return (
-                <div className="flex justify-between text-xs text-muted-foreground">
-                  <span>{cartTaxLabel}</span>
-                  <span className="font-medium">+{money.format(cartTax)}</span>
-                </div>
-              );
-            })()}
-            <div className="flex justify-between text-xs font-medium text-foreground pt-1 border-t">
-              <span>Bill Subtotal</span>
-              <span>{money.format(cartGrandTotal)}</span>
-            </div>
-
-            {priorBalanceDue > 0 && (
-              <div className="flex justify-between text-xs text-amber-600 font-semibold">
-                <span>Previous Customer Balance</span>
-                <span>+{money.format(priorBalanceDue)}</span>
-              </div>
-            )}
-
-            <div className="flex justify-between text-base font-bold pt-1 border-t">
-              <span>Total Payable</span>
-              <span className="text-primary">{money.format(cartGrandTotal + priorBalanceDue)}</span>
-            </div>
-            {creditToApply > 0 && (
-              <>
-                <div className="flex justify-between text-xs text-emerald-600 font-semibold">
-                  <span>Store Credit Applied</span>
-                  <span>-{money.format(creditToApply)}</span>
-                </div>
-                <div className="flex justify-between text-sm font-bold">
-                  <span>Amount Due</span>
-                  <span>{money.format(amountDueAfterCredit + priorBalanceDue)}</span>
-                </div>
-              </>
-            )}
-
-            <Button
-              onClick={() => {
-                if (!selectedCustomer) {
-                  toast.error("Please select or add a customer first");
-                  return;
-                }
-                if (cart.length === 0) {
-                  toast.error("Cart is empty");
-                  return;
-                }
-                if (discountAmount > DISCOUNT_SELF_SERVICE_LIMIT && !canOverrideDiscount) {
-                  toast.error(`Discounts above ₹${DISCOUNT_SELF_SERVICE_LIMIT} require Admin, Owner, or Manager approval`);
-                  return;
-                }
-                setTenderedCash("");
-                setIsPaymentOpen(true);
-              }}
-              disabled={cart.length === 0}
-              className="w-full h-11 text-sm font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-2 shadow-lg shadow-emerald-600/20"
-            >
-              <CreditCard className="h-4 w-4" /> Pay & Generate Invoice ({money.format(amountDueAfterCredit + priorBalanceDue)})
-            </Button>
-          </div>
-        </div>
-
-        {/* Right Column: Visual Product Grid */}
-        <div className="flex-1 flex flex-col bg-muted/10 overflow-hidden">
-          {/* Gallery Header & Search */}
-          <div className="p-3 border-b bg-card flex items-center justify-between gap-3">
-            <div className="relative flex-1">
+          {/* Product Search & Filter Bar */}
+          <div className="p-2.5 sm:p-3 border-b bg-card flex items-center justify-between gap-2 shrink-0">
+            <div className="relative flex-1 min-w-0">
               <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
               <Input
-                placeholder="Search catalog by name, code, SKU or scan barcode..."
+                placeholder="Search catalog by name, code, SKU or barcode..."
                 value={productSearch}
                 onChange={(e) => setProductSearch(e.target.value)}
                 onKeyDown={(e) => {
@@ -1257,24 +1403,24 @@ export function POSClient() {
                     }
                   }
                 }}
-                className="pl-8 text-xs h-9"
+                className="pl-8 text-xs h-8 sm:h-9"
               />
             </div>
-            <Badge variant="outline" className="text-xs">
+            <Badge variant="outline" className="text-xs shrink-0">
               {filteredProductGroups.length} Products
             </Badge>
           </div>
 
           {/* Product Cards Grid */}
-          <div className="flex-1 overflow-auto p-4">
+          <div className="flex-1 overflow-y-auto p-2.5 sm:p-4 pb-20 lg:pb-4">
             {sellablesQuery.isLoading ? (
-              <div className="p-12 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+              <div className="p-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading catalog items...
               </div>
             ) : filteredProductGroups.length === 0 ? (
-              <div className="p-12 text-center text-xs text-muted-foreground">No products match your search.</div>
+              <div className="p-8 text-center text-xs text-muted-foreground">No products match your search.</div>
             ) : (
-              <div className="grid gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+              <div className="grid gap-2.5 sm:gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
                 {filteredProductGroups.map((group) => (
                   <ProductGroupCard
                     key={group.productId}
@@ -1290,6 +1436,59 @@ export function POSClient() {
           </div>
         </div>
       </div>
+
+      {/* Sticky Mobile Bottom Cart Action Bar (<lg) */}
+      {cart.length > 0 && (
+        <div className="lg:hidden fixed bottom-0 inset-x-0 bg-card border-t p-2.5 shadow-2xl z-30 flex items-center justify-between gap-2">
+          <div className="min-w-0 flex-1 cursor-pointer" onClick={() => setMobileCartOpen(true)}>
+            <div className="text-xs text-muted-foreground flex items-center gap-1 font-medium">
+              <ShoppingCart className="h-3.5 w-3.5 text-primary" />
+              <span>{cartItemCount} item{cartItemCount === 1 ? "" : "s"}</span>
+            </div>
+            <div className="text-sm font-bold text-foreground truncate">
+              {money.format(amountDueAfterCredit + priorBalanceDue)}
+            </div>
+          </div>
+          <div className="flex items-center gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="h-9 px-3 text-xs font-semibold"
+              onClick={() => setMobileCartOpen(true)}
+            >
+              View Cart
+            </Button>
+            <Button
+              size="sm"
+              className="h-9 px-3 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1 shadow-md"
+              onClick={() => {
+                if (!selectedCustomer) {
+                  toast.error("Please select or add a customer first");
+                  return;
+                }
+                setTenderedCash("");
+                setIsPaymentOpen(true);
+              }}
+            >
+              <CreditCard className="h-3.5 w-3.5" /> Pay
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Mobile Cart Sheet / Drawer (<lg) */}
+      <Sheet open={mobileCartOpen} onOpenChange={setMobileCartOpen}>
+        <SheetContent side="right" className="w-[90vw] max-w-md p-0 flex flex-col h-full bg-card">
+          <SheetHeader className="p-3 border-b shrink-0">
+            <SheetTitle className="flex items-center gap-2 text-base">
+              <ShoppingCart className="h-4 w-4 text-primary" /> Shopping Cart ({cartItemCount} items)
+            </SheetTitle>
+          </SheetHeader>
+          <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+            {customerAndCartContent}
+          </div>
+        </SheetContent>
+      </Sheet>
 
       {/* On-The-Go Add Customer Modal */}
       <Dialog open={isAddCustomerOpen} onOpenChange={setIsAddCustomerOpen}>
@@ -1505,44 +1704,44 @@ export function POSClient() {
       {/* Reference Invoice View & Print / WhatsApp Dialog */}
       {postedInvoice && (
         <Dialog open={!!postedInvoice} onOpenChange={() => setPostedInvoice(null)}>
-          <DialogContent className="sm:max-w-3xl max-h-[90vh] overflow-y-auto p-0 border-none bg-transparent shadow-2xl">
-            <div className="bg-card border rounded-xl overflow-hidden shadow-2xl">
+          <DialogContent className="w-[95vw] sm:max-w-3xl max-h-[92vh] overflow-y-auto p-0 border-none bg-transparent shadow-2xl">
+            <div className="bg-card border rounded-xl overflow-hidden shadow-2xl text-foreground">
               {/* Top Invoice Actions Bar */}
-              <div className="p-4 border-b bg-muted/40 flex items-center justify-between gap-3">
-                <div className="flex items-center gap-2">
-                  <Receipt className="h-5 w-5 text-primary" />
-                  <h2 className="font-bold text-base">Invoice #{postedInvoice.invoiceNumber}</h2>
-                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400">
+              <div className="p-3 sm:p-4 border-b bg-muted/40 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
+                <div className="flex items-center gap-2 min-w-0">
+                  <Receipt className="h-5 w-5 text-primary shrink-0" />
+                  <h2 className="font-bold text-sm sm:text-base truncate">Invoice #{postedInvoice.invoiceNumber}</h2>
+                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 shrink-0 text-[10px] sm:text-xs">
                     {postedInvoice.status}
                   </Badge>
                 </div>
 
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 shrink-0 justify-end">
                   <Button
                     size="sm"
                     onClick={handleSendWhatsApp}
                     disabled={isSendingWa}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 text-xs font-bold"
+                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 text-xs font-bold h-8 px-2.5"
                   >
                     {isSendingWa ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                    Send via WhatsApp
+                    <span className="hidden xs:inline">Send via</span> WhatsApp
                   </Button>
-                  <Button size="sm" variant="outline" onClick={() => window.print()} className="gap-1.5 text-xs">
+                  <Button size="sm" variant="outline" onClick={() => window.print()} className="gap-1.5 text-xs h-8 px-2.5">
                     <Printer className="h-3.5 w-3.5" /> Print
                   </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setPostedInvoice(null)}>
+                  <Button size="sm" variant="ghost" onClick={() => setPostedInvoice(null)} className="h-8 w-8 p-0">
                     <X className="h-4 w-4" />
                   </Button>
                 </div>
               </div>
 
-              {/* Classic Ads / Reference Invoice Layout */}
-              <div className="p-8 space-y-6 bg-white dark:bg-card text-foreground">
+              {/* Invoice Layout */}
+              <div className="p-4 sm:p-8 space-y-4 sm:space-y-6 bg-white dark:bg-card text-foreground">
                 {/* Header Section */}
-                <div className="flex justify-between items-start">
-                  <div>
-                    <h1 className="text-xl font-bold tracking-tight">{postedInvoice.locationName}</h1>
-                    <p className="text-xs text-muted-foreground mt-1">123 Retail Avenue, Main Store</p>
+                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="min-w-0">
+                    <h1 className="text-lg sm:text-xl font-bold tracking-tight break-words">{postedInvoice.locationName}</h1>
+                    <p className="text-xs text-muted-foreground mt-0.5">123 Retail Avenue, Main Store</p>
                     {activeLocation?.gstin && (
                       <Badge variant="outline" className="mt-1 text-[10px] font-mono">
                         GSTIN: {activeLocation.gstin}
@@ -1550,15 +1749,15 @@ export function POSClient() {
                     )}
                   </div>
 
-                  <div className="flex items-start gap-4">
+                  <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0 border-t pt-3 sm:border-t-0 sm:pt-0">
                     <div className="flex flex-col items-center">
-                      <QRCodeSVG value={`https://fiyoraerp.com/verify/sales-invoice-${postedInvoice.id}`} size={64} level="M" />
-                      <span className="text-[9px] text-muted-foreground mt-1 font-bold uppercase tracking-widest">
+                      <QRCodeSVG value={`https://fiyoraerp.com/verify/sales-invoice-${postedInvoice.id}`} size={56} level="M" />
+                      <span className="text-[8px] sm:text-[9px] text-muted-foreground mt-0.5 font-bold uppercase tracking-widest">
                         Scan to Verify
                       </span>
                     </div>
                     <div className="text-right">
-                      <h2 className="text-xl font-black text-primary tracking-tight">INVOICE</h2>
+                      <h2 className="text-lg sm:text-xl font-black text-primary tracking-tight">INVOICE</h2>
                       <Badge
                         className={
                           postedInvoice.status === "PAID"
@@ -1573,75 +1772,97 @@ export function POSClient() {
                 </div>
 
                 {/* Edge-to-Edge Meta Strip */}
-                <div className="px-4 py-3 bg-muted/30 rounded-lg border grid grid-cols-4 text-xs">
-                  <div>
+                <div className="px-3 py-2.5 sm:px-4 sm:py-3 bg-muted/30 rounded-lg border grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div className="min-w-0">
                     <span className="text-muted-foreground block text-[10px] uppercase font-bold">Invoice No</span>
-                    <span className="font-semibold">{postedInvoice.invoiceNumber}</span>
+                    <span className="font-semibold break-all text-[11px] sm:text-xs">{postedInvoice.invoiceNumber}</span>
                   </div>
-                  <div className="border-l pl-3">
+                  <div className="sm:border-l sm:pl-3 min-w-0">
                     <span className="text-muted-foreground block text-[10px] uppercase font-bold">Date</span>
-                    <span className="font-semibold">{postedInvoice.invoiceDate}</span>
+                    <span className="font-semibold text-[11px] sm:text-xs">{postedInvoice.invoiceDate}</span>
                   </div>
-                  <div className="border-l pl-3">
+                  <div className="sm:border-l sm:pl-3 min-w-0">
                     <span className="text-muted-foreground block text-[10px] uppercase font-bold">Payment Method</span>
-                    <span className="font-semibold text-emerald-600">{paymentMethod}</span>
+                    <span className="font-semibold text-emerald-600 text-[11px] sm:text-xs">{paymentMethod}</span>
                   </div>
-                  <div className="border-l pl-3">
+                  <div className="sm:border-l sm:pl-3 min-w-0">
                     <span className="text-muted-foreground block text-[10px] uppercase font-bold">Status</span>
-                    <span className="font-semibold text-emerald-600">{postedInvoice.status}</span>
+                    <span className="font-semibold text-emerald-600 text-[11px] sm:text-xs">{postedInvoice.status}</span>
                   </div>
                 </div>
 
                 {/* Billed To */}
-                <div className="grid grid-cols-2 gap-4 border-b pb-4 text-xs">
-                  <div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 border-b pb-4 text-xs">
+                  <div className="min-w-0 space-y-0.5">
                     <span className="text-muted-foreground uppercase font-bold text-[10px] block mb-1">Billed To</span>
-                    <div className="font-bold text-sm">{postedInvoice.customerName}</div>
+                    <div className="font-bold text-sm break-words">{postedInvoice.customerName}</div>
                     {postedInvoice.customerPhone && (
                       <div className="text-muted-foreground">Phone: {postedInvoice.customerPhone}</div>
                     )}
                     {postedInvoice.customerGstin && (
-                      <div className="text-muted-foreground font-mono">GSTIN: {postedInvoice.customerGstin}</div>
+                      <div className="text-muted-foreground font-mono break-all text-[11px]">GSTIN: {postedInvoice.customerGstin}</div>
                     )}
                   </div>
-                  <div>
+                  <div className="min-w-0 space-y-0.5">
                     <span className="text-muted-foreground uppercase font-bold text-[10px] block mb-1">Store Details</span>
-                    <div className="font-semibold">{postedInvoice.locationName}</div>
+                    <div className="font-semibold break-words">{postedInvoice.locationName}</div>
                     <div className="text-muted-foreground">Thank you for your business!</div>
                   </div>
                 </div>
 
-                {/* Line Items Table */}
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[240px]">Description</TableHead>
-                      <TableHead className="text-center w-[80px]">Qty</TableHead>
-                      <TableHead className="text-right w-[120px]">Rate (₹)</TableHead>
-                      <TableHead className="text-right w-[130px]">Amount (₹)</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {postedInvoice.lines.map((line, idx) => (
-                      <TableRow key={idx}>
-                        <TableCell className="font-medium text-xs">
-                          <div>{line.productName}</div>
-                          {line.variantName && <div className="text-[11px] text-muted-foreground">{line.variantName}</div>}
-                        </TableCell>
-                        <TableCell className="text-center text-xs">{line.quantity}</TableCell>
-                        <TableCell className="text-right text-xs">{money.format(line.unitPrice)}</TableCell>
-                        <TableCell className="text-right font-semibold text-xs">{money.format(line.lineTotal)}</TableCell>
+                {/* Mobile Item List (<sm) */}
+                <div className="sm:hidden space-y-2 border rounded-lg p-2.5 bg-muted/10 divide-y">
+                  <div className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider pb-1">Purchased Items ({postedInvoice.lines.length})</div>
+                  {postedInvoice.lines.map((line, idx) => (
+                    <div key={idx} className="pt-2 pb-1 space-y-1 text-xs">
+                      <div className="font-medium text-foreground break-words">{line.productName}</div>
+                      {line.variantName && (
+                        <div className="text-[11px] text-muted-foreground">{line.variantName}</div>
+                      )}
+                      {line.sku && (
+                        <div className="text-[10px] font-mono text-muted-foreground">{line.sku}</div>
+                      )}
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5">
+                        <span>Qty: <strong className="text-foreground">{line.quantity}</strong> × {money.format(line.unitPrice)}</span>
+                        <span className="font-bold text-foreground text-xs">{money.format(line.lineTotal)}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Line Items Table (≥sm) */}
+                <div className="hidden sm:block">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[240px]">Description</TableHead>
+                        <TableHead className="text-center w-[80px]">Qty</TableHead>
+                        <TableHead className="text-right w-[120px]">Rate (₹)</TableHead>
+                        <TableHead className="text-right w-[130px]">Amount (₹)</TableHead>
                       </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
+                    </TableHeader>
+                    <TableBody>
+                      {postedInvoice.lines.map((line, idx) => (
+                        <TableRow key={idx}>
+                          <TableCell className="font-medium text-xs">
+                            <div className="break-words">{line.productName}</div>
+                            {line.variantName && <div className="text-[11px] text-muted-foreground">{line.variantName}</div>}
+                          </TableCell>
+                          <TableCell className="text-center text-xs">{line.quantity}</TableCell>
+                          <TableCell className="text-right text-xs">{money.format(line.unitPrice)}</TableCell>
+                          <TableCell className="text-right font-semibold text-xs">{money.format(line.lineTotal)}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
 
                 {/* Footer Split: Dynamic UPI Payment QR Code & Totals */}
-                <div className="flex justify-between items-end pt-4 border-t">
-                  <div className="flex flex-col items-center justify-center p-3 border rounded-lg bg-muted/20 w-fit">
+                <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 pt-4 border-t">
+                  <div className="flex flex-col items-center justify-center p-3 border rounded-lg bg-muted/20 w-fit self-center sm:self-auto">
                     <QRCodeSVG
                       value={`upi://pay?pa=${storeUpiId}&pn=${encodeURIComponent(storeName)}&am=${postedInvoice.totalAmount}&cu=INR`}
-                      size={80}
+                      size={72}
                       level="L"
                     />
                     <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
@@ -1649,65 +1870,65 @@ export function POSClient() {
                     </span>
                   </div>
 
-                  <div className="min-w-[280px] space-y-1.5 text-xs text-right">
+                  <div className="w-full sm:w-auto sm:min-w-[280px] space-y-1.5 text-xs text-right">
                     {postedInvoice.subtotal > 0 && (
-                      <div className="flex justify-between text-muted-foreground">
+                      <div className="flex justify-between gap-2 text-muted-foreground">
                         <span>Subtotal (Excl. Tax)</span>
-                        <span>{money.format(postedInvoice.subtotal)}</span>
+                        <span className="font-mono">{money.format(postedInvoice.subtotal)}</span>
                       </div>
                     )}
                     {postedInvoice.taxAmount > 0 && (
-                      <div className="flex justify-between text-muted-foreground">
+                      <div className="flex justify-between gap-2 text-muted-foreground">
                         <span>GST / Tax Amount</span>
-                        <span>+{money.format(postedInvoice.taxAmount)}</span>
+                        <span className="font-mono">+{money.format(postedInvoice.taxAmount)}</span>
                       </div>
                     )}
-                    <div className="flex justify-between font-semibold border-t pt-1">
+                    <div className="flex justify-between gap-2 font-semibold border-t pt-1">
                       <span>Invoice Total</span>
-                      <span>{money.format(postedInvoice.totalAmount)}</span>
+                      <span className="font-mono">{money.format(postedInvoice.totalAmount)}</span>
                     </div>
 
                     {postedInvoice.previousBalance && postedInvoice.previousBalance > 0 ? (
-                      <div className="flex justify-between text-amber-600 font-medium">
+                      <div className="flex justify-between gap-2 text-amber-600 font-medium">
                         <span>Previous Customer Dues</span>
-                        <span>+{money.format(postedInvoice.previousBalance)}</span>
+                        <span className="font-mono">+{money.format(postedInvoice.previousBalance)}</span>
                       </div>
                     ) : null}
 
                     {postedInvoice.creditAppliedAmount > 0 && (
-                      <div className="flex justify-between text-emerald-600">
+                      <div className="flex justify-between gap-2 text-emerald-600">
                         <span>Store Credit Applied</span>
-                        <span>-{money.format(postedInvoice.creditAppliedAmount)}</span>
+                        <span className="font-mono">-{money.format(postedInvoice.creditAppliedAmount)}</span>
                       </div>
                     )}
 
-                    <div className="flex justify-between border-t pt-2 mt-1">
+                    <div className="flex justify-between gap-2 border-t pt-2 mt-1">
                       <span className="font-bold text-sm">
                         Total Paid {postedInvoice.paymentMethod ? `(${postedInvoice.paymentMethod})` : ""}
                       </span>
-                      <span className="text-lg font-bold text-primary">
+                      <span className="text-base sm:text-lg font-bold text-primary font-mono">
                         {money.format((postedInvoice.paidAmount || 0) + (postedInvoice.creditAppliedAmount || 0))}
                       </span>
                     </div>
 
                     {postedInvoice.tenderedCash && postedInvoice.tenderedCash > 0 ? (
-                      <div className="flex justify-between text-muted-foreground text-[11px]">
+                      <div className="flex justify-between gap-2 text-muted-foreground text-[11px]">
                         <span>Tendered Cash</span>
-                        <span>{money.format(postedInvoice.tenderedCash)}</span>
+                        <span className="font-mono">{money.format(postedInvoice.tenderedCash)}</span>
                       </div>
                     ) : null}
 
                     {postedInvoice.changeDue && postedInvoice.changeDue > 0 ? (
-                      <div className="flex justify-between text-emerald-600 text-[11px] font-semibold">
+                      <div className="flex justify-between gap-2 text-emerald-600 text-[11px] font-semibold">
                         <span>Change Returned</span>
-                        <span>{money.format(postedInvoice.changeDue)}</span>
+                        <span className="font-mono">{money.format(postedInvoice.changeDue)}</span>
                       </div>
                     ) : null}
 
                     {((postedInvoice.paidAmount || 0) + (postedInvoice.creditAppliedAmount || 0)) < postedInvoice.totalAmount && (
-                      <div className="flex justify-between text-amber-600 font-semibold border-t pt-1 mt-1">
+                      <div className="flex justify-between gap-2 text-amber-600 font-semibold border-t pt-1 mt-1">
                         <span>Balance Due</span>
-                        <span>
+                        <span className="font-mono">
                           {money.format(
                             Math.max(0, postedInvoice.totalAmount - (postedInvoice.paidAmount || 0) - (postedInvoice.creditAppliedAmount || 0))
                           )}
@@ -1718,9 +1939,9 @@ export function POSClient() {
                 </div>
 
                 {/* Bottom Bar: Signatory Block */}
-                <div className="flex justify-between items-end pt-6 border-t text-[11px] text-muted-foreground">
-                  <div>This is a electronically verified tax invoice receipt.</div>
-                  <div className="text-right space-y-1">
+                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-2 pt-4 border-t text-[11px] text-muted-foreground">
+                  <div>This is an electronically verified tax invoice receipt.</div>
+                  <div className="text-left sm:text-right space-y-0.5">
                     <div className="font-bold text-foreground">{postedInvoice.locationName}</div>
                     <div className="text-[10px]">Authorised Signatory</div>
                   </div>
@@ -1730,6 +1951,15 @@ export function POSClient() {
           </DialogContent>
         </Dialog>
       )}
+
+      {/* Mobile & Desktop Camera Barcode Scanner Modal */}
+      <CameraScannerDialog
+        open={isCameraScannerOpen}
+        onOpenChange={setIsCameraScannerOpen}
+        onScan={(scannedCode) => {
+          processBarcodeScan(scannedCode);
+        }}
+      />
     </div>
   );
 }
@@ -1815,7 +2045,7 @@ function ProductGroupCard({
         outOfStock ? "opacity-60" : "hover:shadow-md hover:border-primary"
       }`}
     >
-      <div className="h-28 bg-muted/40 relative flex items-center justify-center p-2">
+      <div className="h-24 sm:h-28 bg-muted/40 relative flex items-center justify-center p-2">
         {group.imageUrl ? (
           <img
             src={group.imageUrl}
@@ -1823,9 +2053,9 @@ function ProductGroupCard({
             className="h-full w-full object-contain group-hover:scale-105 transition-transform"
           />
         ) : (
-          <Package className="h-10 w-10 text-muted-foreground/30" />
+          <Package className="h-8 w-8 sm:h-10 sm:w-10 text-muted-foreground/30" />
         )}
-        <Badge variant="secondary" className="absolute top-1 right-1 text-[9px] font-mono opacity-80">
+        <Badge variant="secondary" className="absolute top-1 right-1 text-[9px] font-mono opacity-80 max-w-[70px] sm:max-w-[100px] truncate">
           {selected.sku}
         </Badge>
         {outOfStock && (
@@ -1834,8 +2064,8 @@ function ProductGroupCard({
           </Badge>
         )}
       </div>
-      <CardContent className="p-2.5 space-y-1.5">
-        <div className="font-semibold text-xs line-clamp-1 group-hover:text-primary transition-colors">
+      <CardContent className="p-2 sm:p-2.5 space-y-1 sm:space-y-1.5 flex-1 flex flex-col justify-between">
+        <div className="font-semibold text-xs line-clamp-2 leading-snug group-hover:text-primary transition-colors">
           {group.name}
         </div>
 

@@ -40,10 +40,10 @@ export function ProductDetailClient({
   const isSetProduct = product.productType === "SET";
 
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col gap-4 min-w-0 w-full">
       <Button
         variant="ghost"
-        className="w-fit gap-1.5 px-2"
+        className="w-fit gap-1.5 px-2 text-xs sm:text-sm"
         nativeButton={false}
         render={<Link href="/products" />}
       >
@@ -51,48 +51,56 @@ export function ProductDetailClient({
         Back to products
       </Button>
 
-      <div className="flex flex-wrap items-center gap-2">
-        <h1 className="text-xl font-semibold sm:text-2xl">{product.name}</h1>
-        <ActiveBadge isActive={product.isActive} />
+      <div className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex flex-wrap items-center gap-2 min-w-0">
+          <h1 className="text-xl font-bold tracking-tight text-foreground sm:text-2xl break-words min-w-0 leading-snug">
+            {product.name}
+          </h1>
+          <ActiveBadge isActive={product.isActive} className="shrink-0" />
+        </div>
       </div>
 
-      <Tabs defaultValue="overview">
-        <TabsList className="flex-wrap">
-          <TabsTrigger value="overview">Overview</TabsTrigger>
-          {product.hasVariants && <TabsTrigger value="variants">Variants</TabsTrigger>}
-          <TabsTrigger value="sets">Custom Sets</TabsTrigger>
-          <TabsTrigger value="pricing">Pricing</TabsTrigger>
-          <TabsTrigger value="images">Images</TabsTrigger>
-          <TabsTrigger value="barcodes">Barcodes</TabsTrigger>
-          <TabsTrigger value="purchase-history">Purchase History & Suppliers</TabsTrigger>
-        </TabsList>
+      <Tabs defaultValue="overview" className="w-full min-w-0">
+        <div className="overflow-x-auto pb-1 border-b scrollbar-none max-w-full">
+          <TabsList className="inline-flex h-10 items-center justify-start rounded-lg bg-muted p-1 text-muted-foreground w-max min-w-full sm:w-auto">
+            <TabsTrigger value="overview" className="text-xs sm:text-sm px-3">Overview</TabsTrigger>
+            {product.hasVariants && <TabsTrigger value="variants" className="text-xs sm:text-sm px-3">Variants</TabsTrigger>}
+            <TabsTrigger value="sets" className="text-xs sm:text-sm px-3">Custom Sets</TabsTrigger>
+            <TabsTrigger value="pricing" className="text-xs sm:text-sm px-3">Pricing</TabsTrigger>
+            <TabsTrigger value="images" className="text-xs sm:text-sm px-3">Images</TabsTrigger>
+            <TabsTrigger value="barcodes" className="text-xs sm:text-sm px-3">Barcodes</TabsTrigger>
+            <TabsTrigger value="purchase-history" className="text-xs sm:text-sm px-3 whitespace-nowrap">Purchase History & Suppliers</TabsTrigger>
+          </TabsList>
+        </div>
 
-        <TabsContent value="overview">
-          <ProductOverviewTab product={product} />
-        </TabsContent>
-
-        {product.hasVariants && (
-          <TabsContent value="variants">
-            <ProductVariantsTab productId={product.id} categoryId={product.categoryId} productCode={product.code} />
+        <div className="pt-3">
+          <TabsContent value="overview">
+            <ProductOverviewTab product={product} />
           </TabsContent>
-        )}
 
-        <TabsContent value="sets">
-          <ProductSetTab product={product} />
-        </TabsContent>
+          {product.hasVariants && (
+            <TabsContent value="variants">
+              <ProductVariantsTab productId={product.id} categoryId={product.categoryId} productCode={product.code} />
+            </TabsContent>
+          )}
 
-        <TabsContent value="pricing">
-          <ProductPricingTab productId={product.id} companyId={companyId} hasVariants={product.hasVariants} />
-        </TabsContent>
-        <TabsContent value="images">
-          <ProductImagesTab productId={product.id} />
-        </TabsContent>
-        <TabsContent value="barcodes">
-          <ProductBarcodesTab productId={product.id} />
-        </TabsContent>
-        <TabsContent value="purchase-history">
-          <ProductPurchaseHistoryTab productId={product.id} />
-        </TabsContent>
+          <TabsContent value="sets">
+            <ProductSetTab product={product} />
+          </TabsContent>
+
+          <TabsContent value="pricing">
+            <ProductPricingTab productId={product.id} companyId={companyId} hasVariants={product.hasVariants} />
+          </TabsContent>
+          <TabsContent value="images">
+            <ProductImagesTab productId={product.id} />
+          </TabsContent>
+          <TabsContent value="barcodes">
+            <ProductBarcodesTab productId={product.id} />
+          </TabsContent>
+          <TabsContent value="purchase-history">
+            <ProductPurchaseHistoryTab productId={product.id} />
+          </TabsContent>
+        </div>
       </Tabs>
     </div>
   );

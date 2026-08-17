@@ -114,7 +114,7 @@ export function ProductPricingTab({ productId, companyId, hasVariants }: {
     }));
   }
 
-  return <div className="flex flex-col gap-4">
+  return <div className="flex flex-col gap-4 min-w-0 w-full">
     <Card>
       <CardHeader>
         <CardTitle className="flex items-center gap-2 text-base"><IndianRupee className="size-4" />Price-list worksheet</CardTitle>
@@ -135,9 +135,9 @@ export function ProductPricingTab({ productId, companyId, hasVariants }: {
 
     {priceListId != null && <Card>
       <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div><CardTitle className="text-base">{hasVariants ? "Variant prices" : "Product price"}</CardTitle><CardDescription>{hasVariants ? "Every variant can have a different cost, selling price, and MRP." : "Set the base product price for this price list."}</CardDescription></div>
-          {rows.length > 1 && <Button variant="outline" onClick={copyFirstToAll}><Copy />Copy first row to all</Button>}
+          {rows.length > 1 && <Button variant="outline" className="w-full sm:w-auto shrink-0" onClick={copyFirstToAll}><Copy className="mr-1 size-4" />Copy first row to all</Button>}
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
@@ -147,7 +147,7 @@ export function ProductPricingTab({ productId, companyId, hasVariants }: {
             <div><div className="flex items-center gap-2 font-medium">{row.label}{row.priceId ? <Badge variant="secondary">Priced</Badge> : <Badge variant="outline">New</Badge>}</div><p className="font-mono text-xs text-muted-foreground">{row.sku}</p></div>
             {(["costPrice", "sellingPrice", "mrp"] as const).map((field) => <label key={field} className="flex flex-col gap-1"><span className="text-xs text-muted-foreground md:hidden">{field === "costPrice" ? "Cost price" : field === "sellingPrice" ? "Selling price" : "MRP"}</span><Input type="number" min="0" step="0.01" value={row[field]} placeholder="0.00" onChange={(event) => updateRow(index, field, event.target.value)} /></label>)}
           </div>)}
-          <div className="flex justify-end"><Button disabled={saveMutation.isPending || rows.length === 0} onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 className="animate-spin" /> : <Save />}Save all prices</Button></div>
+          <div className="flex justify-end pt-2"><Button className="w-full sm:w-auto" disabled={saveMutation.isPending || rows.length === 0} onClick={() => saveMutation.mutate()}>{saveMutation.isPending ? <Loader2 className="animate-spin" /> : <Save className="mr-1 size-4" />}Save all prices</Button></div>
         </>}
       </CardContent>
     </Card>}

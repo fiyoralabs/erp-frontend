@@ -112,38 +112,41 @@ export function ProductOverviewTab({ product }: { product: Product }) {
   const taxItems = { [NONE]: "None", ...Object.fromEntries(taxes.map((t) => [String(t.id), t.name])) };
 
   return (
-    <div className="flex flex-col gap-4">
-      <Card>
-        <CardContent className="flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
-          <span>
-            <span className="text-muted-foreground">Code: </span>
-            <span className="font-mono">{product.code}</span>
-          </span>
-          <span>
-            <span className="text-muted-foreground">Category: </span>
-            {product.categoryName ?? "—"}
-          </span>
-          <span>
-            <span className="text-muted-foreground">Unit: </span>
-            {product.unitName ?? "—"}
-          </span>
-          <span>
-            <span className="text-muted-foreground">Type: </span>
-            {product.productType}
-          </span>
+    <div className="flex flex-col gap-4 min-w-0 w-full">
+      <Card className="overflow-hidden border border-border/60">
+        <CardContent className="p-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between sm:gap-6 text-sm">
+          <div className="grid grid-cols-2 gap-3 sm:flex sm:flex-wrap sm:items-center sm:gap-x-6 sm:gap-y-2 min-w-0">
+            <div className="flex flex-col sm:flex-row sm:gap-1.5 min-w-0">
+              <span className="text-xs text-muted-foreground sm:text-sm">Code</span>
+              <span className="font-mono font-semibold text-foreground text-xs sm:text-sm truncate">{product.code}</span>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:gap-1.5 min-w-0">
+              <span className="text-xs text-muted-foreground sm:text-sm">Category</span>
+              <span className="font-medium text-foreground truncate text-xs sm:text-sm">{product.categoryName ?? "—"}</span>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:gap-1.5 min-w-0">
+              <span className="text-xs text-muted-foreground sm:text-sm">Unit</span>
+              <span className="font-medium text-foreground truncate text-xs sm:text-sm">{product.unitName ?? "—"}</span>
+            </div>
+            <div className="flex flex-col sm:flex-row sm:gap-1.5 min-w-0">
+              <span className="text-xs text-muted-foreground sm:text-sm">Type</span>
+              <span className="font-medium text-foreground truncate text-xs sm:text-sm">{product.productType}</span>
+            </div>
+          </div>
+
           <Button
             variant="outline"
             size="sm"
-            className="ml-auto gap-1.5"
+            className="w-full sm:w-auto gap-1.5 shrink-0"
             disabled={toggleActiveMutation.isPending}
             onClick={() => toggleActiveMutation.mutate()}
           >
             {toggleActiveMutation.isPending ? (
               <Loader2 className="size-3.5 animate-spin" />
             ) : product.isActive ? (
-              <PowerOff className="size-3.5" />
+              <PowerOff className="size-3.5 text-destructive" />
             ) : (
-              <Power className="size-3.5" />
+              <Power className="size-3.5 text-emerald-600" />
             )}
             {product.isActive ? "Deactivate" : "Activate"}
           </Button>
@@ -246,7 +249,7 @@ export function ProductOverviewTab({ product }: { product: Product }) {
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <label className="flex items-center gap-2 text-sm font-medium">
+                    <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
                       <Checkbox checked={!!field.value} onCheckedChange={field.onChange} />
                       Track inventory
                     </label>
@@ -260,7 +263,7 @@ export function ProductOverviewTab({ product }: { product: Product }) {
               render={({ field }) => (
                 <FormItem>
                   <FormControl>
-                    <label className="flex items-center gap-2 text-sm font-medium">
+                    <label className="flex items-center gap-2 text-sm font-medium cursor-pointer">
                       <Checkbox checked={!!field.value} onCheckedChange={field.onChange} />
                       Allow negative stock
                     </label>
@@ -269,7 +272,7 @@ export function ProductOverviewTab({ product }: { product: Product }) {
               )}
             />
           </div>
-          <Button type="submit" className="w-fit" disabled={updateMutation.isPending}>
+          <Button type="submit" className="w-full sm:w-fit" disabled={updateMutation.isPending}>
             {updateMutation.isPending && <Loader2 className="animate-spin" />}
             Save changes
           </Button>

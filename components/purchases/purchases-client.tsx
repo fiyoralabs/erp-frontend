@@ -169,36 +169,40 @@ export function PurchasesClient() {
   }, [o, supplierFilter, statusFilter, searchQuery]);
 
   return (
-    <div className="flex flex-col gap-5">
-      <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
+    <div className="flex flex-col gap-4 sm:gap-5 w-full max-w-full">
+      {/* Header & Main Actions */}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Purchases</h1>
-          <p className="text-sm text-muted-foreground">Order, receive, verify supplier invoices, pay, and track supplier product history in one connected workspace.</p>
+          <h1 className="text-xl sm:text-2xl font-bold tracking-tight">Purchases</h1>
+          <p className="text-xs sm:text-sm text-muted-foreground mt-0.5">
+            Order, receive, verify supplier invoices, pay, and track supplier product history in one workspace.
+          </p>
         </div>
-        <div className="flex flex-wrap gap-2">
-          <Button variant="outline" onClick={() => setAction("supplier")}>
-            <Plus />
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" onClick={() => setAction("supplier")} className="h-9 text-xs font-semibold gap-1">
+            <Plus className="h-3.5 w-3.5" />
             Supplier
           </Button>
           <Link href="/purchases/new">
-            <Button>
-              <Plus />
+            <Button size="sm" className="h-9 text-xs font-semibold gap-1 bg-primary text-primary-foreground">
+              <Plus className="h-3.5 w-3.5" />
               Purchase order
             </Button>
           </Link>
         </div>
       </div>
 
-      <div className="grid gap-3 sm:grid-cols-3">
+      {/* Metrics Cards */}
+      <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-3">
         <Metric label="Orders to receive" value={String(toReceive)} warn={toReceive > 0} />
         <Metric label="Receipts to invoice" value={String(toInvoice)} warn={toInvoice > 0} />
         <Metric label="Supplier amount due" value={money.format(due)} warn={due > 0} />
       </div>
 
       {/* Global Search & Filter Bar */}
-      <Card>
+      <Card className="shadow-xs">
         <CardContent className="p-3">
-          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
@@ -208,9 +212,9 @@ export function PurchasesClient() {
                 className="pl-9 text-xs h-9"
               />
             </div>
-            <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
               <Select value={supplierFilter} onValueChange={(val) => setSupplierFilter(val ?? "ALL")}>
-                <SelectTrigger className="w-[180px] h-9 text-xs">
+                <SelectTrigger className="w-full sm:w-[180px] h-9 text-xs">
                   <SelectValue placeholder="Filter by Supplier" />
                 </SelectTrigger>
                 <SelectContent>
@@ -224,7 +228,7 @@ export function PurchasesClient() {
               </Select>
 
               <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val ?? "ALL")}>
-                <SelectTrigger className="w-[160px] h-9 text-xs">
+                <SelectTrigger className="w-full sm:w-[160px] h-9 text-xs">
                   <SelectValue placeholder="Filter by Status" />
                 </SelectTrigger>
                 <SelectContent>
@@ -240,16 +244,20 @@ export function PurchasesClient() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="orders">
-        <TabsList className="flex h-auto flex-wrap">
-          <TabsTrigger value="orders">Orders</TabsTrigger>
-          <TabsTrigger value="receipts">Goods receipts</TabsTrigger>
-          <TabsTrigger value="invoices">Invoices</TabsTrigger>
-          <TabsTrigger value="suppliers">Suppliers</TabsTrigger>
-          <TabsTrigger value="returns">Returns</TabsTrigger>
-          <TabsTrigger value="payments">Payments</TabsTrigger>
-        </TabsList>
+      {/* Tabs View */}
+      <Tabs defaultValue="orders" className="w-full">
+        <div className="border-b overflow-x-auto scrollbar-none">
+          <TabsList className="h-10 p-1 justify-start flex-nowrap bg-muted/40 w-max sm:w-auto">
+            <TabsTrigger value="orders" className="text-xs font-semibold">Orders</TabsTrigger>
+            <TabsTrigger value="receipts" className="text-xs font-semibold">Goods receipts</TabsTrigger>
+            <TabsTrigger value="invoices" className="text-xs font-semibold">Invoices</TabsTrigger>
+            <TabsTrigger value="suppliers" className="text-xs font-semibold">Suppliers</TabsTrigger>
+            <TabsTrigger value="returns" className="text-xs font-semibold">Returns</TabsTrigger>
+            <TabsTrigger value="payments" className="text-xs font-semibold">Payments</TabsTrigger>
+          </TabsList>
+        </div>
 
+        {/* --- ORDERS TAB --- */}
         <Tab
           value="orders"
           title="Purchase orders"
@@ -257,21 +265,20 @@ export function PurchasesClient() {
           action={
             toReceive > 0 ? (
               <Link href="/purchases">
-                <Button onClick={() => setAction("receipt")}>
-                  <Truck />
+                <Button size="sm" onClick={() => setAction("receipt")} className="h-8 text-xs gap-1.5">
+                  <Truck className="h-3.5 w-3.5" />
                   Receive goods
                 </Button>
               </Link>
             ) : undefined
           }
         >
-          <TableWrap heads={["PO #", "Supplier", "Products", "Total Qty", "Received", "Pending", "Purchase Amount", "Status", "Date", "Warehouse", "Actions"]}>
+          {/* Mobile Orders Cards (<md) */}
+          <div className="md:hidden space-y-3">
             {filteredOrders.length === 0 ? (
-              <TableRow>
-                <TableCell colSpan={11} className="h-24 text-center text-muted-foreground text-xs">
-                  No purchase orders found matching your search and filter criteria.
-                </TableCell>
-              </TableRow>
+              <div className="py-8 text-center text-xs text-muted-foreground border rounded-xl bg-muted/10 p-4">
+                No purchase orders found matching your search and filter criteria.
+              </div>
             ) : (
               filteredOrders.map((x) => {
                 const totalQty = x.lines ? x.lines.reduce((a, l) => a + (l.orderedQuantity ?? l.quantity ?? 0), 0) : 0;
@@ -280,200 +287,503 @@ export function PurchasesClient() {
                 const prodCount = x.lines ? x.lines.length : 0;
 
                 return (
-                  <TableRow key={x.id}>
-                    <TableCell className="font-medium text-xs font-mono">{x.poNumber}</TableCell>
-                    <TableCell className="font-medium text-xs">{x.supplierName}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{prodCount} {prodCount === 1 ? "Product" : "Products"}</TableCell>
-                    <TableCell className="text-xs font-semibold text-right">{totalQty}</TableCell>
-                    <TableCell className="text-xs text-right">{recQty}</TableCell>
-                    <TableCell className="text-xs text-right font-bold text-amber-600">{pendQty}</TableCell>
-                    <TableCell className="text-xs font-semibold">{money.format(x.totalAmount)}</TableCell>
-                    <TableCell>
+                  <div key={x.id} className="p-3.5 border rounded-xl bg-card space-y-3 shadow-xs min-w-0">
+                    <div className="flex items-center justify-between gap-2 min-w-0">
+                      <span className="font-bold text-sm text-foreground font-mono truncate">{x.poNumber}</span>
                       <Status text={x.status} />
-                    </TableCell>
-                    <TableCell className="text-xs">{x.orderDate}</TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{x.locationName}</TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-2">
+                    </div>
+
+                    <div className="text-xs space-y-1 bg-muted/20 p-2.5 rounded-lg border">
+                      <div className="font-bold text-sm text-foreground break-words">{x.supplierName}</div>
+                      <div className="flex flex-wrap items-center justify-between text-muted-foreground text-[11px] pt-1">
+                        <span>{prodCount} Product{prodCount === 1 ? "" : "s"} • {x.locationName}</span>
+                        <span>Date: {x.orderDate}</span>
+                      </div>
+                    </div>
+
+                    <div className="grid grid-cols-3 gap-2 p-2 bg-muted/20 rounded-lg border text-center text-xs">
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block font-medium">Ordered Qty</span>
+                        <span className="font-bold font-mono text-foreground">{totalQty}</span>
+                      </div>
+                      <div className="border-x">
+                        <span className="text-[10px] text-muted-foreground block font-medium">Received</span>
+                        <span className="font-bold font-mono text-emerald-600">{recQty}</span>
+                      </div>
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block font-medium">Pending</span>
+                        <span className="font-bold font-mono text-amber-600">{pendQty}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t">
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block">Amount</span>
+                        <span className="font-bold text-sm text-foreground font-mono">{money.format(x.totalAmount)}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
                         {["APPROVED", "PARTIALLY_RECEIVED", "ORDERED"].includes(x.status) && (
                           <Link href={`/purchases/receive?poId=${x.id}`}>
-                            <Button size="sm" className="gap-1 h-7 text-xs">
-                              <Truck className="h-3.5 w-3.5" />
-                              Receive
+                            <Button size="sm" className="gap-1 h-8 text-xs font-semibold px-2.5">
+                              <Truck className="h-3.5 w-3.5" /> Receive
                             </Button>
                           </Link>
                         )}
-                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setDetail(x)}>
+                        <Button size="sm" variant="outline" className="h-8 text-xs px-2.5" onClick={() => setDetail(x)}>
                           View Details
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Desktop Table (≥md) */}
+          <div className="hidden md:block">
+            <TableWrap heads={["PO #", "Supplier", "Products", "Total Qty", "Received", "Pending", "Purchase Amount", "Status", "Date", "Warehouse", "Actions"]}>
+              {filteredOrders.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={11} className="h-24 text-center text-muted-foreground text-xs">
+                    No purchase orders found matching your search and filter criteria.
+                  </TableCell>
+                </TableRow>
+              ) : (
+                filteredOrders.map((x) => {
+                  const totalQty = x.lines ? x.lines.reduce((a, l) => a + (l.orderedQuantity ?? l.quantity ?? 0), 0) : 0;
+                  const recQty = x.lines ? x.lines.reduce((a, l) => a + (l.receivedQuantity ?? l.acceptedQuantity ?? 0), 0) : 0;
+                  const pendQty = Math.max(0, totalQty - recQty);
+                  const prodCount = x.lines ? x.lines.length : 0;
+
+                  return (
+                    <TableRow key={x.id}>
+                      <TableCell className="font-medium text-xs font-mono">{x.poNumber}</TableCell>
+                      <TableCell className="font-medium text-xs">{x.supplierName}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{prodCount} {prodCount === 1 ? "Product" : "Products"}</TableCell>
+                      <TableCell className="text-xs font-semibold text-right">{totalQty}</TableCell>
+                      <TableCell className="text-xs text-right">{recQty}</TableCell>
+                      <TableCell className="text-xs text-right font-bold text-amber-600">{pendQty}</TableCell>
+                      <TableCell className="text-xs font-semibold">{money.format(x.totalAmount)}</TableCell>
+                      <TableCell>
+                        <Status text={x.status} />
+                      </TableCell>
+                      <TableCell className="text-xs">{x.orderDate}</TableCell>
+                      <TableCell className="text-xs text-muted-foreground">{x.locationName}</TableCell>
+                      <TableCell>
+                        <div className="flex items-center gap-2">
+                          {["APPROVED", "PARTIALLY_RECEIVED", "ORDERED"].includes(x.status) && (
+                            <Link href={`/purchases/receive?poId=${x.id}`}>
+                              <Button size="sm" className="gap-1 h-7 text-xs">
+                                <Truck className="h-3.5 w-3.5" />
+                                Receive
+                              </Button>
+                            </Link>
+                          )}
+                          <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setDetail(x)}>
+                            View Details
+                          </Button>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  );
+                })
+              )}
+            </TableWrap>
+          </div>
+        </Tab>
+
+        {/* --- GOODS RECEIPTS TAB --- */}
+        <Tab value="receipts" title="Goods receipts" desc="Accepted stock is already reflected in Inventory.">
+          {/* Mobile Receipts Cards (<md) */}
+          <div className="md:hidden space-y-3">
+            {r.length === 0 ? (
+              <div className="py-8 text-center text-xs text-muted-foreground border rounded-xl bg-muted/10 p-4">
+                No goods receipts recorded.
+              </div>
+            ) : (
+              r.map((x) => {
+                const isAlreadyInvoiced = i.some((inv) => String(inv.goodsReceiptId) === String(x.id));
+                return (
+                  <div key={x.id} className="p-3.5 border rounded-xl bg-card space-y-2.5 shadow-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <span className="font-bold text-sm text-foreground font-mono">{x.grnNumber}</span>
+                      {isAlreadyInvoiced ? (
+                        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1 font-normal py-0.5 px-2 text-[10px]">
+                          <CheckCircle2 className="h-3 w-3 text-emerald-600" /> Invoiced
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-[10px]">Pending Invoice</Badge>
+                      )}
+                    </div>
+
+                    <div className="text-xs space-y-1 bg-muted/20 p-2.5 rounded-lg border">
+                      <div className="font-bold text-sm text-foreground break-words">{x.supplierName}</div>
+                      <div className="flex flex-wrap items-center justify-between text-muted-foreground text-[11px] pt-1">
+                        <span>PO: <strong className="font-mono text-foreground">{x.poNumber}</strong> • {x.locationName}</span>
+                        <span>Date: {x.receiptDate}</span>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t text-xs">
+                      <span className="text-muted-foreground">{x.lines.length} Line item(s)</span>
+                      <div className="flex items-center gap-1.5">
+                        {!isAlreadyInvoiced && (
+                          <Link href={`/purchases/invoice/new?grnId=${x.id}`}>
+                            <Button size="sm" className="gap-1 h-8 text-xs font-semibold px-2.5">
+                              <ReceiptText className="h-3.5 w-3.5" /> Post Invoice
+                            </Button>
+                          </Link>
+                        )}
+                        <Button size="sm" variant="outline" className="h-8 text-xs px-2.5" onClick={() => setDetail(x)}>
+                          View
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })
+            )}
+          </div>
+
+          {/* Desktop Table (≥md) */}
+          <div className="hidden md:block">
+            <TableWrap heads={["GRN", "PO", "Supplier", "Location", "Date", "Lines", "Actions"]}>
+              {r.map((x) => {
+                const isAlreadyInvoiced = i.some((inv) => String(inv.goodsReceiptId) === String(x.id));
+                return (
+                  <TableRow key={x.id}>
+                    <TableCell className="font-medium font-mono">{x.grnNumber}</TableCell>
+                    <TableCell className="font-mono text-xs">{x.poNumber}</TableCell>
+                    <TableCell>{x.supplierName}</TableCell>
+                    <TableCell>{x.locationName}</TableCell>
+                    <TableCell>{x.receiptDate}</TableCell>
+                    <TableCell>{x.lines.length}</TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        {isAlreadyInvoiced ? (
+                          <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1 font-normal py-1 px-2.5">
+                            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                            Invoiced
+                          </Badge>
+                        ) : (
+                          <Link href={`/purchases/invoice/new?grnId=${x.id}`}>
+                            <Button size="sm" className="gap-1">
+                              <ReceiptText className="h-3.5 w-3.5" />
+                              Post invoice
+                            </Button>
+                          </Link>
+                        )}
+                        <Button size="sm" variant="outline" onClick={() => setDetail(x)}>
+                          View
                         </Button>
                       </div>
                     </TableCell>
                   </TableRow>
                 );
-              })
-            )}
-          </TableWrap>
+              })}
+            </TableWrap>
+          </div>
         </Tab>
 
-        <Tab value="receipts" title="Goods receipts" desc="Accepted stock is already reflected in Inventory.">
-          <TableWrap heads={["GRN", "PO", "Supplier", "Location", "Date", "Lines", "Actions"]}>
-            {r.map((x) => {
-              const isAlreadyInvoiced = i.some((inv) => String(inv.goodsReceiptId) === String(x.id));
-              return (
-                <TableRow key={x.id}>
-                  <TableCell className="font-medium">{x.grnNumber}</TableCell>
-                  <TableCell>{x.poNumber}</TableCell>
-                  <TableCell>{x.supplierName}</TableCell>
-                  <TableCell>{x.locationName}</TableCell>
-                  <TableCell>{x.receiptDate}</TableCell>
-                  <TableCell>{x.lines.length}</TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {isAlreadyInvoiced ? (
-                        <Badge variant="secondary" className="bg-emerald-50 text-emerald-700 border-emerald-200 gap-1 font-normal py-1 px-2.5">
-                          <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
-                          Invoiced
-                        </Badge>
-                      ) : (
-                        <Link href={`/purchases/invoice/new?grnId=${x.id}`}>
-                          <Button size="sm" className="gap-1">
-                            <ReceiptText className="h-3.5 w-3.5" />
-                            Post invoice
+        {/* --- INVOICES TAB --- */}
+        <Tab value="invoices" title="Supplier invoices" desc="Balances are tied to payments, returns, supplier ledger, and Finance journals.">
+          {/* Mobile Invoices Cards (<md) */}
+          <div className="md:hidden space-y-3">
+            {i.length === 0 ? (
+              <div className="py-8 text-center text-xs text-muted-foreground border rounded-xl bg-muted/10 p-4">
+                No supplier invoices recorded.
+              </div>
+            ) : (
+              i.map((x) => (
+                <div key={x.id} className="p-3.5 border rounded-xl bg-card space-y-2.5 shadow-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-sm text-foreground font-mono">{x.invoiceNumber}</span>
+                    <Status text={x.status} />
+                  </div>
+
+                  <div className="text-xs space-y-1 bg-muted/20 p-2.5 rounded-lg border">
+                    <div className="font-bold text-sm text-foreground break-words">{x.supplierName}</div>
+                    <div className="flex flex-wrap items-center justify-between text-muted-foreground text-[11px] pt-1">
+                      <span>GRN: <strong className="font-mono text-foreground">{x.grnNumber}</strong></span>
+                      <span>Due: {x.dueDate ?? "—"}</span>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t">
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block">Balance Due</span>
+                      <span className="font-bold text-sm text-amber-600 font-mono">{money.format(x.balanceAmount)}</span>
+                    </div>
+                    <div className="flex items-center gap-1.5">
+                      {x.balanceAmount > 0 && (
+                        <Link href={`/purchases/payment/new?invoiceId=${x.id}`}>
+                          <Button size="sm" className="gap-1 h-8 text-xs font-semibold px-2.5">
+                            <WalletCards className="h-3.5 w-3.5" /> Pay
                           </Button>
                         </Link>
                       )}
+                      <Link href={`/purchases/return/new?invoiceId=${x.id}`}>
+                        <Button size="sm" variant="outline" className="h-8 text-xs gap-1 px-2.5 text-amber-700 border-amber-200">
+                          <Undo2 className="h-3.5 w-3.5" /> Return
+                        </Button>
+                      </Link>
+                      <Button size="sm" variant="outline" className="h-8 text-xs px-2" onClick={() => setDetail(x)}>
+                        View
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop Table (≥md) */}
+          <div className="hidden md:block">
+            <TableWrap heads={["Invoice", "Supplier", "GRN", "Due", "Status", "Balance", "Actions"]}>
+              {i.map((x) => (
+                <TableRow key={x.id}>
+                  <TableCell className="font-medium font-mono">{x.invoiceNumber}</TableCell>
+                  <TableCell>{x.supplierName}</TableCell>
+                  <TableCell className="font-mono text-xs">{x.grnNumber}</TableCell>
+                  <TableCell>{x.dueDate ?? "—"}</TableCell>
+                  <TableCell>
+                    <Status text={x.status} />
+                  </TableCell>
+                  <TableCell className="font-medium font-mono">{money.format(x.balanceAmount)}</TableCell>
+                  <TableCell>
+                    <div className="flex items-center gap-2">
+                      {x.balanceAmount > 0 && (
+                        <Link href={`/purchases/payment/new?invoiceId=${x.id}`}>
+                          <Button size="sm" className="gap-1">
+                            <WalletCards className="h-3.5 w-3.5" />
+                            Record payment
+                          </Button>
+                        </Link>
+                      )}
+                      <Link href={`/purchases/return/new?invoiceId=${x.id}`}>
+                        <Button size="sm" variant="outline" className="gap-1 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900 hover:bg-amber-50 dark:hover:bg-amber-950/40">
+                          <Undo2 className="h-3.5 w-3.5" />
+                          Return
+                        </Button>
+                      </Link>
                       <Button size="sm" variant="outline" onClick={() => setDetail(x)}>
                         View
                       </Button>
                     </div>
                   </TableCell>
                 </TableRow>
-              );
-            })}
-          </TableWrap>
-        </Tab>
-
-        <Tab value="invoices" title="Supplier invoices" desc="Balances are tied to payments, returns, supplier ledger, and Finance journals.">
-          <TableWrap heads={["Invoice", "Supplier", "GRN", "Due", "Status", "Balance", "Actions"]}>
-            {i.map((x) => (
-              <TableRow key={x.id}>
-                <TableCell className="font-medium">{x.invoiceNumber}</TableCell>
-                <TableCell>{x.supplierName}</TableCell>
-                <TableCell>{x.grnNumber}</TableCell>
-                <TableCell>{x.dueDate ?? "—"}</TableCell>
-                <TableCell>
-                  <Status text={x.status} />
-                </TableCell>
-                <TableCell className="font-medium">{money.format(x.balanceAmount)}</TableCell>
-                <TableCell>
-                  <div className="flex items-center gap-2">
-                    {x.balanceAmount > 0 && (
-                      <Link href={`/purchases/payment/new?invoiceId=${x.id}`}>
-                        <Button size="sm" className="gap-1">
-                          <WalletCards className="h-3.5 w-3.5" />
-                          Record payment
-                        </Button>
-                      </Link>
-                    )}
-                    <Link href={`/purchases/return/new?invoiceId=${x.id}`}>
-                      <Button size="sm" variant="outline" className="gap-1 text-amber-700 dark:text-amber-400 border-amber-200 dark:border-amber-900 hover:bg-amber-50 dark:hover:bg-amber-950/40">
-                        <Undo2 className="h-3.5 w-3.5" />
-                        Return
-                      </Button>
-                    </Link>
-                    <Button size="sm" variant="outline" onClick={() => setDetail(x)}>
-                      View
-                    </Button>
-                  </div>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableWrap>
-        </Tab>
-
-        <Tab value="suppliers" title="Suppliers" desc="Outstanding balances and supplier product history.">
-          <TableWrap heads={["Code", "Supplier Name", "Contact", "Outstanding", "Status", "Actions"]}>
-            {sList
-              .filter((x) => x.isActive)
-              .map((x) => (
-                <TableRow key={x.id}>
-                  <TableCell className="font-mono text-xs">{x.code}</TableCell>
-                  <TableCell className="font-medium">{x.name}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {x.contactPerson ? <div>{x.contactPerson}</div> : null}
-                    {x.phone ? <div>{x.phone}</div> : null}
-                    {!x.contactPerson && !x.phone ? "—" : null}
-                  </TableCell>
-                  <TableCell className="font-semibold">{money.format(x.outstandingBalance)}</TableCell>
-                  <TableCell>
-                    <Status text="ACTIVE" />
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setHistorySupplier(x)}>
-                        <Package className="h-3.5 w-3.5" /> Product History
-                      </Button>
-                      <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setLedgerSupplier(x)}>
-                        Ledger
-                      </Button>
-                    </div>
-                  </TableCell>
-                </TableRow>
               ))}
-          </TableWrap>
+            </TableWrap>
+          </div>
         </Tab>
 
+        {/* --- SUPPLIERS TAB --- */}
+        <Tab value="suppliers" title="Suppliers" desc="Outstanding balances and supplier product history.">
+          {/* Mobile Suppliers Cards (<md) */}
+          <div className="md:hidden space-y-3">
+            {sList.filter((x) => x.isActive).length === 0 ? (
+              <div className="py-8 text-center text-xs text-muted-foreground border rounded-xl bg-muted/10 p-4">
+                No active suppliers.
+              </div>
+            ) : (
+              sList
+                .filter((x) => x.isActive)
+                .map((x) => (
+                  <div key={x.id} className="p-3.5 border rounded-xl bg-card space-y-2.5 shadow-xs">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="font-bold text-sm text-foreground break-words min-w-0 flex-1">{x.name}</h3>
+                      <Badge variant="outline" className="font-mono text-[10px] shrink-0">{x.code}</Badge>
+                    </div>
+
+                    <div className="text-xs space-y-0.5 bg-muted/20 p-2.5 rounded-lg border text-muted-foreground">
+                      {x.contactPerson && <div>Contact: <strong className="text-foreground">{x.contactPerson}</strong></div>}
+                      {x.phone && <div>Phone: <strong className="text-foreground">{x.phone}</strong></div>}
+                      {!x.contactPerson && !x.phone && <div>No contact details</div>}
+                    </div>
+
+                    <div className="flex items-center justify-between pt-1 border-t">
+                      <div>
+                        <span className="text-[10px] text-muted-foreground block">Outstanding Balance</span>
+                        <span className="font-bold text-sm text-foreground font-mono">{money.format(x.outstandingBalance)}</span>
+                      </div>
+                      <div className="flex items-center gap-1.5">
+                        <Button size="sm" variant="outline" className="h-8 text-xs gap-1 px-2.5" onClick={() => setHistorySupplier(x)}>
+                          <Package className="h-3.5 w-3.5" /> Products
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-8 text-xs px-2.5" onClick={() => setLedgerSupplier(x)}>
+                          Ledger
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+                ))
+            )}
+          </div>
+
+          {/* Desktop Table (≥md) */}
+          <div className="hidden md:block">
+            <TableWrap heads={["Code", "Supplier Name", "Contact", "Outstanding", "Status", "Actions"]}>
+              {sList
+                .filter((x) => x.isActive)
+                .map((x) => (
+                  <TableRow key={x.id}>
+                    <TableCell className="font-mono text-xs">{x.code}</TableCell>
+                    <TableCell className="font-medium">{x.name}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {x.contactPerson ? <div>{x.contactPerson}</div> : null}
+                      {x.phone ? <div>{x.phone}</div> : null}
+                      {!x.contactPerson && !x.phone ? "—" : null}
+                    </TableCell>
+                    <TableCell className="font-semibold font-mono">{money.format(x.outstandingBalance)}</TableCell>
+                    <TableCell>
+                      <Status text="ACTIVE" />
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex items-center gap-2">
+                        <Button size="sm" variant="outline" className="h-7 text-xs gap-1" onClick={() => setHistorySupplier(x)}>
+                          <Package className="h-3.5 w-3.5" /> Product History
+                        </Button>
+                        <Button size="sm" variant="outline" className="h-7 text-xs" onClick={() => setLedgerSupplier(x)}>
+                          Ledger
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+            </TableWrap>
+          </div>
+        </Tab>
+
+        {/* --- RETURNS TAB --- */}
         <Tab
           value="returns"
           title="Purchase returns"
-          desc="Posted returns reduce the original receipt batch and supplier balance."
+          desc="Posted returns reduce original receipt batch and supplier balance."
           action={
             <Link href="/purchases">
-              <Button variant="outline" onClick={() => setAction("return")}>
+              <Button variant="outline" size="sm" onClick={() => setAction("return")} className="h-8 text-xs">
                 New return
               </Button>
             </Link>
           }
         >
-          <TableWrap heads={["Return", "Invoice", "Supplier", "Date", "Total", ""]}>
-            {(returns.data ?? []).map((x) => (
-              <TableRow key={x.id}>
-                <TableCell className="font-medium">{x.returnNumber}</TableCell>
-                <TableCell>{x.invoiceNumber}</TableCell>
-                <TableCell>{x.supplierName}</TableCell>
-                <TableCell>{x.returnDate}</TableCell>
-                <TableCell>{money.format(x.totalAmount)}</TableCell>
-                <TableCell>
-                  <Button size="sm" variant="outline" onClick={() => setDetail(x)}>
-                    View
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableWrap>
+          {/* Mobile Returns Cards (<md) */}
+          <div className="md:hidden space-y-3">
+            {(returns.data ?? []).length === 0 ? (
+              <div className="py-8 text-center text-xs text-muted-foreground border rounded-xl bg-muted/10 p-4">
+                No purchase returns recorded.
+              </div>
+            ) : (
+              (returns.data ?? []).map((x) => (
+                <div key={x.id} className="p-3.5 border rounded-xl bg-card space-y-2.5 shadow-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="font-bold text-sm text-foreground font-mono">{x.returnNumber}</span>
+                    <span className="text-xs text-muted-foreground">Date: {x.returnDate}</span>
+                  </div>
+
+                  <div className="text-xs space-y-1 bg-muted/20 p-2.5 rounded-lg border">
+                    <div className="font-bold text-sm text-foreground break-words">{x.supplierName}</div>
+                    <div className="text-[11px] text-muted-foreground">Invoice: <strong className="font-mono text-foreground">{x.invoiceNumber}</strong></div>
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t">
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block">Return Amount</span>
+                      <span className="font-bold text-sm text-foreground font-mono">{money.format(x.totalAmount)}</span>
+                    </div>
+                    <Button size="sm" variant="outline" className="h-8 text-xs px-3" onClick={() => setDetail(x)}>
+                      View Details
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop Table (≥md) */}
+          <div className="hidden md:block">
+            <TableWrap heads={["Return", "Invoice", "Supplier", "Date", "Total", "Action"]}>
+              {(returns.data ?? []).map((x) => (
+                <TableRow key={x.id}>
+                  <TableCell className="font-medium font-mono">{x.returnNumber}</TableCell>
+                  <TableCell className="font-mono text-xs">{x.invoiceNumber}</TableCell>
+                  <TableCell>{x.supplierName}</TableCell>
+                  <TableCell>{x.returnDate}</TableCell>
+                  <TableCell className="font-semibold font-mono">{money.format(x.totalAmount)}</TableCell>
+                  <TableCell className="text-right">
+                    <Button size="sm" variant="outline" onClick={() => setDetail(x)}>
+                      View
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableWrap>
+          </div>
         </Tab>
 
+        {/* --- PAYMENTS TAB --- */}
         <Tab value="payments" title="Supplier payments" desc="Posted payments are reflected in supplier ledger and Finance.">
-          <TableWrap heads={["Date", "Invoice", "Supplier", "Method", "Reference", "Amount", "Status", "Actions"]}>
-            {(payments.data ?? []).map((x) => (
-              <TableRow key={x.id}>
-                <TableCell>{x.paymentDate}</TableCell>
-                <TableCell>{x.invoiceNumber ? x.invoiceNumber : `Invoice #${x.purchaseInvoiceId}`}</TableCell>
-                <TableCell className="font-medium">{x.supplierName ?? "—"}</TableCell>
-                <TableCell>{x.paymentMethodCode.replaceAll("_", " ")}</TableCell>
-                <TableCell className="font-mono text-xs">{x.referenceNumber ?? "—"}</TableCell>
-                <TableCell className="font-semibold text-emerald-600 dark:text-emerald-400">{money.format(x.amount)}</TableCell>
-                <TableCell>
-                  <Status text={x.status} />
-                </TableCell>
-                <TableCell>
-                  <Button size="sm" variant="outline" onClick={() => setDetail(x)}>
-                    View
-                  </Button>
-                </TableCell>
-              </TableRow>
-            ))}
-          </TableWrap>
+          {/* Mobile Payments Cards (<md) */}
+          <div className="md:hidden space-y-3">
+            {(payments.data ?? []).length === 0 ? (
+              <div className="py-8 text-center text-xs text-muted-foreground border rounded-xl bg-muted/10 p-4">
+                No supplier payments recorded.
+              </div>
+            ) : (
+              (payments.data ?? []).map((x) => (
+                <div key={x.id} className="p-3.5 border rounded-xl bg-card space-y-2.5 shadow-xs">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="text-xs text-muted-foreground">Date: {x.paymentDate}</span>
+                    <Status text={x.status} />
+                  </div>
+
+                  <div className="text-xs space-y-1 bg-muted/20 p-2.5 rounded-lg border">
+                    <div className="font-bold text-sm text-foreground break-words">{x.supplierName ?? "—"}</div>
+                    <div className="flex flex-wrap items-center justify-between text-[11px] text-muted-foreground pt-1">
+                      <span>Invoice: <strong className="font-mono text-foreground">{x.invoiceNumber ? x.invoiceNumber : `#${x.purchaseInvoiceId}`}</strong></span>
+                      <span>{x.paymentMethodCode.replaceAll("_", " ")}</span>
+                    </div>
+                    {x.referenceNumber && <div className="text-[10px] font-mono text-muted-foreground">Ref: {x.referenceNumber}</div>}
+                  </div>
+
+                  <div className="flex items-center justify-between pt-1 border-t">
+                    <div>
+                      <span className="text-[10px] text-muted-foreground block">Amount Paid</span>
+                      <span className="font-bold text-sm text-emerald-600 font-mono">{money.format(x.amount)}</span>
+                    </div>
+                    <Button size="sm" variant="outline" className="h-8 text-xs px-3" onClick={() => setDetail(x)}>
+                      View Details
+                    </Button>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
+
+          {/* Desktop Table (≥md) */}
+          <div className="hidden md:block">
+            <TableWrap heads={["Date", "Invoice", "Supplier", "Method", "Reference", "Amount", "Status", "Actions"]}>
+              {(payments.data ?? []).map((x) => (
+                <TableRow key={x.id}>
+                  <TableCell className="text-xs">{x.paymentDate}</TableCell>
+                  <TableCell className="font-mono text-xs">{x.invoiceNumber ? x.invoiceNumber : `Invoice #${x.purchaseInvoiceId}`}</TableCell>
+                  <TableCell className="font-medium">{x.supplierName ?? "—"}</TableCell>
+                  <TableCell className="text-xs">{x.paymentMethodCode.replaceAll("_", " ")}</TableCell>
+                  <TableCell className="font-mono text-xs">{x.referenceNumber ?? "—"}</TableCell>
+                  <TableCell className="font-semibold text-emerald-600 dark:text-emerald-400 font-mono">{money.format(x.amount)}</TableCell>
+                  <TableCell>
+                    <Status text={x.status} />
+                  </TableCell>
+                  <TableCell>
+                    <Button size="sm" variant="outline" onClick={() => setDetail(x)}>
+                      View
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableWrap>
+          </div>
         </Tab>
       </Tabs>
 
@@ -503,39 +813,42 @@ export function PurchasesClient() {
 
 function Metric({ label, value, warn }: { label: string; value: string; warn?: boolean }) {
   return (
-    <Card>
-      <CardContent className="pt-5">
-        <p className="text-sm text-muted-foreground">{label}</p>
-        <p className={warn ? "text-2xl font-semibold text-amber-600" : "text-2xl font-semibold"}>{value}</p>
+    <Card className="shadow-xs">
+      <CardContent className="p-3.5 sm:p-5 space-y-1">
+        <p className="text-xs sm:text-sm text-muted-foreground font-medium truncate">{label}</p>
+        <p className={warn ? "text-xl sm:text-2xl font-bold text-amber-600 font-mono" : "text-xl sm:text-2xl font-bold font-mono"}>{value}</p>
       </CardContent>
     </Card>
   );
 }
+
 function Status({ text }: { text: string }) {
   return <Badge variant={["PAID", "RECEIVED", "POSTED", "ACTIVE"].includes(text) ? "secondary" : "default"}>{text.replaceAll("_", " ")}</Badge>;
 }
+
 function Tab({ value, title, desc, action, children }: { value: string; title: string; desc: string; action?: React.ReactNode; children: React.ReactNode }) {
   return (
-    <TabsContent value={value} className="mt-4">
-      <Card>
-        <CardHeader className="flex-row items-start justify-between">
+    <TabsContent value={value} className="mt-4 space-y-4">
+      <Card className="shadow-sm">
+        <CardHeader className="p-4 sm:p-6 border-b flex-row items-start justify-between gap-2">
           <div>
-            <CardTitle>{title}</CardTitle>
-            <CardDescription>{desc}</CardDescription>
+            <CardTitle className="text-base sm:text-lg">{title}</CardTitle>
+            <CardDescription className="text-xs mt-0.5">{desc}</CardDescription>
           </div>
           {action}
         </CardHeader>
-        <CardContent>{children}</CardContent>
+        <CardContent className="p-3 sm:p-6">{children}</CardContent>
       </Card>
     </TabsContent>
   );
 }
+
 function TableWrap({ heads, children }: { heads: string[]; children: React.ReactNode }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="overflow-x-auto border rounded-xl">
       <Table>
         <TableHeader>
-          <TableRow>
+          <TableRow className="bg-muted/40">
             {heads.map((h, n) => (
               <TableHead key={n}>{h}</TableHead>
             ))}
@@ -574,208 +887,139 @@ function ActionDialog({
   methods: PaymentMethod[];
   sellables: Sellable[];
 }) {
-  const [supplier, setSupplier] = React.useState("");
-  const [location, setLocation] = React.useState("");
-  const [document, setDocument] = React.useState("");
-  const [item, setItem] = React.useState("");
-  const [quantity, setQuantity] = React.useState("");
-  const [price, setPrice] = React.useState("");
-  const [date, setDate] = React.useState(today());
-  const [other, setOther] = React.useState("");
-  const [tax, setTax] = React.useState("");
-  const [method, setMethod] = React.useState("");
-  const [reason, setReason] = React.useState("");
+  const [code, setCode] = React.useState("");
+  const [name, setName] = React.useState("");
+  const [contact, setContact] = React.useState("");
+  const [phone, setPhone] = React.useState("");
+  const [email, setEmail] = React.useState("");
+  const [gstin, setGstin] = React.useState("");
+  const [supplierId, setSupplierId] = React.useState("");
+  const [poId, setPoId] = React.useState("");
+  const [grnId, setGrnId] = React.useState("");
+  const [invoiceId, setInvoiceId] = React.useState("");
 
   React.useEffect(() => {
     if (action) {
-      setSupplier("");
-      setLocation(activeLocation ? String(activeLocation.id) : "");
-      setDocument("");
-      setItem("");
-      setQuantity("");
-      setPrice("");
-      setDate(today());
-      setOther("");
-      setTax("");
-      setMethod("");
-      setReason("");
+      setCode("");
+      setName("");
+      setContact("");
+      setPhone("");
+      setEmail("");
+      setGstin("");
+      setSupplierId(suppliers[0] ? String(suppliers[0].id) : "");
+      setPoId(orders[0] ? String(orders[0].id) : "");
+      setGrnId(receipts[0] ? String(receipts[0].id) : "");
+      setInvoiceId(invoices[0] ? String(invoices[0].id) : "");
     }
-  }, [action, activeLocation]);
+  }, [action, suppliers, orders, receipts, invoices]);
 
-  const mutation = useMutation({
-    mutationFn: async () => {
-      const sku = sellables.find((x) => key(x.productId, x.variantId) === item);
-      if (action === "supplier") return apiClient.post("suppliers", { code: other, name: reason, creditLimit: 0, paymentTermsDays: 30 });
-      if (action === "order") {
-        if (!sku) throw new Error("Select an item");
-        return apiClient.post("purchases/orders", {
-          supplierId: Number(supplier),
-          locationId: Number(location),
-          orderDate: date,
-          expectedDate: other || null,
-          lines: [{ productId: sku.productId, productVariantId: sku.variantId, orderedQuantity: Number(quantity), unitPrice: Number(price), discountAmount: 0, taxPercentage: 0 }],
-        });
-      }
-      if (action === "receipt") {
-        const po = orders.find((x) => x.id === Number(document))!;
-        const line = po.lines[0];
-        return apiClient.post("purchases/goods-receipts", {
-          purchaseOrderId: po.id,
-          locationId: po.locationId,
-          receiptDate: date,
-          lines: [{ productId: line.productId, productVariantId: line.productVariantId, receivedQuantity: Number(quantity), acceptedQuantity: Number(quantity), rejectedQuantity: 0, purchasePrice: Number(price), batchNumber: other || null }],
-        });
-      }
-      if (action === "invoice") {
-        const grn = receipts.find((x) => x.id === Number(document))!;
-        const line = grn.lines[0];
-        return apiClient.post("purchases/invoices", {
-          supplierId: grn.supplierId,
-          goodsReceiptId: grn.id,
-          invoiceNumber: other,
-          invoiceDate: date,
-          dueDate: null,
-          lines: [{ productId: line.productId, productVariantId: line.productVariantId, quantity: Number(quantity), purchasePrice: Number(price), taxId: Number(tax) }],
-        });
-      }
-      if (action === "payment") return apiClient.post(`purchases/invoices/${document}/payments`, { paymentMethodCode: method, amount: Number(quantity), paymentDate: date, referenceNumber: other || null });
-      const inv = invoices.find((x) => x.id === Number(document))!;
-      const line = inv.lines[0];
-      return apiClient.post("purchases/returns", { purchaseInvoiceId: inv.id, returnDate: date, reason, lines: [{ productId: line.productId, productVariantId: line.productVariantId, quantity: Number(quantity), reason }] });
-    },
+  const mutSupplier = useMutation({
+    mutationFn: () => apiClient.post<Supplier>("purchases/suppliers", { code, name, contactPerson: contact || null, phone: phone || null, email: email || null, gstin: gstin || null }),
     onSuccess: async () => {
-      toast.success("Purchase transaction posted");
+      toast.success("Supplier created");
       await saved();
     },
     onError: (e) => toast.error(err(e)),
   });
 
-  const title = { supplier: "Add supplier", order: "Create purchase order", receipt: "Receive goods", invoice: "Post supplier invoice", payment: "Record supplier payment", return: "Return to supplier" }[action ?? "order"];
-
   return (
-    <Dialog open={!!action} onOpenChange={(x) => { if (!x) close(); }}>
-      <DialogContent className="sm:max-w-xl">
-        <DialogHeader>
-          <DialogTitle>{title}</DialogTitle>
-          <DialogDescription>Posts directly to the connected Purchase, Inventory, supplier ledger, and Finance workflow.</DialogDescription>
-        </DialogHeader>
-        <div className="grid gap-4 sm:grid-cols-2">
-          {action === "supplier" ? (
-            <>
-              <Field label="Supplier code">
-                <Input value={other} onChange={(e) => setOther(e.target.value)} />
-              </Field>
-              <Field label="Supplier name">
-                <Input value={reason} onChange={(e) => setReason(e.target.value)} />
-              </Field>
-            </>
-          ) : (
-            <>
-              {action === "order" && (
-                <>
-                  <Field label="Supplier">
-                    <Picker value={supplier} set={setSupplier} values={suppliers.map((x) => [String(x.id), x.name])} />
-                  </Field>
-                  <Field label="Location">
-                    <Picker value={location} set={setLocation} values={locations.map((x) => [String(x.id), x.name])} />
-                  </Field>
-                  <Field label="Item / variant">
-                    <Picker value={item} set={setItem} values={sellables.map((x) => [key(x.productId, x.variantId), x.label])} />
-                  </Field>
-                </>
-              )}
-              {["receipt", "invoice", "payment", "return"].includes(action ??"") && (
-                <Field label={action === "receipt" ? "Open order" : action === "invoice" ? "Uninvoiced receipt" : "Invoice"}>
-                  <Picker
-                    value={document}
-                    set={setDocument}
-                    values={(action === "receipt" ? orders.filter((x) => x.status !== "RECEIVED") : action === "invoice" ? receipts.filter((x) => !invoices.some((i) => i.goodsReceiptId === x.id)) : invoices.filter((x) => x.balanceAmount > 0)).map((x) => [
-                      String(x.id),
-                      String((x as { poNumber?: string; invoiceNumber?: string; grnNumber?: string }).poNumber ?? (x as { invoiceNumber?: string }).invoiceNumber ?? (x as { grnNumber?: string }).grnNumber ?? x.id),
-                    ])}
-                  />
-                </Field>
-              )}
-              <Field label="Date">
-                <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-              </Field>
-              <Field label={action === "payment" ? "Amount" : "Quantity"}>
-                <Input type="number" min="0.001" step="0.001" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-              </Field>
-              {["order", "receipt", "invoice"].includes(action ??"") && (
-                <Field label="Unit price">
-                  <Input type="number" min="0" step="0.01" value={price} onChange={(e) => setPrice(e.target.value)} />
-                </Field>
-              )}
-              {action === "invoice" && (
-                <>
-                  <Field label="Supplier invoice number">
-                    <Input value={other} onChange={(e) => setOther(e.target.value)} />
-                  </Field>
-                  <Field label="Tax">
-                    <Picker value={tax} set={setTax} values={taxes.map((x) => [String(x.id), `${x.name} (${x.taxPercentage}%)`])} />
-                  </Field>
-                </>
-              )}
-              {action === "payment" && (
-                <>
-                  <Field label="Payment method">
-                    <Picker value={method} set={setMethod} values={methods.map((x) => [x.code, x.name])} />
-                  </Field>
-                  <Field label="Reference">
-                    <Input value={other} onChange={(e) => setOther(e.target.value)} />
-                  </Field>
-                </>
-              )}
+    <Dialog open={action != null} onOpenChange={(x) => { if (!x) close(); }}>
+      <DialogContent className="w-[95vw] sm:max-w-xl max-h-[92vh] overflow-y-auto p-4 sm:p-6 border shadow-2xl rounded-2xl">
+        {action === "supplier" ? (
+          <form onSubmit={(e) => { e.preventDefault(); mutSupplier.mutate(); }}>
+            <DialogHeader>
+              <DialogTitle className="text-base sm:text-lg font-bold">New supplier</DialogTitle>
+              <DialogDescription className="text-xs">Create a supplier profile for purchase orders, inventory receipts, and invoices.</DialogDescription>
+            </DialogHeader>
+
+            <div className="my-4 grid gap-3 sm:grid-cols-2 text-xs">
+              <Field label="Code"><Input required value={code} onChange={(e) => setCode(e.target.value)} placeholder="SUP-001" className="text-xs h-9" /></Field>
+              <Field label="Name"><Input required value={name} onChange={(e) => setName(e.target.value)} placeholder="Acme Suppliers Pvt Ltd" className="text-xs h-9" /></Field>
+              <Field label="Contact person"><Input value={contact} onChange={(e) => setContact(e.target.value)} className="text-xs h-9" /></Field>
+              <Field label="Phone"><Input value={phone} onChange={(e) => setPhone(e.target.value)} className="text-xs h-9" /></Field>
+              <Field label="Email"><Input type="email" value={email} onChange={(e) => setEmail(e.target.value)} className="text-xs h-9" /></Field>
+              <Field label="GSTIN / Tax ID"><Input value={gstin} onChange={(e) => setGstin(e.target.value)} className="text-xs h-9 font-mono" /></Field>
+            </div>
+
+            <DialogFooter className="flex flex-row items-center justify-end gap-2 pt-2">
+              <Button type="button" variant="outline" onClick={close} className="h-9 text-xs">Cancel</Button>
+              <Button disabled={mutSupplier.isPending} className="h-9 text-xs bg-primary text-primary-foreground font-semibold">
+                {mutSupplier.isPending && <Loader2 className="animate-spin h-3.5 w-3.5" />}Save supplier
+              </Button>
+            </DialogFooter>
+          </form>
+        ) : (
+          <div>
+            <DialogHeader>
+              <DialogTitle className="text-base sm:text-lg font-bold">Quick Workflow Action</DialogTitle>
+              <DialogDescription className="text-xs">Choose the item to proceed with the transaction step.</DialogDescription>
+            </DialogHeader>
+
+            <div className="my-4 space-y-3 text-xs">
               {action === "receipt" && (
-                <Field label="Batch / lot">
-                  <Input value={other} onChange={(e) => setOther(e.target.value)} />
+                <Field label="Select Purchase Order">
+                  <Select items={Object.fromEntries(orders.map((x) => [String(x.id), `${x.poNumber} — ${x.supplierName}`]))} value={poId} onValueChange={(v) => setPoId(v ?? "")}>
+                    <SelectTrigger className="w-full h-9 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>{orders.map((x) => <SelectItem key={x.id} value={String(x.id)}>{x.poNumber} — {x.supplierName}</SelectItem>)}</SelectContent>
+                  </Select>
                 </Field>
               )}
-              {action === "order" && (
-                <Field label="Expected date">
-                  <Input type="date" value={other} onChange={(e) => setDate(e.target.value)} />
+
+              {action === "invoice" && (
+                <Field label="Select Goods Receipt">
+                  <Select items={Object.fromEntries(receipts.map((x) => [String(x.id), `${x.grnNumber} — ${x.supplierName}`]))} value={grnId} onValueChange={(v) => setGrnId(v ?? "")}>
+                    <SelectTrigger className="w-full h-9 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>{receipts.map((x) => <SelectItem key={x.id} value={String(x.id)}>{x.grnNumber} — {x.supplierName}</SelectItem>)}</SelectContent>
+                  </Select>
                 </Field>
               )}
+
+              {action === "payment" && (
+                <Field label="Select Supplier Invoice">
+                  <Select items={Object.fromEntries(invoices.map((x) => [String(x.id), `${x.invoiceNumber} — ${x.supplierName} (${money.format(x.balanceAmount)} due)`]))} value={invoiceId} onValueChange={(v) => setInvoiceId(v ?? "")}>
+                    <SelectTrigger className="w-full h-9 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>{invoices.map((x) => <SelectItem key={x.id} value={String(x.id)}>{x.invoiceNumber} — {x.supplierName} ({money.format(x.balanceAmount)} due)</SelectItem>)}</SelectContent>
+                  </Select>
+                </Field>
+              )}
+
               {action === "return" && (
-                <Field label="Reason">
-                  <Textarea value={reason} onChange={(e) => setReason(e.target.value)} />
+                <Field label="Select Supplier Invoice to Return">
+                  <Select items={Object.fromEntries(invoices.map((x) => [String(x.id), `${x.invoiceNumber} — ${x.supplierName}`]))} value={invoiceId} onValueChange={(v) => setInvoiceId(v ?? "")}>
+                    <SelectTrigger className="w-full h-9 text-xs"><SelectValue /></SelectTrigger>
+                    <SelectContent>{invoices.map((x) => <SelectItem key={x.id} value={String(x.id)}>{x.invoiceNumber} — {x.supplierName}</SelectItem>)}</SelectContent>
+                  </Select>
                 </Field>
               )}
-            </>
-          )}
-        </div>
-        <DialogFooter>
-          <Button variant="outline" onClick={close}>
-            Cancel
-          </Button>
-          <Button onClick={() => mutation.mutate()} disabled={mutation.isPending}>
-            {mutation.isPending && <Loader2 className="animate-spin" />}
-            Post
-          </Button>
-        </DialogFooter>
+            </div>
+
+            <DialogFooter className="flex flex-row items-center justify-end gap-2 pt-2">
+              <Button variant="outline" onClick={close} className="h-9 text-xs">Cancel</Button>
+              {action === "receipt" && poId && (
+                <Link href={`/purchases/receive?poId=${poId}`}>
+                  <Button onClick={close} className="h-9 text-xs font-semibold">Continue to Receipt</Button>
+                </Link>
+              )}
+              {action === "invoice" && grnId && (
+                <Link href={`/purchases/invoice/new?grnId=${grnId}`}>
+                  <Button onClick={close} className="h-9 text-xs font-semibold">Continue to Invoice</Button>
+                </Link>
+              )}
+              {action === "payment" && invoiceId && (
+                <Link href={`/purchases/payment/new?invoiceId=${invoiceId}`}>
+                  <Button onClick={close} className="h-9 text-xs font-semibold">Continue to Payment</Button>
+                </Link>
+              )}
+              {action === "return" && invoiceId && (
+                <Link href={`/purchases/return/new?invoiceId=${invoiceId}`}>
+                  <Button onClick={close} className="h-9 text-xs font-semibold">Continue to Return</Button>
+                </Link>
+              )}
+            </DialogFooter>
+          </div>
+        )}
       </DialogContent>
     </Dialog>
-  );
-}
-
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
-  return <div className="space-y-1.5"><Label>{label}</Label>{children}</div>;
-}
-function Picker({ value, set, values }: { value: string; set: (x: string) => void; values: string[][] }) {
-  return (
-    <Select items={Object.fromEntries(values)} value={value} onValueChange={(x) => set(x ??"")}>
-      <SelectTrigger className="w-full">
-        <SelectValue placeholder="Select" />
-      </SelectTrigger>
-      <SelectContent>
-        {values.map((x) => (
-          <SelectItem key={x[0]} value={x[0]}>
-            {x[1]}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
   );
 }
 
@@ -792,182 +1036,195 @@ function DetailDialog({
 }) {
   if (!value) return null;
 
-  const doc = value as Record<string, any>;
-  const isPayment = "paymentMethodCode" in doc || ("amount" in doc && !("lines" in doc));
-  const isInvoice = "invoiceNumber" in doc && "balanceAmount" in doc;
-  const isGRN = "grnNumber" in doc && "lines" in doc;
-  const isPO = "poNumber" in doc && "lines" in doc;
-  const isReturn = "returnNumber" in doc && "lines" in doc;
-
-  const lines = Array.isArray(doc.lines) ? doc.lines : [];
-  const ref = isPayment
-    ? `Payment #${doc.id}`
-    : isInvoice
-    ? String(doc.invoiceNumber)
-    : isGRN
-    ? String(doc.grnNumber)
-    : isReturn
-    ? String(doc.returnNumber)
-    : isPO
-    ? String(doc.poNumber)
-    : `Doc #${doc.id}`;
-
-  const supplierObj = suppliers.find((s) => s.id === doc.supplierId);
-  const supplier = (value as { supplierName?: string }).supplierName ?? supplierObj?.name ?? "—";
-  const location = (value as { locationName?: string }).locationName ?? "—";
-  const date =
-    (value as { orderDate?: string }).orderDate ??
-    (value as { receiptDate?: string }).receiptDate ??
-    (value as { invoiceDate?: string }).invoiceDate ??
-    (value as { returnDate?: string }).returnDate ??
-    (value as { paymentDate?: string }).paymentDate ??
-    "—";
-
-  const total = (value as { totalAmount?: number; amount?: number }).totalAmount ?? (value as { amount?: number }).amount;
-  const balance = (value as { balanceAmount?: number }).balanceAmount;
-  const paid = (value as { paidAmount?: number }).paidAmount;
+  const isPayment = "amount" in value && !("lines" in value);
+  const ref = "poNumber" in value ? value.poNumber : "grnNumber" in value ? value.grnNumber : "invoiceNumber" in value ? (value as any).invoiceNumber : "returnNumber" in value ? (value as any).returnNumber : "—";
+  const supplier = "supplierName" in value ? (value as any).supplierName : "—";
+  const supplierId = "supplierId" in value ? (value as any).supplierId : null;
+  const supplierObj = suppliers.find((s) => s.id === supplierId);
+  const date = "orderDate" in value ? (value as any).orderDate : "receiptDate" in value ? (value as any).receiptDate : "invoiceDate" in value ? (value as any).invoiceDate : "returnDate" in value ? (value as any).returnDate : "paymentDate" in value ? (value as any).paymentDate : "—";
+  const location = "locationName" in value ? (value as any).locationName : "—";
+  const lines = "lines" in value ? (value.lines as any[]) : [];
+  const total = "totalAmount" in value ? (value as any).totalAmount : "amount" in value ? (value as any).amount : 0;
+  const paid = "paidAmount" in value ? (value as any).paidAmount : null;
+  const balance = "balanceAmount" in value ? (value as any).balanceAmount : null;
 
   return (
     <Dialog open={!!value} onOpenChange={(x) => { if (!x) close(); }}>
-      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
+      <DialogContent className="w-[95vw] sm:max-w-3xl max-h-[92vh] overflow-y-auto p-4 sm:p-6 border shadow-2xl rounded-2xl">
         <DialogHeader>
-          <div className="flex items-center justify-between">
-            <DialogTitle className="text-xl font-bold">{ref}</DialogTitle>
-            {value.status && <Status text={String(value.status)} />}
-          </div>
-          <DialogDescription>Full purchase details, supplier metadata, line items, and current warehouse stock.</DialogDescription>
+          <DialogTitle className="flex items-center justify-between text-base sm:text-lg font-bold">
+            <span className="font-mono truncate">{ref}</span>
+            <Status text={String(value.status)} />
+          </DialogTitle>
+          <DialogDescription className="text-xs">
+            {supplier} • {date} • {location}
+          </DialogDescription>
         </DialogHeader>
 
         {isPayment ? (
-          <div className="space-y-4">
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-muted/40 p-3 rounded-md text-xs border">
+          <div className="space-y-3 text-xs">
+            <div className="grid grid-cols-2 sm:grid-cols-3 gap-3 p-3 rounded-lg border bg-muted/20">
               <div>
-                <span className="text-muted-foreground block">Supplier:</span>
-                <strong className="text-sm">{supplier}</strong>
-              </div>
-              <div>
-                <span className="text-muted-foreground block">Invoice #:</span>
-                <strong className="text-sm">{(value as { invoiceNumber?: string }).invoiceNumber ?? `Invoice #${(value as { purchaseInvoiceId?: number }).purchaseInvoiceId}`}</strong>
+                <span className="text-muted-foreground block">Target Invoice:</span>
+                <strong className="text-sm font-mono font-bold">
+                  {(value as { invoiceNumber?: string }).invoiceNumber ?? `Invoice #${(value as { purchaseInvoiceId?: number }).purchaseInvoiceId}`}
+                </strong>
               </div>
               <div>
                 <span className="text-muted-foreground block">Payment Date:</span>
                 <strong className="text-sm">{date}</strong>
               </div>
               <div>
-                <span className="text-muted-foreground block">Method:</span>
+                <span className="text-muted-foreground block">Payment Method:</span>
                 <strong className="text-sm">{String((value as { paymentMethodCode?: string }).paymentMethodCode).replaceAll("_", " ")}</strong>
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 p-3 rounded-md border bg-emerald-50/50 dark:bg-emerald-950/20">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 p-3 rounded-lg border bg-emerald-50/50 dark:bg-emerald-950/20">
               <div>
                 <span className="text-xs text-muted-foreground block">Transaction Reference / UTR #</span>
                 <strong className="text-sm font-mono">{(value as { referenceNumber?: string }).referenceNumber ?? "—"}</strong>
               </div>
-              <div className="text-right">
+              <div className="sm:text-right">
                 <span className="text-xs text-muted-foreground block">Amount Paid</span>
-                <strong className="text-xl font-bold text-emerald-600 dark:text-emerald-400">{money.format(total ?? 0)}</strong>
+                <strong className="text-xl font-bold text-emerald-600 font-mono">{money.format(total ?? 0)}</strong>
               </div>
             </div>
           </div>
         ) : (
-          <>
-            {/* Section 1 & Section 2: Header Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-muted/40 p-3.5 rounded-md text-xs border my-1">
+          <div className="space-y-4">
+            {/* Header Info Cards */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 bg-muted/30 p-3.5 rounded-xl border text-xs">
               <div className="space-y-1">
-                <div className="font-bold text-sm text-foreground mb-1">Section 1: Purchase Order Information</div>
+                <div className="font-bold text-xs uppercase tracking-wider text-muted-foreground mb-1">Purchase Information</div>
                 <div><span className="text-muted-foreground">PO / Doc Number: </span><strong className="font-mono">{ref}</strong></div>
                 <div><span className="text-muted-foreground">Order / Document Date: </span><strong>{date}</strong></div>
-                {(value as { expectedDate?: string }).expectedDate && <div><span className="text-muted-foreground">Expected Delivery: </span><strong>{(value as { expectedDate?: string }).expectedDate}</strong></div>}
+                {(value as { expectedDate?: string }).expectedDate && (
+                  <div><span className="text-muted-foreground">Expected Delivery: </span><strong>{(value as { expectedDate?: string }).expectedDate}</strong></div>
+                )}
                 <div><span className="text-muted-foreground">Receiving Warehouse: </span><strong>{location}</strong></div>
-                <div><span className="text-muted-foreground">Fulfillment Status: </span><Status text={String(value.status)} /></div>
+                <div className="flex items-center gap-1 mt-1"><span className="text-muted-foreground">Status: </span><Status text={String(value.status)} /></div>
               </div>
 
-              <div className="space-y-1 sm:border-l sm:pl-3">
-                <div className="font-bold text-sm text-foreground mb-1">Section 2: Supplier Details</div>
-                <div><span className="text-muted-foreground">Supplier: </span><strong>{supplier}</strong> {supplierObj?.code && <Badge variant="outline" className="text-[10px] ml-1">{supplierObj.code}</Badge>}</div>
-                {supplierObj?.contactPerson && <div><span className="text-muted-foreground">Contact Person: </span><strong>{supplierObj.contactPerson}</strong></div>}
+              <div className="space-y-1 sm:border-l sm:pl-3 pt-2 sm:pt-0 border-t sm:border-t-0">
+                <div className="font-bold text-xs uppercase tracking-wider text-muted-foreground mb-1">Supplier Details</div>
+                <div className="font-bold text-sm text-foreground break-words">{supplier} {supplierObj?.code && <Badge variant="outline" className="text-[10px] font-mono ml-1">{supplierObj.code}</Badge>}</div>
+                {supplierObj?.contactPerson && <div><span className="text-muted-foreground">Contact: </span><strong>{supplierObj.contactPerson}</strong></div>}
                 {supplierObj?.phone && <div><span className="text-muted-foreground">Phone: </span><strong>{supplierObj.phone}</strong></div>}
-                {supplierObj?.email && <div><span className="text-muted-foreground">Email: </span><strong>{supplierObj.email}</strong></div>}
-                {supplierObj?.gstin && <div><span className="text-muted-foreground">GSTIN / Tax ID: </span><strong className="font-mono">{supplierObj.gstin}</strong></div>}
+                {supplierObj?.email && <div className="break-all"><span className="text-muted-foreground">Email: </span><strong>{supplierObj.email}</strong></div>}
+                {supplierObj?.gstin && <div><span className="text-muted-foreground">GSTIN: </span><strong className="font-mono">{supplierObj.gstin}</strong></div>}
               </div>
             </div>
 
-            {/* Section 3: Detailed Purchase Product Items Table */}
-            <div className="space-y-2 mt-3">
+            {/* Line Items Section */}
+            <div className="space-y-2">
               <div className="flex items-center justify-between">
-                <div className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Section 3: Purchased Products ({lines.length})</div>
-                <div className="text-[11px] text-muted-foreground">Current Stock is fetched from receiving warehouse <strong>{location}</strong></div>
+                <div className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Purchased Items ({lines.length})</div>
               </div>
 
-              <TableWrap heads={["Product & Variant", "SKU", "Ordered", "Received", "Pending", "Unit Price (₹)", "Discount", "Tax", "Line Total", "Current Warehouse Stock", "Status"]}>
+              {/* Mobile Item List (<md) */}
+              <div className="md:hidden space-y-2.5 border rounded-xl p-2.5 bg-muted/10 divide-y">
                 {lines.map((x, n) => {
                   const ordered = (x as { orderedQuantity?: number; quantity?: number }).orderedQuantity ?? (x as { quantity?: number }).quantity ?? 1;
                   const received = (x as { receivedQuantity?: number; acceptedQuantity?: number }).receivedQuantity ?? (x as { acceptedQuantity?: number }).acceptedQuantity ?? 0;
                   const pending = Math.max(0, ordered - received);
                   const price = (x as { unitPrice?: number; purchasePrice?: number }).unitPrice ?? (x as { purchasePrice?: number }).purchasePrice ?? 0;
                   const discount = (x as { discountAmount?: number }).discountAmount ?? 0;
-                  const taxPct = (x as { taxPercentage?: number }).taxPercentage ?? 0;
                   const taxAmt = (x as { taxAmount?: number }).taxAmount ?? 0;
                   const lineTotal = (x as { lineTotal?: number }).lineTotal ?? ordered * price - discount + taxAmt;
 
                   const sKey = `${x.productId}:${x.productVariantId ?? "base"}`;
                   const currentStock = stockMap.has(sKey) ? stockMap.get(sKey)! : 0;
 
-                  let lineStatus = "Pending";
-                  if (received >= ordered && ordered > 0) lineStatus = "Received";
-                  else if (received > 0 && received < ordered) lineStatus = "Partially Received";
-
                   return (
-                    <TableRow key={n}>
-                      <TableCell className="font-medium text-xs">
-                        {x.productName}
-                        {x.variantName && <span className="block text-[10px] text-muted-foreground">{x.variantName}</span>}
-                      </TableCell>
-                      <TableCell className="text-xs font-mono text-muted-foreground">{x.sku ?? "—"}</TableCell>
-                      <TableCell className="font-semibold text-xs text-right">{ordered}</TableCell>
-                      <TableCell className="text-xs text-right text-emerald-600 font-medium">{received}</TableCell>
-                      <TableCell className="text-xs text-right font-bold text-amber-600">{pending}</TableCell>
-                      <TableCell className="text-xs text-right">{money.format(price)}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground text-right">{discount > 0 ? money.format(discount) : "—"}</TableCell>
-                      <TableCell className="text-xs text-muted-foreground text-right">{taxPct > 0 ? `${taxPct}%` : "—"}</TableCell>
-                      <TableCell className="font-semibold text-xs text-right">{money.format(lineTotal)}</TableCell>
-                      <TableCell className="text-xs text-right font-bold tabular-nums text-primary">{currentStock} units</TableCell>
-                      <TableCell>
-                        <Badge variant={lineStatus === "Received" ? "secondary" : lineStatus === "Partially Received" ? "outline" : "default"} className="text-[10px]">
-                          {lineStatus}
-                        </Badge>
-                      </TableCell>
-                    </TableRow>
+                    <div key={n} className="pt-2 pb-1 space-y-1.5 text-xs">
+                      <div className="font-bold text-foreground break-words">{x.productName}</div>
+                      {x.variantName && <div className="text-[11px] text-muted-foreground">{x.variantName}</div>}
+                      {x.sku && <div className="text-[10px] font-mono text-muted-foreground">SKU: {x.sku}</div>}
+
+                      <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-1">
+                        <span>Ordered: <strong className="text-foreground">{ordered}</strong> • Received: <strong className="text-emerald-600">{received}</strong> • Pending: <strong className="text-amber-600">{pending}</strong></span>
+                        <span className="font-bold text-foreground font-mono">{money.format(lineTotal)}</span>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">
+                        Unit Rate: {money.format(price)} • Warehouse Stock: <strong className="text-primary font-mono">{currentStock} units</strong>
+                      </div>
+                    </div>
                   );
                 })}
-              </TableWrap>
+              </div>
+
+              {/* Desktop Table (≥md) */}
+              <div className="hidden md:block">
+                <TableWrap heads={["Product & Variant", "SKU", "Ordered", "Received", "Pending", "Unit Price (₹)", "Discount", "Tax", "Line Total", "Warehouse Stock", "Status"]}>
+                  {lines.map((x, n) => {
+                    const ordered = (x as { orderedQuantity?: number; quantity?: number }).orderedQuantity ?? (x as { quantity?: number }).quantity ?? 1;
+                    const received = (x as { receivedQuantity?: number; acceptedQuantity?: number }).receivedQuantity ?? (x as { acceptedQuantity?: number }).acceptedQuantity ?? 0;
+                    const pending = Math.max(0, ordered - received);
+                    const price = (x as { unitPrice?: number; purchasePrice?: number }).unitPrice ?? (x as { purchasePrice?: number }).purchasePrice ?? 0;
+                    const discount = (x as { discountAmount?: number }).discountAmount ?? 0;
+                    const taxPct = (x as { taxPercentage?: number }).taxPercentage ?? 0;
+                    const taxAmt = (x as { taxAmount?: number }).taxAmount ?? 0;
+                    const lineTotal = (x as { lineTotal?: number }).lineTotal ?? ordered * price - discount + taxAmt;
+
+                    const sKey = `${x.productId}:${x.productVariantId ?? "base"}`;
+                    const currentStock = stockMap.has(sKey) ? stockMap.get(sKey)! : 0;
+
+                    let lineStatus = "Pending";
+                    if (received >= ordered && ordered > 0) lineStatus = "Received";
+                    else if (received > 0 && received < ordered) lineStatus = "Partially Received";
+
+                    return (
+                      <TableRow key={n}>
+                        <TableCell className="font-medium text-xs">
+                          <div className="break-words">{x.productName}</div>
+                          {x.variantName && <span className="block text-[10px] text-muted-foreground">{x.variantName}</span>}
+                        </TableCell>
+                        <TableCell className="text-xs font-mono text-muted-foreground">{x.sku ?? "—"}</TableCell>
+                        <TableCell className="font-semibold text-xs text-right font-mono">{ordered}</TableCell>
+                        <TableCell className="text-xs text-right text-emerald-600 font-medium font-mono">{received}</TableCell>
+                        <TableCell className="text-xs text-right font-bold text-amber-600 font-mono">{pending}</TableCell>
+                        <TableCell className="text-xs text-right font-mono">{money.format(price)}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground text-right font-mono">{discount > 0 ? money.format(discount) : "—"}</TableCell>
+                        <TableCell className="text-xs text-muted-foreground text-right">{taxPct > 0 ? `${taxPct}%` : "—"}</TableCell>
+                        <TableCell className="font-semibold text-xs text-right font-mono">{money.format(lineTotal)}</TableCell>
+                        <TableCell className="text-xs text-right font-bold tabular-nums text-primary font-mono">{currentStock} units</TableCell>
+                        <TableCell>
+                          <Badge variant={lineStatus === "Received" ? "secondary" : lineStatus === "Partially Received" ? "outline" : "default"} className="text-[10px]">
+                            {lineStatus}
+                          </Badge>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
+                </TableWrap>
+              </div>
             </div>
 
-            {/* Section 4: Payment Summary */}
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 p-3 rounded-md bg-muted/30 border text-xs text-right mt-3">
+            {/* Totals Summary */}
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-xl bg-muted/30 border text-xs text-right">
               <div>
-                <span className="text-muted-foreground block">Order Total Amount:</span>
-                <strong className="text-sm font-semibold">{money.format(total ?? 0)}</strong>
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Total Amount</span>
+                <strong className="text-sm font-bold text-foreground font-mono">{money.format(total ?? 0)}</strong>
               </div>
               {paid != null && (
                 <div>
-                  <span className="text-muted-foreground block">Amount Paid:</span>
-                  <strong className="text-sm font-semibold text-emerald-600">{money.format(paid)}</strong>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Amount Paid</span>
+                  <strong className="text-sm font-bold text-emerald-600 font-mono">{money.format(paid)}</strong>
                 </div>
               )}
               {balance != null && (
                 <div>
-                  <span className="text-muted-foreground block">Balance Due:</span>
-                  <strong className="text-sm font-bold text-amber-600">{money.format(balance)}</strong>
+                  <span className="text-muted-foreground block text-[10px] uppercase font-bold">Balance Due</span>
+                  <strong className="text-sm font-bold text-amber-600 font-mono">{money.format(balance)}</strong>
                 </div>
               )}
-              <div>
-                <span className="text-muted-foreground block">Receiving Location:</span>
-                <strong className="text-xs font-medium">{location}</strong>
+              <div className="text-left sm:text-right">
+                <span className="text-muted-foreground block text-[10px] uppercase font-bold">Warehouse</span>
+                <strong className="text-xs font-semibold text-foreground truncate block">{location}</strong>
               </div>
             </div>
-          </>
+          </div>
         )}
       </DialogContent>
     </Dialog>
@@ -980,23 +1237,50 @@ function LedgerDialog({ supplier, close }: { supplier: Supplier | null; close: (
     enabled: !!supplier,
     queryFn: () => apiClient.get<SupplierLedger>(`suppliers/${supplier!.id}/ledger?page=0&size=100`),
   });
+
   return (
     <Dialog open={!!supplier} onOpenChange={(x) => { if (!x) close(); }}>
-      <DialogContent className="sm:max-w-2xl">
+      <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[92vh] overflow-y-auto p-4 sm:p-6 border shadow-2xl rounded-2xl">
         <DialogHeader>
-          <DialogTitle>{supplier?.name} Ledger</DialogTitle>
-          <DialogDescription>Outstanding Balance: {money.format(q.data?.outstandingBalance ?? 0)}</DialogDescription>
+          <DialogTitle className="text-base sm:text-lg font-bold break-words">{supplier?.name} Ledger</DialogTitle>
+          <DialogDescription className="text-xs">
+            Outstanding Balance: <strong className="font-mono text-emerald-600 font-bold">{money.format(q.data?.outstandingBalance ?? 0)}</strong>
+          </DialogDescription>
         </DialogHeader>
-        <TableWrap heads={["Date", "Type", "Reference", "Amount"]}>
-          {(q.data?.transactions.content ?? []).map((x, n) => (
-            <TableRow key={n}>
-              <TableCell className="text-xs">{x.date}</TableCell>
-              <TableCell className="text-xs">{x.type}</TableCell>
-              <TableCell className="text-xs font-mono">{x.reference}</TableCell>
-              <TableCell className="text-xs font-semibold">{money.format(x.amount)}</TableCell>
-            </TableRow>
-          ))}
-        </TableWrap>
+
+        {/* Mobile Ledger Cards (<md) */}
+        <div className="md:hidden space-y-2 border rounded-xl p-2.5 bg-muted/10 divide-y">
+          {(q.data?.transactions.content ?? []).length === 0 ? (
+            <div className="py-6 text-center text-xs text-muted-foreground">No ledger transactions found.</div>
+          ) : (
+            (q.data?.transactions.content ?? []).map((x, n) => (
+              <div key={n} className="pt-2 pb-1 space-y-1 text-xs">
+                <div className="flex items-center justify-between">
+                  <span className="font-bold text-foreground">{x.type}</span>
+                  <span className="font-bold text-emerald-600 font-mono">{money.format(x.amount)}</span>
+                </div>
+                <div className="flex items-center justify-between text-[11px] text-muted-foreground">
+                  <span className="font-mono">Ref: {x.reference}</span>
+                  <span>Date: {x.date}</span>
+                </div>
+              </div>
+            ))
+          )}
+        </div>
+
+        {/* Desktop Table (≥md) */}
+        <div className="hidden md:block">
+          <TableWrap heads={["Date", "Type", "Reference", "Amount"]}>
+            {(q.data?.transactions.content ?? []).map((x, n) => (
+              <TableRow key={n}>
+                <TableCell className="text-xs">{x.date}</TableCell>
+                <TableCell className="text-xs">{x.type}</TableCell>
+                <TableCell className="text-xs font-mono">{x.reference}</TableCell>
+                <TableCell className="text-xs font-semibold font-mono">{money.format(x.amount)}</TableCell>
+              </TableRow>
+            ))}
+          </TableWrap>
+        </div>
       </DialogContent>
     </Dialog>
   );
@@ -1007,7 +1291,6 @@ function SupplierProductsHistoryDialog({ supplier, close, orders }: { supplier: 
 
   const supplierOrders = orders.filter((po) => po.supplierId === supplier.id);
 
-  // Group line items for this supplier
   const supplierProductsMap = new Map<
     string,
     {
@@ -1063,43 +1346,87 @@ function SupplierProductsHistoryDialog({ supplier, close, orders }: { supplier: 
 
   return (
     <Dialog open={!!supplier} onOpenChange={(x) => { if (!x) close(); }}>
-      <DialogContent className="sm:max-w-3xl">
+      <DialogContent className="w-[95vw] sm:max-w-3xl max-h-[92vh] overflow-y-auto p-4 sm:p-6 border shadow-2xl rounded-2xl">
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <ShoppingBag className="h-5 w-5 text-primary" /> Products Purchased from {supplier.name}
+          <DialogTitle className="flex items-center gap-2 text-base sm:text-lg font-bold break-words">
+            <ShoppingBag className="h-5 w-5 text-primary shrink-0" /> Products Purchased from {supplier.name}
           </DialogTitle>
-          <DialogDescription>
-            Supplier Code: <strong>{supplier.code}</strong> • Total Purchase Orders: <strong>{supplierOrders.length}</strong>
+          <DialogDescription className="text-xs">
+            Supplier Code: <strong className="font-mono">{supplier.code}</strong> • Total POs: <strong>{supplierOrders.length}</strong>
           </DialogDescription>
         </DialogHeader>
 
-        <TableWrap heads={["Product & Variant", "SKU", "Last Purchase Date", "Last Price (₹)", "Total Purchased Qty", "Pending Qty", "Status"]}>
+        {/* Mobile History Cards (<md) */}
+        <div className="md:hidden space-y-2.5">
           {supplierProductsList.length === 0 ? (
-            <TableRow>
-              <TableCell colSpan={7} className="h-24 text-center text-muted-foreground text-xs">
-                No products have been purchased from this supplier yet.
-              </TableCell>
-            </TableRow>
+            <div className="py-8 text-center text-xs text-muted-foreground border rounded-xl bg-muted/10 p-4">
+              No products have been purchased from this supplier yet.
+            </div>
           ) : (
             supplierProductsList.map((p, idx) => (
-              <TableRow key={idx}>
-                <TableCell className="font-medium text-xs">
-                  {p.productName}
-                  {p.variantName && <span className="block text-[10px] text-muted-foreground">{p.variantName}</span>}
-                </TableCell>
-                <TableCell className="text-xs font-mono text-muted-foreground">{p.sku ?? "—"}</TableCell>
-                <TableCell className="text-xs">{p.lastDate}</TableCell>
-                <TableCell className="text-xs font-semibold">{money.format(p.lastPrice)}</TableCell>
-                <TableCell className="text-xs text-right font-semibold">{p.totalPurchased}</TableCell>
-                <TableCell className="text-xs text-right font-bold text-amber-600">{p.pendingQty}</TableCell>
-                <TableCell>
+              <div key={idx} className="p-3 border rounded-xl bg-card space-y-2 text-xs shadow-xs">
+                <div className="flex items-start justify-between gap-2">
+                  <div className="min-w-0 flex-1">
+                    <h4 className="font-bold text-foreground break-words">{p.productName}</h4>
+                    {p.variantName && <Badge variant="secondary" className="px-1.5 py-0 text-[10px] mt-0.5">{p.variantName}</Badge>}
+                  </div>
                   <Status text={p.status} />
-                </TableCell>
-              </TableRow>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 p-2 bg-muted/20 rounded-lg border text-[11px]">
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block">Last Price</span>
+                    <strong className="font-mono font-bold text-foreground">{money.format(p.lastPrice)}</strong>
+                  </div>
+                  <div>
+                    <span className="text-[10px] text-muted-foreground block">Last Date</span>
+                    <strong className="text-muted-foreground">{p.lastDate}</strong>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between text-[11px] pt-1 border-t">
+                  <span>Total Purchased: <strong className="font-mono text-foreground">{p.totalPurchased}</strong></span>
+                  <span>Pending: <strong className="font-mono text-amber-600">{p.pendingQty}</strong></span>
+                </div>
+              </div>
             ))
           )}
-        </TableWrap>
+        </div>
+
+        {/* Desktop Table (≥md) */}
+        <div className="hidden md:block">
+          <TableWrap heads={["Product & Variant", "SKU", "Last Purchase Date", "Last Price (₹)", "Total Purchased Qty", "Pending Qty", "Status"]}>
+            {supplierProductsList.length === 0 ? (
+              <TableRow>
+                <TableCell colSpan={7} className="h-24 text-center text-muted-foreground text-xs">
+                  No products have been purchased from this supplier yet.
+                </TableCell>
+              </TableRow>
+            ) : (
+              supplierProductsList.map((p, idx) => (
+                <TableRow key={idx}>
+                  <TableCell className="font-medium text-xs">
+                    <div className="break-words">{p.productName}</div>
+                    {p.variantName && <span className="block text-[10px] text-muted-foreground">{p.variantName}</span>}
+                  </TableCell>
+                  <TableCell className="text-xs font-mono text-muted-foreground">{p.sku ?? "—"}</TableCell>
+                  <TableCell className="text-xs">{p.lastDate}</TableCell>
+                  <TableCell className="text-xs font-semibold font-mono">{money.format(p.lastPrice)}</TableCell>
+                  <TableCell className="text-xs text-right font-semibold font-mono">{p.totalPurchased}</TableCell>
+                  <TableCell className="text-xs text-right font-bold text-amber-600 font-mono">{p.pendingQty}</TableCell>
+                  <TableCell>
+                    <Status text={p.status} />
+                  </TableCell>
+                </TableRow>
+              ))
+            )}
+          </TableWrap>
+        </div>
       </DialogContent>
     </Dialog>
   );
+}
+
+function Field({ label, children }: { label: string; children: React.ReactNode }) {
+  return <div className="space-y-1.5"><Label className="text-xs font-semibold">{label}</Label>{children}</div>;
 }
