@@ -116,12 +116,12 @@ export function ProductBarcodesTab({ productId }: { productId: number }) {
   ];
 
   return (
-    <div className="flex flex-col gap-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-muted-foreground">
+    <div className="flex flex-col gap-4 min-w-0 w-full">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <p className="text-sm text-muted-foreground min-w-0 flex-1">
           A simple product shares one retail barcode. Variant products use a barcode per sellable variant; batches use separate batch numbers.
         </p>
-        <Button size="sm" className="gap-1.5" onClick={() => setCreateOpen(true)}>
+        <Button size="sm" className="w-full sm:w-auto gap-1.5 shrink-0" onClick={() => setCreateOpen(true)}>
           <Plus className="size-4" />
           Add barcode
         </Button>

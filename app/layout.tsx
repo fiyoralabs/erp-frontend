@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Analytics } from "@vercel/analytics/next";
 import { Toaster } from "@/components/ui/sonner";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { GlobalNumberInputScrollFix } from "@/components/shared/global-number-input-scroll-fix";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -26,6 +27,7 @@ export default function RootLayout({
     >
       <body className="min-h-full flex flex-col">
         <QueryProvider>
+          <GlobalNumberInputScrollFix />
           {children}
           <Toaster richColors position="top-right" />
           <Analytics />

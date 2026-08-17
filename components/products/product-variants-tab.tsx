@@ -123,13 +123,13 @@ export function ProductVariantsTab({ productId, categoryId, productCode }: {
 
   if (attributesQuery.isLoading) return <p className="text-sm text-muted-foreground">Loading category variant setup...</p>;
 
-  return <div className="flex flex-col gap-4">
+  return <div className="flex flex-col gap-4 min-w-0 w-full">
     <Card>
       <CardHeader>
-        <div className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
           <div><CardTitle className="flex items-center gap-2 text-base"><Boxes className="size-4" />Variant configuration</CardTitle><CardDescription>Choose the values sold for this product. Fiyora creates one SKU for every selected combination.</CardDescription></div>
-          <Button disabled={missing.length === 0 || generateMutation.isPending || attributes.length === 0} onClick={() => generateMutation.mutate()}>
-            {generateMutation.isPending ? <Loader2 className="animate-spin" /> : <Plus />}
+          <Button className="w-full sm:w-auto shrink-0" disabled={missing.length === 0 || generateMutation.isPending || attributes.length === 0} onClick={() => generateMutation.mutate()}>
+            {generateMutation.isPending ? <Loader2 className="animate-spin" /> : <Plus className="mr-1 size-4" />}
             Generate {missing.length} missing variant{missing.length === 1 ? "" : "s"}
           </Button>
         </div>
@@ -145,7 +145,7 @@ export function ProductVariantsTab({ productId, categoryId, productCode }: {
 
     <div><h3 className="font-medium">Sellable variants</h3><p className="text-sm text-muted-foreground">Each row is a stock-keeping unit with its own inventory, price, and barcode.</p></div>
     <DataTable columns={columns} data={variantsQuery.data ?? []} rowKey={(row) => row.id} isLoading={variantsQuery.isLoading} emptyMessage={attributes.length ? "Select values above and generate the missing variants." : "Configure category attributes first."} actions={(row) => <div className="flex items-center gap-1"><Button variant="ghost" size="sm" disabled={toggleMutation.isPending} onClick={() => toggleMutation.mutate(row)}>{row.isActive ? <PowerOff /> : <Power />}{row.isActive ? "Deactivate" : "Activate"}</Button><Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteTargetVariant({ id: row.id, name: row.variantName || row.sku })}><Trash2 className="h-4 w-4" />Delete</Button></div>} />
-    <Button variant="outline" className="w-fit" onClick={() => variantsQuery.refetch()}><RefreshCw />Refresh variants</Button>
+    <Button variant="outline" className="w-full sm:w-fit" onClick={() => variantsQuery.refetch()}><RefreshCw className="mr-1 size-4" />Refresh variants</Button>
 
     <ConfirmDialog
       open={!!deleteTargetVariant}

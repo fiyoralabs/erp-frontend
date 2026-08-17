@@ -92,14 +92,14 @@ export function SetsManagementClient() {
 
   return (
     <Card className="w-full">
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <CardTitle className="flex items-center gap-2 text-lg">
-            <Layers className="h-5 w-5 text-primary" /> Product Sets & Bulk Quantity Packs
+            <Layers className="h-5 w-5 text-primary shrink-0" /> Product Sets & Bulk Quantity Packs
           </CardTitle>
           <CardDescription>Configure preset item bundles and bulk quantities for fast wholesale ordering.</CardDescription>
         </div>
-        <Button onClick={() => setIsOpen(true)} className="gap-1.5">
+        <Button onClick={() => setIsOpen(true)} className="gap-1.5 shrink-0 self-start sm:self-auto">
           <Plus className="h-4 w-4" /> Create Product Set
         </Button>
       </CardHeader>
@@ -113,32 +113,34 @@ export function SetsManagementClient() {
             No Product Sets configured. Create your first preset set or bulk pack!
           </div>
         ) : (
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Set Code</TableHead>
-                <TableHead>Set Name</TableHead>
-                <TableHead>Included Items</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(setsQuery.data ?? []).map((set) => (
-                <TableRow key={set.id}>
-                  <TableCell className="font-mono font-bold text-xs">{set.code}</TableCell>
-                  <TableCell className="font-semibold">{set.name}</TableCell>
-                  <TableCell className="text-xs text-muted-foreground">
-                    {set.items.map((i, idx) => `Product #${i.productId} (${i.quantity} pcs)`).join(", ")}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" onClick={() => set.id && deleteMutation.mutate(set.id)}>
-                      <Trash2 className="h-4 w-4 text-destructive" />
-                    </Button>
-                  </TableCell>
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Set Code</TableHead>
+                  <TableHead>Set Name</TableHead>
+                  <TableHead>Included Items</TableHead>
+                  <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+              </TableHeader>
+              <TableBody>
+                {(setsQuery.data ?? []).map((set) => (
+                  <TableRow key={set.id}>
+                    <TableCell className="font-mono font-bold text-xs">{set.code}</TableCell>
+                    <TableCell className="font-semibold">{set.name}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">
+                      {set.items.map((i, idx) => `Product #${i.productId} (${i.quantity} pcs)`).join(", ")}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Button variant="ghost" size="sm" onClick={() => set.id && deleteMutation.mutate(set.id)}>
+                        <Trash2 className="h-4 w-4 text-destructive" />
+                      </Button>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </div>
         )}
 
         <Dialog open={isOpen} onOpenChange={setIsOpen}>
