@@ -113,12 +113,12 @@ export function ContactDetailClient({ contactId }: { contactId: number }) {
               </div>
               <div className="space-y-1 min-w-0">
                 <div className="flex flex-wrap items-center gap-2.5">
-                  <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-foreground font-heading truncate">
+                  <h1 className="text-xl md:text-2xl font-bold tracking-tight text-foreground font-heading truncate">
                     {contact.firstName} {contact.lastName}
                   </h1>
                   <ActiveBadge isActive={contact.active} />
                 </div>
-                <p className="text-xs sm:text-sm text-muted-foreground flex flex-wrap items-center gap-2">
+                <p className="text-xs md:text-sm text-muted-foreground flex flex-wrap items-center gap-2">
                   {contact.jobTitle && <span className="font-medium text-foreground">{contact.jobTitle}</span>}
                   {contact.department && <span>• {contact.department}</span>}
                   {contact.accountId && (

@@ -30,6 +30,7 @@ export interface StatTileProps {
   tone?: "default" | "success" | "warning" | "danger";
   variant?: "card" | "inline";
   className?: string;
+  valueClassName?: string;
   badge?: React.ReactNode;
   // When set, the whole tile becomes a link into the filtered page/list this
   // metric summarizes (e.g. "Overdue Follow-ups" -> /crm/activities?view=OVERDUE).
@@ -43,6 +44,7 @@ export function StatTile({
   tone = "default",
   variant = "card",
   className,
+  valueClassName,
   badge,
   href,
 }: StatTileProps) {
@@ -50,15 +52,15 @@ export function StatTile({
 
   if (variant === "inline") {
     return (
-      <div className={cn("flex items-center gap-3", className)}>
+      <div className={cn("flex items-center gap-2 sm:gap-3 min-w-0", className)}>
         {Icon && (
-          <div className={cn("flex size-9 shrink-0 items-center justify-center rounded-xl", toneStyle.iconBg)}>
-            <Icon className="size-4.5" />
+          <div className={cn("flex size-7 sm:size-9 shrink-0 items-center justify-center rounded-lg sm:rounded-xl", toneStyle.iconBg)}>
+            <Icon className="size-3.5 sm:size-4.5" />
           </div>
         )}
-        <div className="min-w-0">
+        <div className="min-w-0 flex-1">
           <p className="truncate text-xs font-medium text-[#545f73] dark:text-[#a3cfcf]">{label}</p>
-          <p className={cn("text-xl font-bold tracking-tight sm:text-2xl", toneStyle.text)}>{value}</p>
+          <p className={cn("text-xl font-bold tracking-tight sm:text-2xl break-words", toneStyle.text, valueClassName)}>{value}</p>
         </div>
       </div>
     );
@@ -82,7 +84,7 @@ export function StatTile({
           </div>
         ))}
       </div>
-      <h3 className={cn("text-2xl font-bold tracking-tight", toneStyle.text)}>
+      <h3 className={cn("text-2xl font-bold tracking-tight", toneStyle.text, valueClassName)}>
         {value}
       </h3>
     </>

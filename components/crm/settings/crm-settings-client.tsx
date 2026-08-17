@@ -39,7 +39,7 @@ export function CrmSettingsClient() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-xl font-semibold sm:text-2xl">CRM Settings</h1>
+        <h1 className="text-xl font-semibold md:text-2xl">CRM Settings</h1>
         <p className="text-sm text-muted-foreground">Configure lead sources, pipelines, stages, tags, and Meta Lead Ads integration.</p>
       </div>
       <Suspense fallback={null}>

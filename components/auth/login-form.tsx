@@ -124,7 +124,7 @@ export function LoginForm() {
 
           {/* Form */}
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-5">
+            <form method="POST" onSubmit={form.handleSubmit(onSubmit)} className="space-y-4 sm:space-y-5">
               {/* Email Field */}
               <FormField
                 control={form.control}

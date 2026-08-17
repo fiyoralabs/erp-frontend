@@ -67,7 +67,7 @@ export function TasksListClient() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold sm:text-2xl">Tasks</h1>
+          <h1 className="text-xl font-semibold md:text-2xl">Tasks</h1>
           <p className="text-sm text-muted-foreground">Your to-dos across leads, accounts and opportunities.</p>
         </div>
         <Button className="h-11 gap-1.5 sm:h-8" onClick={() => setDialogOpen(true)}>

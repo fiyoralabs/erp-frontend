@@ -178,11 +178,11 @@ export function MetaIntegrationSettings() {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600/10 text-blue-500 font-bold text-lg">
+              <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-600/10 text-blue-500 font-bold text-base md:text-lg">
                 f
               </div>
               <div>
-                <CardTitle className="text-lg">Meta Lead Ads Integration</CardTitle>
+                <CardTitle className="text-base md:text-lg">Meta Lead Ads Integration</CardTitle>
                 <CardDescription>
                   Connect Facebook &amp; Instagram Lead Ads to automatically capture, normalize (+91), deduplicate, and track customer inquiry history.
                 </CardDescription>

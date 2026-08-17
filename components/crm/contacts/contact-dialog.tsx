@@ -132,7 +132,7 @@ export function ContactDialog({
               {isEdit ? <UserCheck className="h-5 w-5" /> : <UserPlus className="h-5 w-5" />}
             </div>
             <div>
-              <DialogTitle className="text-lg font-bold text-foreground">
+              <DialogTitle className="text-base md:text-lg font-bold text-foreground">
                 {isEdit ? "Edit Contact" : "New Contact"}
               </DialogTitle>
               <DialogDescription className="text-xs text-muted-foreground">

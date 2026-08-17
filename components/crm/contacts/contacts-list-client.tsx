@@ -138,7 +138,7 @@ export function ContactsListClient() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold sm:text-2xl">Contacts</h1>
+          <h1 className="text-xl font-semibold md:text-2xl">Contacts</h1>
           <p className="text-sm text-muted-foreground">People at your accounts and leads.</p>
         </div>
         <Button className="h-11 gap-1.5 sm:h-8" onClick={() => setDialogState({ mode: "create" })}>
@@ -162,7 +162,7 @@ export function ContactsListClient() {
             value={accountId}
             onValueChange={(v) => { setAccountId(v ?? ""); setPage(0); }}
           >
-            <SelectTrigger className="h-10 w-full sm:w-44">
+            <SelectTrigger className="h-10 w-32 shrink-0 sm:w-44">
               <SelectValue placeholder="All Accounts" />
             </SelectTrigger>
             <SelectContent>
@@ -176,7 +176,7 @@ export function ContactsListClient() {
             value={sort}
             onValueChange={(v) => { setSort(v ?? "firstName,asc"); setPage(0); }}
           >
-            <SelectTrigger className="h-10 w-full sm:w-44">
+            <SelectTrigger className="h-10 w-28 shrink-0 sm:w-44">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>

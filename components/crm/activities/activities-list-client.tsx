@@ -219,7 +219,7 @@ export function ActivitiesListClient() {
   return (
     <div className="flex flex-col gap-4">
       <div>
-        <h1 className="text-xl font-semibold sm:text-2xl">CRM Engagements & Follow-ups</h1>
+        <h1 className="text-xl font-semibold md:text-2xl">CRM Engagements & Follow-ups</h1>
         <p className="text-sm text-muted-foreground">Unified 360° interaction hub for activities, follow-ups, and sales tasks.</p>
       </div>
 

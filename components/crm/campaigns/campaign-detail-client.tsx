@@ -41,7 +41,7 @@ export function CampaignDetailClient({ campaignId }: { campaignId: number }) {
         <CardContent className="flex flex-col gap-4 pt-6">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div>
-              <h1 className="text-xl font-semibold sm:text-2xl">{campaign.name}</h1>
+              <h1 className="text-xl font-semibold md:text-2xl">{campaign.name}</h1>
               <p className="text-sm text-muted-foreground">{campaign.type.replaceAll("_", " ")} · {campaign.status} · {formatDate(campaign.startDate)} - {formatDate(campaign.endDate)}</p>
             </div>
             <Button variant="outline" size="sm" className="gap-1.5" onClick={() => setEditOpen(true)}>

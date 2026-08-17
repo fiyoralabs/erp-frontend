@@ -15,7 +15,7 @@ import { StatTile } from "@/components/shared/stat-tile";
 function ChartCard({ title, children }: { title: string; children: React.ReactNode }) {
   return (
     <Card>
-      <CardHeader><CardTitle className="text-base">{title}</CardTitle></CardHeader>
+      <CardHeader><CardTitle className="text-sm md:text-base">{title}</CardTitle></CardHeader>
       <CardContent className="h-64 overflow-x-auto"><div className="h-full min-w-72">{children}</div></CardContent>
     </Card>
   );
@@ -43,7 +43,7 @@ export function CrmReportsClient() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-xl font-semibold sm:text-2xl">CRM Reports</h1>
+        <h1 className="text-xl font-semibold md:text-2xl">CRM Reports</h1>
         <p className="text-sm text-muted-foreground">Lead, opportunity, and sales-forecast analysis.</p>
       </div>
 

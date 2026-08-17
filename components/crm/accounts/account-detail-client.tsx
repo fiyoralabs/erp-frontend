@@ -91,7 +91,7 @@ export function AccountDetailClient({ accountId }: { accountId: number }) {
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl font-semibold sm:text-2xl">{account.name}</h1>
+                <h1 className="text-xl font-semibold md:text-2xl">{account.name}</h1>
                 <ActiveBadge isActive={account.active} />
               </div>
               <p className="text-sm text-muted-foreground">{account.accountNumber} · {account.accountType} {account.industry ? `· ${account.industry}` : ""}</p>

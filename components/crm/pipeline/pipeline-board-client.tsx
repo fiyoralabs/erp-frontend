@@ -151,12 +151,12 @@ export function PipelineBoardClient() {
       <div className="flex flex-col gap-3 border-b border-[#e2e2e2] pb-4 dark:border-[#404848] sm:flex-row sm:items-center sm:justify-between">
         <div>
           <div className="flex items-center gap-2">
-            <h1 className="font-heading text-xl font-semibold text-[#1a1c1c] dark:text-white sm:text-2xl">Sales Pipeline</h1>
+            <h1 className="font-heading text-xl font-semibold text-[#1a1c1c] dark:text-white md:text-2xl">Sales Pipeline</h1>
             <span className="hidden items-center rounded-full border border-[#e2e2e2] px-2.5 py-0.5 text-xs font-semibold text-[#545f73] dark:border-[#404848] dark:text-[#a3cfcf] sm:inline-flex">
               {opportunities.length} Deals ({formatCurrency(totalValue)})
             </span>
           </div>
-          <p className="mt-0.5 text-xs text-[#545f73] dark:text-[#a3cfcf] sm:text-sm">
+          <p className="mt-0.5 text-xs text-[#545f73] dark:text-[#a3cfcf] md:text-sm">
             Drag & drop deal cards across stages or switch views for quick management.
           </p>
         </div>
@@ -166,7 +166,7 @@ export function PipelineBoardClient() {
             value={effectivePipelineId ? String(effectivePipelineId) : ""}
             onValueChange={(v) => setPipelineId(Number(v))}
           >
-            <SelectTrigger className="h-9 w-44 border-[#c0c8c8] bg-white text-xs dark:border-[#717978] dark:bg-[#1a1c1c] sm:w-52 sm:text-sm">
+            <SelectTrigger className="h-9 w-44 border-[#c0c8c8] bg-white text-xs dark:border-[#717978] dark:bg-[#1a1c1c] sm:w-52 md:text-sm">
               <SelectValue placeholder="Select pipeline" />
             </SelectTrigger>
             <SelectContent>

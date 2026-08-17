@@ -43,7 +43,7 @@ export function CrmTopbar({
     <header className="h-16 w-full border-b border-[#e2e2e2] dark:border-[#404848] bg-white dark:bg-[#1a1c1c] flex justify-between items-center px-4 sm:px-6 shrink-0 z-10">
       {/* Left: Logo (below lg: only -- the sidebar already carries the Fiyora
           mark once it's visible) + Breadcrumbs */}
-      <div className="flex items-center text-[#545f73] dark:text-[#a3cfcf] text-xs sm:text-sm font-medium gap-1.5 sm:gap-2 min-w-0">
+      <div className="flex items-center text-[#545f73] dark:text-[#a3cfcf] text-xs md:text-sm font-medium gap-1.5 sm:gap-2 min-w-0">
         <Link href="/crm" className="relative h-7 w-7 shrink-0 lg:hidden">
           <Image src="/logo-light.png" alt="Fiyora ERP" fill className="object-contain" />
         </Link>
