@@ -2,8 +2,9 @@
 
 import * as React from "react";
 import { Html5Qrcode, Html5QrcodeSupportedFormats } from "html5-qrcode";
-import { Camera, CameraOff, Loader2, RefreshCw, X, Zap, ZapOff } from "lucide-react";
+import { Camera, CameraOff, CheckCircle2, CreditCard, Loader2, RefreshCw, ShoppingBag, X, AlertCircle, Zap, ZapOff } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
 import {
   Dialog,
   DialogContent,
@@ -12,10 +13,30 @@ import {
   DialogDescription,
 } from "@/components/ui/dialog";
 
+export interface ScanResult {
+  success: boolean;
+  name?: string;
+  variantName?: string;
+  price?: number;
+  error?: string;
+}
+
+export interface RecentlyScannedItem {
+  id: string;
+  code: string;
+  name: string;
+  variantName?: string;
+  price: number;
+  timestamp: number;
+  success: boolean;
+}
+
 interface CameraScannerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onScan: (scannedCode: string) => void;
+  onScan: (scannedCode: string) => ScanResult | boolean;
+  onOpenPayment?: () => void;
+  cartCount?: number;
   title?: string;
 }
 
@@ -42,10 +63,14 @@ const SUPPORTED_FORMATS = [
   Html5QrcodeSupportedFormats.ITF,
 ];
 
+const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
+
 export function CameraScannerDialog({
   open,
   onOpenChange,
   onScan,
+  onOpenPayment,
+  cartCount = 0,
   title = "Scan Product Barcode",
 }: CameraScannerDialogProps) {
   const scannerRef = React.useRef<Html5Qrcode | null>(null);
@@ -55,6 +80,16 @@ export function CameraScannerDialog({
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
   const [torchOn, setTorchOn] = React.useState(false);
   const [hasTorch, setHasTorch] = React.useState(false);
+
+  // Continuous Feedback & Recently Scanned State
+  const [lastScanFeedback, setLastScanFeedback] = React.useState<{
+    type: "success" | "error";
+    message: string;
+  } | null>(null);
+  const [recentlyScanned, setRecentlyScanned] = React.useState<RecentlyScannedItem[]>([]);
+
+  // Duplicate Debounce Reference (prevents scanning the same frame 30 times)
+  const lastScannedCodeRef = React.useRef<{ code: string; time: number } | null>(null);
 
   // Stop scanner and release active camera tracks
   const stopScanner = React.useCallback(async () => {
@@ -85,6 +120,7 @@ export function CameraScannerDialog({
 
     setIsLoading(true);
     setErrorMsg(null);
+    setLastScanFeedback(null);
 
     // Stop any active scanner instance first
     await stopScanner();
@@ -118,10 +154,24 @@ export function CameraScannerDialog({
         aspectRatio: 1.333333,
       };
 
+      // CONTINUOUS SCANNER SUCCESS CALLBACK (DOES NOT CLOSE CAMERA)
       const onScanSuccess = (decodedText: string) => {
         if (!decodedText) return;
+        const code = decodedText.trim();
+        if (!code) return;
 
-        // Haptic feedback if supported on mobile
+        // 1. DEBOUNCE DUPLICATE FRAMES (1.8 second cooldown for exact same barcode)
+        const now = Date.now();
+        if (
+          lastScannedCodeRef.current &&
+          lastScannedCodeRef.current.code === code &&
+          now - lastScannedCodeRef.current.time < 1800
+        ) {
+          return; // Ignore duplicated frame while barcode is held steady
+        }
+        lastScannedCodeRef.current = { code, time: now };
+
+        // 2. Haptic feedback if supported on mobile
         if (typeof window !== "undefined" && "vibrate" in navigator) {
           try {
             navigator.vibrate(80);
@@ -130,9 +180,42 @@ export function CameraScannerDialog({
           }
         }
 
-        stopScanner();
-        onOpenChange(false);
-        onScan(decodedText.trim());
+        // 3. Process scan with parent handler
+        const scanRes = onScan(code);
+        const isSuccess = typeof scanRes === "boolean" ? scanRes : scanRes.success;
+        const itemName = typeof scanRes === "object" ? scanRes.name : undefined;
+        const variantName = typeof scanRes === "object" ? scanRes.variantName : undefined;
+        const price = typeof scanRes === "object" ? scanRes.price : undefined;
+        const errText = typeof scanRes === "object" ? scanRes.error : undefined;
+
+        if (isSuccess) {
+          const displayName = `${itemName || code}${variantName ? ` (${variantName})` : ""}`;
+          setLastScanFeedback({
+            type: "success",
+            message: `✓ Added: ${displayName}`,
+          });
+
+          setRecentlyScanned((prev) => [
+            {
+              id: `${code}-${now}`,
+              code,
+              name: itemName || code,
+              variantName,
+              price: price || 0,
+              timestamp: now,
+              success: true,
+            },
+            ...prev.slice(0, 4), // Keep last 5 scanned items in feed
+          ]);
+        } else {
+          setLastScanFeedback({
+            type: "error",
+            message: errText ? `⚠ ${errText}` : `⚠ No product found for barcode: ${code}`,
+          });
+        }
+
+        // CRITICAL REQUIREMENT: CAMERA REMAINS OPEN FOR CONTINUOUS SCANNING.
+        // DO NOT call stopScanner() or onOpenChange(false) here!
       };
 
       // Try facing environment (rear camera) first, fallback to user camera
@@ -180,7 +263,7 @@ export function CameraScannerDialog({
         setErrorMsg(`Could not start camera scanner: ${msg}`);
       }
     }
-  }, [containerId, onOpenChange, onScan, stopScanner]);
+  }, [containerId, onScan, stopScanner]);
 
   const toggleTorch = async () => {
     if (!scannerRef.current || !hasTorch) return;
@@ -192,6 +275,19 @@ export function CameraScannerDialog({
       setTorchOn(nextState);
     } catch {
       // ignore
+    }
+  };
+
+  const handleCloseDone = () => {
+    stopScanner();
+    onOpenChange(false);
+  };
+
+  const handlePay = () => {
+    stopScanner();
+    onOpenChange(false);
+    if (onOpenPayment) {
+      onOpenPayment();
     }
   };
 
@@ -215,11 +311,17 @@ export function CameraScannerDialog({
         onOpenChange(val);
       }}
     >
-      <DialogContent className="w-[92vw] max-w-md p-0 overflow-hidden bg-card border shadow-2xl rounded-2xl">
+      <DialogContent className="w-[94vw] max-w-md p-0 overflow-hidden bg-card border shadow-2xl rounded-2xl">
+        {/* Header Toolbar */}
         <DialogHeader className="p-3.5 border-b bg-muted/30 flex flex-row items-center justify-between space-y-0">
           <div className="flex items-center gap-2">
-            <Camera className="h-4 w-4 text-primary shrink-0" />
+            <Camera className="h-4 w-4 text-[#0F3D3E] shrink-0" />
             <DialogTitle className="text-sm font-bold">{title}</DialogTitle>
+            {cartCount > 0 && (
+              <Badge variant="secondary" className="bg-emerald-50 text-emerald-800 border-emerald-200 text-[10px] font-bold gap-1 px-1.5">
+                <ShoppingBag className="h-3 w-3" /> {cartCount} items
+              </Badge>
+            )}
           </div>
           <div className="flex items-center gap-1">
             {hasTorch && (
@@ -238,10 +340,7 @@ export function CameraScannerDialog({
               variant="ghost"
               size="icon"
               className="h-7 w-7"
-              onClick={() => {
-                stopScanner();
-                onOpenChange(false);
-              }}
+              onClick={handleCloseDone}
             >
               <X className="h-4 w-4" />
             </Button>
@@ -249,14 +348,41 @@ export function CameraScannerDialog({
         </DialogHeader>
 
         <DialogDescription className="sr-only">
-          Point your mobile device camera at a product barcode or QR code to scan and add it to the cart.
+          Point your mobile device camera at product barcodes to continuously add them to the cart.
         </DialogDescription>
 
-        <div className="relative bg-black flex flex-col items-center justify-center min-h-[300px] overflow-hidden">
+        {/* Real-time Feedback Banner */}
+        {lastScanFeedback && (
+          <div
+            className={
+              lastScanFeedback.type === "success"
+                ? "mx-3 mt-3 p-2.5 rounded-xl border bg-emerald-50 border-emerald-200 text-emerald-800 font-semibold text-xs flex items-center justify-between shadow-xs animate-in fade-in"
+                : "mx-3 mt-3 p-2.5 rounded-xl border bg-red-50 border-red-200 text-red-700 font-semibold text-xs flex items-center justify-between shadow-xs animate-in fade-in"
+            }
+          >
+            <div className="flex items-center gap-1.5 min-w-0">
+              {lastScanFeedback.type === "success" ? (
+                <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+              ) : (
+                <AlertCircle className="h-4 w-4 text-red-600 shrink-0" />
+              )}
+              <span className="truncate">{lastScanFeedback.message}</span>
+            </div>
+            <button
+              onClick={() => setLastScanFeedback(null)}
+              className="text-xs opacity-70 hover:opacity-100 ml-2"
+            >
+              <X className="h-3.5 w-3.5" />
+            </button>
+          </div>
+        )}
+
+        {/* Viewfinder Container */}
+        <div className="relative bg-black flex flex-col items-center justify-center min-h-[260px] overflow-hidden my-2">
           {isLoading && (
             <div className="absolute inset-0 z-20 bg-background/90 flex flex-col items-center justify-center p-4 space-y-3 text-center">
-              <Loader2 className="h-8 w-8 text-primary animate-spin" />
-              <p className="text-xs font-semibold text-foreground">Starting camera scanner...</p>
+              <Loader2 className="h-8 w-8 text-[#0F3D3E] animate-spin" />
+              <p className="text-xs font-semibold text-foreground">Starting continuous camera scanner...</p>
               <p className="text-[11px] text-muted-foreground">Please grant camera permission if prompted.</p>
             </div>
           )}
@@ -274,15 +400,7 @@ export function CameraScannerDialog({
                 <Button variant="outline" size="sm" onClick={startScanner} className="gap-1.5 text-xs">
                   <RefreshCw className="h-3.5 w-3.5" /> Try Again
                 </Button>
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => {
-                    stopScanner();
-                    onOpenChange(false);
-                  }}
-                  className="text-xs"
-                >
+                <Button variant="ghost" size="sm" onClick={handleCloseDone} className="text-xs">
                   Close
                 </Button>
               </div>
@@ -290,16 +408,16 @@ export function CameraScannerDialog({
           ) : (
             <>
               {/* HTML5 QR Code Mount Element */}
-              <div id={containerId} className="w-full h-full min-h-[300px]" />
+              <div id={containerId} className="w-full h-full min-h-[260px]" />
 
               {/* Scanning Laser Line Overlay */}
               {!isLoading && (
                 <div className="absolute inset-0 pointer-events-none flex flex-col items-center justify-center p-4 z-10">
-                  <div className="relative w-64 h-40 border-2 border-primary/80 rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.5)] overflow-hidden">
+                  <div className="relative w-64 h-36 border-2 border-[#0F3D3E] rounded-xl shadow-[0_0_0_9999px_rgba(0,0,0,0.5)] overflow-hidden">
                     <div className="absolute top-0 inset-x-0 h-0.5 bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.8)] animate-bounce" />
                   </div>
-                  <p className="text-white text-xs font-medium mt-4 bg-black/60 px-3 py-1.5 rounded-full backdrop-blur-sm">
-                    Position barcode inside the box
+                  <p className="text-white text-xs font-medium mt-3 bg-black/60 px-3 py-1 rounded-full backdrop-blur-sm">
+                    Continuous Scanner Active — Align Barcode
                   </p>
                 </div>
               )}
@@ -307,8 +425,50 @@ export function CameraScannerDialog({
           )}
         </div>
 
-        <div className="p-3 border-t bg-muted/20 text-center text-[11px] text-muted-foreground">
-          Supports EAN-13, CODE-128, CODE-39, UPC, and QR Codes.
+        {/* Recently Scanned Feed Section */}
+        {recentlyScanned.length > 0 && (
+          <div className="px-3 py-2 bg-muted/20 border-t space-y-1 text-xs">
+            <div className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">
+              Recently Scanned ({recentlyScanned.length})
+            </div>
+            <div className="space-y-1 max-h-24 overflow-y-auto pr-1">
+              {recentlyScanned.map((item) => (
+                <div
+                  key={item.id}
+                  className="flex items-center justify-between text-[11px] p-1.5 rounded-lg bg-card border shadow-2xs"
+                >
+                  <div className="truncate pr-2 font-medium">
+                    {item.name} {item.variantName ? `(${item.variantName})` : ""}
+                  </div>
+                  <div className="font-mono text-emerald-700 font-bold shrink-0">
+                    {money.format(item.price)}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Bottom Action Footer Bar: Done & Pay */}
+        <div className="p-3 border-t bg-card flex items-center justify-between gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            onClick={handleCloseDone}
+            className="flex-1 h-9 text-xs font-semibold"
+          >
+            Done
+          </Button>
+
+          {onOpenPayment && (
+            <Button
+              type="button"
+              onClick={handlePay}
+              className="flex-1 h-9 text-xs font-bold bg-[#0F3D3E] text-white hover:bg-[#0c3132] gap-1.5"
+            >
+              <CreditCard className="h-3.5 w-3.5" /> Pay Now {cartCount > 0 ? `(${cartCount})` : ""}
+            </Button>
+          )}
         </div>
       </DialogContent>
     </Dialog>

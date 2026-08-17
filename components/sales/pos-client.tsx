@@ -36,6 +36,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { QRCodeSVG } from "qrcode.react";
 
 import { Button } from "@/components/ui/button";
+import { SalesInvoiceDialog } from "@/components/sales/sales-invoice-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
@@ -517,7 +518,7 @@ export function POSClient() {
   const processBarcodeScan = React.useCallback(
     (scannedString: string) => {
       const query = scannedString.trim();
-      if (!query || !sellablesQuery.data) return false;
+      if (!query || !sellablesQuery.data) return { success: false, error: "Empty query" };
 
       // 1. Search exact barcode match first (preserving leading zeroes, string exact match)
       let match = sellablesQuery.data.find(
@@ -541,19 +542,24 @@ export function POSClient() {
           toast.error(`Product '${match.name}' is out of stock at this location.`);
           setBarcodeInput("");
           setTimeout(() => barcodeInputRef.current?.focus(), 10);
-          return true;
+          return { success: false, name: match.name, error: `'${match.name}' is out of stock` };
         }
 
         addToCart(match);
         setBarcodeInput("");
         toast.success(`Scanned: ${match.name}${match.variantName ? ` (${match.variantName})` : ""}`);
         setTimeout(() => barcodeInputRef.current?.focus(), 10);
-        return true;
+        return {
+          success: true,
+          name: match.name,
+          variantName: match.variantName ?? undefined,
+          price: match.price,
+        };
       } else {
         toast.error(`No product found for barcode ${query}`);
         setBarcodeInput("");
         setTimeout(() => barcodeInputRef.current?.focus(), 10);
-        return false;
+        return { success: false, error: `No product found for barcode ${query}` };
       }
     },
     [sellablesQuery.data, addToCart]
@@ -1702,263 +1708,20 @@ export function POSClient() {
       </Dialog>
 
       {/* Reference Invoice View & Print / WhatsApp Dialog */}
-      {postedInvoice && (
-        <Dialog open={!!postedInvoice} onOpenChange={() => setPostedInvoice(null)}>
-          <DialogContent className="w-[95vw] sm:max-w-3xl max-h-[92vh] overflow-y-auto p-0 border-none bg-transparent shadow-2xl">
-            <div className="bg-card border rounded-xl overflow-hidden shadow-2xl text-foreground">
-              {/* Top Invoice Actions Bar */}
-              <div className="p-3 sm:p-4 border-b bg-muted/40 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">
-                <div className="flex items-center gap-2 min-w-0">
-                  <Receipt className="h-5 w-5 text-primary shrink-0" />
-                  <h2 className="font-bold text-sm sm:text-base truncate">Invoice #{postedInvoice.invoiceNumber}</h2>
-                  <Badge variant="secondary" className="bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-400 shrink-0 text-[10px] sm:text-xs">
-                    {postedInvoice.status}
-                  </Badge>
-                </div>
+      <SalesInvoiceDialog
+        open={!!postedInvoice}
+        invoice={postedInvoice}
+        location={activeLocation}
+        onClose={() => setPostedInvoice(null)}
+      />
 
-                <div className="flex items-center gap-2 shrink-0 justify-end">
-                  <Button
-                    size="sm"
-                    onClick={handleSendWhatsApp}
-                    disabled={isSendingWa}
-                    className="bg-emerald-600 hover:bg-emerald-700 text-white gap-1.5 text-xs font-bold h-8 px-2.5"
-                  >
-                    {isSendingWa ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Send className="h-3.5 w-3.5" />}
-                    <span className="hidden xs:inline">Send via</span> WhatsApp
-                  </Button>
-                  <Button size="sm" variant="outline" onClick={() => window.print()} className="gap-1.5 text-xs h-8 px-2.5">
-                    <Printer className="h-3.5 w-3.5" /> Print
-                  </Button>
-                  <Button size="sm" variant="ghost" onClick={() => setPostedInvoice(null)} className="h-8 w-8 p-0">
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
-              </div>
-
-              {/* Invoice Layout */}
-              <div className="p-4 sm:p-8 space-y-4 sm:space-y-6 bg-white dark:bg-card text-foreground">
-                {/* Header Section */}
-                <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-                  <div className="min-w-0">
-                    <h1 className="text-lg sm:text-xl font-bold tracking-tight break-words">{postedInvoice.locationName}</h1>
-                    <p className="text-xs text-muted-foreground mt-0.5">123 Retail Avenue, Main Store</p>
-                    {activeLocation?.gstin && (
-                      <Badge variant="outline" className="mt-1 text-[10px] font-mono">
-                        GSTIN: {activeLocation.gstin}
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between sm:justify-end gap-3 sm:gap-4 shrink-0 border-t pt-3 sm:border-t-0 sm:pt-0">
-                    <div className="flex flex-col items-center">
-                      <QRCodeSVG value={`https://fiyoraerp.com/verify/sales-invoice-${postedInvoice.id}`} size={56} level="M" />
-                      <span className="text-[8px] sm:text-[9px] text-muted-foreground mt-0.5 font-bold uppercase tracking-widest">
-                        Scan to Verify
-                      </span>
-                    </div>
-                    <div className="text-right">
-                      <h2 className="text-lg sm:text-xl font-black text-primary tracking-tight">INVOICE</h2>
-                      <Badge
-                        className={
-                          postedInvoice.status === "PAID"
-                            ? "bg-emerald-500 text-white text-[10px] uppercase font-bold"
-                            : "bg-amber-500 text-white text-[10px] uppercase font-bold"
-                        }
-                      >
-                        {postedInvoice.status.replaceAll("_", " ")}
-                      </Badge>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Edge-to-Edge Meta Strip */}
-                <div className="px-3 py-2.5 sm:px-4 sm:py-3 bg-muted/30 rounded-lg border grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
-                  <div className="min-w-0">
-                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Invoice No</span>
-                    <span className="font-semibold break-all text-[11px] sm:text-xs">{postedInvoice.invoiceNumber}</span>
-                  </div>
-                  <div className="sm:border-l sm:pl-3 min-w-0">
-                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Date</span>
-                    <span className="font-semibold text-[11px] sm:text-xs">{postedInvoice.invoiceDate}</span>
-                  </div>
-                  <div className="sm:border-l sm:pl-3 min-w-0">
-                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Payment Method</span>
-                    <span className="font-semibold text-emerald-600 text-[11px] sm:text-xs">{paymentMethod}</span>
-                  </div>
-                  <div className="sm:border-l sm:pl-3 min-w-0">
-                    <span className="text-muted-foreground block text-[10px] uppercase font-bold">Status</span>
-                    <span className="font-semibold text-emerald-600 text-[11px] sm:text-xs">{postedInvoice.status}</span>
-                  </div>
-                </div>
-
-                {/* Billed To */}
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4 border-b pb-4 text-xs">
-                  <div className="min-w-0 space-y-0.5">
-                    <span className="text-muted-foreground uppercase font-bold text-[10px] block mb-1">Billed To</span>
-                    <div className="font-bold text-sm break-words">{postedInvoice.customerName}</div>
-                    {postedInvoice.customerPhone && (
-                      <div className="text-muted-foreground">Phone: {postedInvoice.customerPhone}</div>
-                    )}
-                    {postedInvoice.customerGstin && (
-                      <div className="text-muted-foreground font-mono break-all text-[11px]">GSTIN: {postedInvoice.customerGstin}</div>
-                    )}
-                  </div>
-                  <div className="min-w-0 space-y-0.5">
-                    <span className="text-muted-foreground uppercase font-bold text-[10px] block mb-1">Store Details</span>
-                    <div className="font-semibold break-words">{postedInvoice.locationName}</div>
-                    <div className="text-muted-foreground">Thank you for your business!</div>
-                  </div>
-                </div>
-
-                {/* Mobile Item List (<sm) */}
-                <div className="sm:hidden space-y-2 border rounded-lg p-2.5 bg-muted/10 divide-y">
-                  <div className="text-[10px] font-bold uppercase text-muted-foreground tracking-wider pb-1">Purchased Items ({postedInvoice.lines.length})</div>
-                  {postedInvoice.lines.map((line, idx) => (
-                    <div key={idx} className="pt-2 pb-1 space-y-1 text-xs">
-                      <div className="font-medium text-foreground break-words">{line.productName}</div>
-                      {line.variantName && (
-                        <div className="text-[11px] text-muted-foreground">{line.variantName}</div>
-                      )}
-                      {line.sku && (
-                        <div className="text-[10px] font-mono text-muted-foreground">{line.sku}</div>
-                      )}
-                      <div className="flex items-center justify-between text-[11px] text-muted-foreground pt-0.5">
-                        <span>Qty: <strong className="text-foreground">{line.quantity}</strong> × {money.format(line.unitPrice)}</span>
-                        <span className="font-bold text-foreground text-xs">{money.format(line.lineTotal)}</span>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Line Items Table (≥sm) */}
-                <div className="hidden sm:block">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-[240px]">Description</TableHead>
-                        <TableHead className="text-center w-[80px]">Qty</TableHead>
-                        <TableHead className="text-right w-[120px]">Rate (₹)</TableHead>
-                        <TableHead className="text-right w-[130px]">Amount (₹)</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {postedInvoice.lines.map((line, idx) => (
-                        <TableRow key={idx}>
-                          <TableCell className="font-medium text-xs">
-                            <div className="break-words">{line.productName}</div>
-                            {line.variantName && <div className="text-[11px] text-muted-foreground">{line.variantName}</div>}
-                          </TableCell>
-                          <TableCell className="text-center text-xs">{line.quantity}</TableCell>
-                          <TableCell className="text-right text-xs">{money.format(line.unitPrice)}</TableCell>
-                          <TableCell className="text-right font-semibold text-xs">{money.format(line.lineTotal)}</TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-
-                {/* Footer Split: Dynamic UPI Payment QR Code & Totals */}
-                <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 pt-4 border-t">
-                  <div className="flex flex-col items-center justify-center p-3 border rounded-lg bg-muted/20 w-fit self-center sm:self-auto">
-                    <QRCodeSVG
-                      value={`upi://pay?pa=${storeUpiId}&pn=${encodeURIComponent(storeName)}&am=${postedInvoice.totalAmount}&cu=INR`}
-                      size={72}
-                      level="L"
-                    />
-                    <span className="text-[9px] font-bold text-muted-foreground uppercase tracking-widest mt-1">
-                      Dynamic UPI Payment QR
-                    </span>
-                  </div>
-
-                  <div className="w-full sm:w-auto sm:min-w-[280px] space-y-1.5 text-xs text-right">
-                    {postedInvoice.subtotal > 0 && (
-                      <div className="flex justify-between gap-2 text-muted-foreground">
-                        <span>Subtotal (Excl. Tax)</span>
-                        <span className="font-mono">{money.format(postedInvoice.subtotal)}</span>
-                      </div>
-                    )}
-                    {postedInvoice.taxAmount > 0 && (
-                      <div className="flex justify-between gap-2 text-muted-foreground">
-                        <span>GST / Tax Amount</span>
-                        <span className="font-mono">+{money.format(postedInvoice.taxAmount)}</span>
-                      </div>
-                    )}
-                    <div className="flex justify-between gap-2 font-semibold border-t pt-1">
-                      <span>Invoice Total</span>
-                      <span className="font-mono">{money.format(postedInvoice.totalAmount)}</span>
-                    </div>
-
-                    {postedInvoice.previousBalance && postedInvoice.previousBalance > 0 ? (
-                      <div className="flex justify-between gap-2 text-amber-600 font-medium">
-                        <span>Previous Customer Dues</span>
-                        <span className="font-mono">+{money.format(postedInvoice.previousBalance)}</span>
-                      </div>
-                    ) : null}
-
-                    {postedInvoice.creditAppliedAmount > 0 && (
-                      <div className="flex justify-between gap-2 text-emerald-600">
-                        <span>Store Credit Applied</span>
-                        <span className="font-mono">-{money.format(postedInvoice.creditAppliedAmount)}</span>
-                      </div>
-                    )}
-
-                    <div className="flex justify-between gap-2 border-t pt-2 mt-1">
-                      <span className="font-bold text-sm">
-                        Total Paid {postedInvoice.paymentMethod ? `(${postedInvoice.paymentMethod})` : ""}
-                      </span>
-                      <span className="text-base sm:text-lg font-bold text-primary font-mono">
-                        {money.format((postedInvoice.paidAmount || 0) + (postedInvoice.creditAppliedAmount || 0))}
-                      </span>
-                    </div>
-
-                    {postedInvoice.tenderedCash && postedInvoice.tenderedCash > 0 ? (
-                      <div className="flex justify-between gap-2 text-muted-foreground text-[11px]">
-                        <span>Tendered Cash</span>
-                        <span className="font-mono">{money.format(postedInvoice.tenderedCash)}</span>
-                      </div>
-                    ) : null}
-
-                    {postedInvoice.changeDue && postedInvoice.changeDue > 0 ? (
-                      <div className="flex justify-between gap-2 text-emerald-600 text-[11px] font-semibold">
-                        <span>Change Returned</span>
-                        <span className="font-mono">{money.format(postedInvoice.changeDue)}</span>
-                      </div>
-                    ) : null}
-
-                    {((postedInvoice.paidAmount || 0) + (postedInvoice.creditAppliedAmount || 0)) < postedInvoice.totalAmount && (
-                      <div className="flex justify-between gap-2 text-amber-600 font-semibold border-t pt-1 mt-1">
-                        <span>Balance Due</span>
-                        <span className="font-mono">
-                          {money.format(
-                            Math.max(0, postedInvoice.totalAmount - (postedInvoice.paidAmount || 0) - (postedInvoice.creditAppliedAmount || 0))
-                          )}
-                        </span>
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Bottom Bar: Signatory Block */}
-                <div className="flex flex-col sm:flex-row sm:justify-between sm:items-end gap-2 pt-4 border-t text-[11px] text-muted-foreground">
-                  <div>This is an electronically verified tax invoice receipt.</div>
-                  <div className="text-left sm:text-right space-y-0.5">
-                    <div className="font-bold text-foreground">{postedInvoice.locationName}</div>
-                    <div className="text-[10px]">Authorised Signatory</div>
-                  </div>
-                </div>
-              </div>
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-
-      {/* Mobile & Desktop Camera Barcode Scanner Modal */}
+      {/* Mobile Camera Barcode Scanner Modal */}
       <CameraScannerDialog
         open={isCameraScannerOpen}
         onOpenChange={setIsCameraScannerOpen}
-        onScan={(scannedCode) => {
-          processBarcodeScan(scannedCode);
-        }}
+        onScan={(scannedCode) => processBarcodeScan(scannedCode)}
+        onOpenPayment={() => setIsPaymentOpen(true)}
+        cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)}
       />
     </div>
   );

@@ -1,73 +1,537 @@
 "use client";
+
 import * as React from "react";
-import {useQuery} from "@tanstack/react-query";
-import {BarChart3,Download,FileSpreadsheet,Loader2,RefreshCw} from "lucide-react";
-import {toast} from "sonner";
-import {apiClient,ApiRequestError,type PagedResult} from "@/lib/api-client";
-import {localDateInputValue} from "@/lib/date";
-import type {Location,Category} from "@/lib/types/master";
-import {categoryHierarchy} from "@/lib/category-hierarchy";
-import {useCategoriesLookup} from "@/lib/hooks/use-master-data";
-import type {Product} from "@/lib/types/product";
-import type {Customer} from "@/lib/types/sales";
-import type {Supplier} from "@/lib/types/purchase";
-import {Badge} from "@/components/ui/badge";import {Button} from "@/components/ui/button";import {Card,CardContent,CardDescription,CardHeader,CardTitle} from "@/components/ui/card";import {Input} from "@/components/ui/input";import {Label} from "@/components/ui/label";import {Select,SelectContent,SelectItem,SelectTrigger,SelectValue} from "@/components/ui/select";import {Table,TableBody,TableCell,TableHead,TableHeader,TableRow} from "@/components/ui/table";import {Tabs,TabsList,TabsTrigger} from "@/components/ui/tabs";
+import { useQuery } from "@tanstack/react-query";
+import { BarChart3, Download, FileSpreadsheet, Loader2, RefreshCw } from "lucide-react";
+import { toast } from "sonner";
+import { apiClient, ApiRequestError, type PagedResult } from "@/lib/api-client";
+import { localDateInputValue } from "@/lib/date";
+import type { Location, Category } from "@/lib/types/master";
+import { categoryHierarchy } from "@/lib/category-hierarchy";
+import { useCategoriesLookup } from "@/lib/hooks/use-master-data";
+import type { Product } from "@/lib/types/product";
+import type { Customer } from "@/lib/types/sales";
+import type { Supplier } from "@/lib/types/purchase";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
-type Group="Executive"|"Sales"|"Purchases"|"Inventory"|"Expenses"|"Finance"|"Customers"|"Suppliers";
-type Filter="dates"|"location"|"customer"|"supplier"|"product"|"category"|"ledger"|"horizon";
-type ReportDef={id:string;group:Group;name:string;description:string;path:string;filters:Filter[];exportable?:boolean};
-const reports:ReportDef[]=[
- {id:"overview",group:"Executive",name:"Business overview",description:"Sales, purchases, gross profit, expenses, receivables, payables and stock value.",path:"dashboard/overview",filters:["dates"]},
- {id:"sales-summary",group:"Sales",name:"Sales summary",description:"Invoiced, discount, tax, collected and outstanding totals.",path:"sales/summary",filters:["dates","location"]},
- {id:"sales-date",group:"Sales",name:"Sales by date",description:"Daily sales and collection trend.",path:"sales/by-date",filters:["dates","location"],exportable:true},
- {id:"sales-customer",group:"Sales",name:"Sales by customer",description:"Customer revenue and invoice contribution.",path:"sales/by-customer",filters:["dates","customer"],exportable:true},
- {id:"sales-product",group:"Sales",name:"Sales by product",description:"Product quantity, revenue and line-level totals.",path:"sales/by-product",filters:["dates","product"],exportable:true},
- {id:"sales-employee",group:"Sales",name:"Sales by employee",description:"Sales grouped by posting user.",path:"sales/by-employee",filters:["dates"],exportable:true},
- {id:"sales-returns",group:"Sales",name:"Sales returns",description:"Returned invoices and values for the period.",path:"sales/returns",filters:["dates"],exportable:true},
- {id:"receivables",group:"Sales",name:"Outstanding receivables",description:"Current customer balances requiring collection.",path:"sales/outstanding-receivables",filters:[],exportable:true},
- {id:"gst",group:"Sales",name:"GST sales",description:"Taxable value and tax collected by rate.",path:"sales/gst",filters:["dates"],exportable:true},
- {id:"top-products",group:"Sales",name:"Top products",description:"Best products ranked by sales revenue.",path:"sales/top-products",filters:["dates","category"],exportable:true},
- {id:"top-customers",group:"Sales",name:"Top customers",description:"Customers ranked by invoiced sales.",path:"sales/top-customers",filters:["dates"],exportable:true},
- {id:"purchase-summary",group:"Purchases",name:"Purchase summary",description:"Purchased, tax, paid and outstanding totals.",path:"purchase/summary",filters:["dates","supplier"]},
- {id:"purchase-supplier",group:"Purchases",name:"Purchases by supplier",description:"Supplier procurement contribution.",path:"purchase/by-supplier",filters:["dates","supplier"],exportable:true},
- {id:"purchase-returns",group:"Purchases",name:"Purchase returns",description:"Supplier returns during the period.",path:"purchase/returns",filters:["dates"],exportable:true},
- {id:"payables",group:"Purchases",name:"Outstanding payables",description:"Supplier balances requiring payment.",path:"purchase/outstanding-payables",filters:[],exportable:true},
- {id:"top-suppliers",group:"Purchases",name:"Top suppliers",description:"Suppliers ranked by procurement value.",path:"purchase/top-suppliers",filters:["dates"],exportable:true},
- {id:"stock",group:"Inventory",name:"Stock position",description:"On-hand, reserved and available stock by SKU and location.",path:"inventory/stock",filters:["location"],exportable:true},
- {id:"movement",group:"Inventory",name:"Stock movements",description:"Detailed transaction history from every connected module.",path:"inventory/movement",filters:["dates","product","location"],exportable:true},
- {id:"movement-summary",group:"Inventory",name:"Movement summary",description:"Opening, inward, outward and closing stock.",path:"inventory/movement-summary",filters:["dates","product","category","location"],exportable:true},
- {id:"stock-ledger",group:"Inventory",name:"Stock ledger",description:"Chronological running quantity for one product and location.",path:"inventory/ledger",filters:["dates","ledger"],exportable:true},
- {id:"valuation",group:"Inventory",name:"Stock valuation",description:"Quantity, weighted cost and stock value.",path:"inventory/valuation",filters:["location"],exportable:true},
- {id:"low-stock",group:"Inventory",name:"Low stock",description:"Items below their configured reorder level.",path:"inventory/low-stock",filters:["location"],exportable:true},
- {id:"expiry",group:"Inventory",name:"Expiring batches",description:"Batches expiring inside the selected horizon.",path:"inventory/expiry",filters:["location","horizon"],exportable:true},
- {id:"batch",group:"Inventory",name:"Batch register",description:"Receipt, expiry, available quantity and unit cost by batch.",path:"inventory/batch",filters:["product","location"],exportable:true},
- {id:"expense-summary",group:"Expenses",name:"Expense summary",description:"Posted operating expense totals.",path:"expenses/summary",filters:["dates","location"]},
- {id:"expense-trend",group:"Expenses",name:"Expense trend",description:"Expense movement by date.",path:"expenses/trend",filters:["dates"],exportable:true},
- {id:"expense-category",group:"Expenses",name:"Expenses by category",description:"Spend distribution across expense categories.",path:"expenses/by-category",filters:["dates"],exportable:true},
- {id:"report-pl",group:"Finance",name:"Profit and loss",description:"Revenue, expense and net profit from posted journals.",path:"financial/profit-and-loss",filters:["dates"]},
- {id:"cash-flow",group:"Finance",name:"Cash flow",description:"Cash inflow, outflow and net movement.",path:"financial/cash-flow",filters:["dates"]},
- {id:"day-book",group:"Finance",name:"Day book",description:"Daily journal-entry register.",path:"financial/day-book",filters:["dates"],exportable:true},
- {id:"customer-statement",group:"Customers",name:"Customer statement",description:"Invoices, receipts and outstanding by customer.",path:"customers/statement",filters:["dates","customer"],exportable:true},
- {id:"customer-ledger",group:"Customers",name:"Customer ledger",description:"Detailed account activity for one customer.",path:"customers/{customerId}/ledger",filters:["customer"]},
- {id:"customer-aging",group:"Customers",name:"Customer aging",description:"Receivables bucketed by overdue age.",path:"customers/aging",filters:[],exportable:true},
- {id:"supplier-statement",group:"Suppliers",name:"Supplier statement",description:"Invoices, payments and outstanding by supplier.",path:"suppliers/statement",filters:["dates","supplier"],exportable:true},
- {id:"supplier-aging",group:"Suppliers",name:"Supplier aging",description:"Payables bucketed by overdue age.",path:"suppliers/aging",filters:[],exportable:true},
+type Group = "Executive" | "Sales" | "Purchases" | "Inventory" | "Expenses" | "Finance" | "Customers" | "Suppliers";
+type Filter = "dates" | "location" | "customer" | "supplier" | "product" | "category" | "ledger" | "horizon";
+type ReportDef = { id: string; group: Group; name: string; description: string; path: string; filters: Filter[]; exportable?: boolean };
+
+const reports: ReportDef[] = [
+  { id: "overview", group: "Executive", name: "Business overview", description: "Sales, purchases, gross profit, expenses, receivables, payables and stock value.", path: "dashboard/overview", filters: ["dates"] },
+  { id: "sales-summary", group: "Sales", name: "Sales summary", description: "Invoiced, discount, tax, collected and outstanding totals.", path: "sales/summary", filters: ["dates", "location"] },
+  { id: "sales-date", group: "Sales", name: "Sales by date", description: "Daily sales and collection trend.", path: "sales/by-date", filters: ["dates", "location"], exportable: true },
+  { id: "sales-customer", group: "Sales", name: "Sales by customer", description: "Customer revenue and invoice contribution.", path: "sales/by-customer", filters: ["dates", "customer"], exportable: true },
+  { id: "sales-product", group: "Sales", name: "Sales by product", description: "Product quantity, revenue and line-level totals.", path: "sales/by-product", filters: ["dates", "product"], exportable: true },
+  { id: "sales-employee", group: "Sales", name: "Sales by employee", description: "Sales grouped by posting user.", path: "sales/by-employee", filters: ["dates"], exportable: true },
+  { id: "sales-returns", group: "Sales", name: "Sales returns", description: "Returned invoices and values for the period.", path: "sales/returns", filters: ["dates"], exportable: true },
+  { id: "receivables", group: "Sales", name: "Outstanding receivables", description: "Current customer balances requiring collection.", path: "sales/outstanding-receivables", filters: [], exportable: true },
+  { id: "gst", group: "Sales", name: "GST sales", description: "Taxable value and tax collected by rate.", path: "sales/gst", filters: ["dates"], exportable: true },
+  { id: "top-products", group: "Sales", name: "Top products", description: "Best products ranked by sales revenue.", path: "sales/top-products", filters: ["dates", "category"], exportable: true },
+  { id: "top-customers", group: "Sales", name: "Top customers", description: "Customers ranked by invoiced sales.", path: "sales/top-customers", filters: ["dates"], exportable: true },
+  { id: "purchase-summary", group: "Purchases", name: "Purchase summary", description: "Purchased, tax, paid and outstanding totals.", path: "purchase/summary", filters: ["dates", "supplier"] },
+  { id: "purchase-supplier", group: "Purchases", name: "Purchases by supplier", description: "Supplier procurement contribution.", path: "purchase/by-supplier", filters: ["dates", "supplier"], exportable: true },
+  { id: "purchase-returns", group: "Purchases", name: "Purchase returns", description: "Supplier returns during the period.", path: "purchase/returns", filters: ["dates"], exportable: true },
+  { id: "payables", group: "Purchases", name: "Outstanding payables", description: "Supplier balances requiring payment.", path: "purchase/outstanding-payables", filters: [], exportable: true },
+  { id: "top-suppliers", group: "Purchases", name: "Top suppliers", description: "Suppliers ranked by procurement value.", path: "purchase/top-suppliers", filters: ["dates"], exportable: true },
+  { id: "stock", group: "Inventory", name: "Stock position", description: "On-hand, reserved and available stock by SKU and location.", path: "inventory/stock", filters: ["location"], exportable: true },
+  { id: "movement", group: "Inventory", name: "Stock movements", description: "Detailed transaction history from every connected module.", path: "inventory/movement", filters: ["dates", "product", "location"], exportable: true },
+  { id: "movement-summary", group: "Inventory", name: "Movement summary", description: "Opening, inward, outward and closing stock.", path: "inventory/movement-summary", filters: ["dates", "product", "category", "location"], exportable: true },
+  { id: "stock-ledger", group: "Inventory", name: "Stock ledger", description: "Chronological running quantity for one product and location.", path: "inventory/ledger", filters: ["dates", "ledger"], exportable: true },
+  { id: "valuation", group: "Inventory", name: "Stock valuation", description: "Quantity, weighted cost and stock value.", path: "inventory/valuation", filters: ["location"], exportable: true },
+  { id: "low-stock", group: "Inventory", name: "Low stock", description: "Items below their configured reorder level.", path: "inventory/low-stock", filters: ["location"], exportable: true },
+  { id: "expiry", group: "Inventory", name: "Expiring batches", description: "Batches expiring inside the selected horizon.", path: "inventory/expiry", filters: ["location", "horizon"], exportable: true },
+  { id: "batch", group: "Inventory", name: "Batch register", description: "Receipt, expiry, available quantity and unit cost by batch.", path: "inventory/batch", filters: ["product", "location"], exportable: true },
+  { id: "expense-summary", group: "Expenses", name: "Expense summary", description: "Posted operating expense totals.", path: "expenses/summary", filters: ["dates", "location"] },
+  { id: "expense-trend", group: "Expenses", name: "Expense trend", description: "Expense movement by date.", path: "expenses/trend", filters: ["dates"], exportable: true },
+  { id: "expense-category", group: "Expenses", name: "Expenses by category", description: "Spend distribution across expense categories.", path: "expenses/by-category", filters: ["dates"], exportable: true },
+  { id: "report-pl", group: "Finance", name: "Profit and loss", description: "Revenue, expense and net profit from posted journals.", path: "financial/profit-and-loss", filters: ["dates"] },
+  { id: "cash-flow", group: "Finance", name: "Cash flow", description: "Cash inflow, outflow and net movement.", path: "financial/cash-flow", filters: ["dates"] },
+  { id: "day-book", group: "Finance", name: "Day book", description: "Daily journal-entry register.", path: "financial/day-book", filters: ["dates"], exportable: true },
+  { id: "customer-statement", group: "Customers", name: "Customer statement", description: "Invoices, receipts and outstanding by customer.", path: "customers/statement", filters: ["dates", "customer"], exportable: true },
+  { id: "customer-ledger", group: "Customers", name: "Customer ledger", description: "Detailed account activity for one customer.", path: "customers/{customerId}/ledger", filters: ["customer"] },
+  { id: "customer-aging", group: "Customers", name: "Customer aging", description: "Receivables bucketed by overdue age.", path: "customers/aging", filters: [], exportable: true },
+  { id: "supplier-statement", group: "Suppliers", name: "Supplier statement", description: "Invoices, payments and outstanding by supplier.", path: "suppliers/statement", filters: ["dates", "supplier"], exportable: true },
+  { id: "supplier-aging", group: "Suppliers", name: "Supplier aging", description: "Payables bucketed by overdue age.", path: "suppliers/aging", filters: [], exportable: true },
 ];
-const groups:[Group,string][]=[["Executive","Overview"],["Sales","Sales"],["Purchases","Purchases"],["Inventory","Inventory"],["Expenses","Expenses"],["Finance","Finance"],["Customers","Customers"],["Suppliers","Suppliers"]];
 
-export function ReportsClient(){const [group,setGroup]=React.useState<Group>("Executive"),[id,setId]=React.useState("overview"),[from,setFrom]=React.useState(`${new Date().getFullYear()}-01-01`),[to,setTo]=React.useState(localDateInputValue()),[location,setLocation]=React.useState("all"),[customer,setCustomer]=React.useState("all"),[supplier,setSupplier]=React.useState("all"),[product,setProduct]=React.useState("all"),[category,setCategory]=React.useState("all"),[horizon,setHorizon]=React.useState("30");
- const locations=useQuery({queryKey:["reports","locations"],queryFn:()=>apiClient.get<PagedResult<Location>>("master/locations?page=0&size=100")});const customers=useQuery({queryKey:["reports","customers"],queryFn:()=>apiClient.get<PagedResult<Customer>>("sales/customers?page=0&size=100")});const suppliers=useQuery({queryKey:["reports","suppliers"],queryFn:()=>apiClient.get<Supplier[]>("purchases/suppliers")});const products=useQuery({queryKey:["reports","products"],queryFn:()=>apiClient.get<PagedResult<Product>>("products?page=0&size=100")});const categories=useCategoriesLookup();
- const report=reports.find(x=>x.id===id)??reports[0];React.useEffect(()=>{const first=reports.find(x=>x.group===group);if(first)setId(first.id)},[group]);
- const path=React.useMemo(()=>buildPath(report,{from,to,location,customer,supplier,product,category,horizon}),[report,from,to,location,customer,supplier,product,category,horizon]);const runnable=(!report.filters.includes("ledger")||(product!=="all"&&location!=="all"))&&(report.id!=="customer-ledger"||customer!=="all");
- const result=useQuery({queryKey:["reports",report.id,path],queryFn:()=>apiClient.get<unknown>(`reports/${path}`),enabled:runnable});const names={locations:locations.data?.content??[],customers:customers.data?.content??[],suppliers:suppliers.data??[],products:products.data?.content??[],categories:categories.data?.content??[]};
- const download=async(format:"CSV"|"EXCEL")=>{try{const sep=path.includes("?")?"&":"?";const r=await fetch(`/api/backend/reports/${path}${sep}export=${format}`);if(!r.ok){const body=await r.json();throw new Error(body.error?.message??"Export failed")}const blob=await r.blob(),url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download=filename(r.headers.get("content-disposition"),`${report.id}.${format==="CSV"?"csv":"xlsx"}`);a.click();URL.revokeObjectURL(url);toast.success(`${report.name} downloaded`)}catch(e){toast.error(e instanceof Error?e.message:"Export failed")}};
- return <div className="flex flex-col gap-5"><div className="flex flex-col gap-2"><h1 className="text-2xl font-semibold">Reports</h1><p className="text-sm text-muted-foreground">Operational and statutory insights drawn directly from Sales, Purchases, Inventory, Expenses and Finance.</p></div><Tabs value={group} onValueChange={v=>setGroup(v as Group)}><TabsList className="h-auto flex-wrap">{groups.map(([v,l])=><TabsTrigger key={v} value={v}>{l}</TabsTrigger>)}</TabsList></Tabs><div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]"><Card className="h-fit"><CardHeader><CardTitle className="text-base">{group} reports</CardTitle><CardDescription>Choose the business question you need answered.</CardDescription></CardHeader><CardContent className="grid gap-2">{reports.filter(x=>x.group===group).map(x=><button key={x.id} onClick={()=>setId(x.id)} className={`rounded-lg border p-3 text-left transition-colors ${id===x.id?"border-primary bg-muted":"hover:bg-muted/50"}`}><span className="block text-sm font-medium">{x.name}</span><span className="mt-1 block text-xs text-muted-foreground">{x.description}</span></button>)}</CardContent></Card><div className="min-w-0 space-y-4"><Card><CardHeader><div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><CardTitle>{report.name}</CardTitle><CardDescription>{report.description}</CardDescription></div><div className="flex gap-2">{report.exportable&&<><Button variant="outline" size="sm" onClick={()=>download("CSV")}><Download/>CSV</Button><Button variant="outline" size="sm" onClick={()=>download("EXCEL")}><FileSpreadsheet/>Excel</Button></>}<Button size="sm" variant="outline" onClick={()=>result.refetch()}><RefreshCw/>Refresh</Button></div></div></CardHeader><CardContent><Filters report={report} values={{from,to,location,customer,supplier,product,category,horizon}} setters={{setFrom,setTo,setLocation,setCustomer,setSupplier,setProduct,setCategory,setHorizon}} names={names}/></CardContent></Card><Card><CardContent className="pt-5">{!runnable?<Empty text={report.id==="customer-ledger"?"Choose a customer to run the ledger.":"Choose both a product and location to run the stock ledger."}/>:result.isLoading?<div className="flex items-center gap-2 py-10 text-sm text-muted-foreground"><Loader2 className="animate-spin"/>Running report…</div>:result.error?<Empty text={result.error instanceof ApiRequestError?result.error.message:"Report could not be loaded"}/>:<ReportResult data={result.data} names={names}/>}</CardContent></Card></div></div></div>}
+const groups: [Group, string][] = [
+  ["Executive", "Overview"],
+  ["Sales", "Sales"],
+  ["Purchases", "Purchases"],
+  ["Inventory", "Inventory"],
+  ["Expenses", "Expenses"],
+  ["Finance", "Finance"],
+  ["Customers", "Customers"],
+  ["Suppliers", "Suppliers"],
+];
 
-type Values={from:string;to:string;location:string;customer:string;supplier:string;product:string;category:string;horizon:string};type Names={locations:Location[];customers:Customer[];suppliers:Supplier[];products:Product[];categories:Category[]};
-function buildPath(r:ReportDef,v:Values){let path=r.path.replace("{customerId}",v.customer);const p=new URLSearchParams();if(r.filters.includes("dates")){p.set("from",v.from);p.set("to",v.to)}if(r.filters.includes("location")&&v.location!=="all")p.set("locationId",v.location);if(r.filters.includes("customer")&&v.customer!=="all"&&!r.path.includes("{"))p.set("customerId",v.customer);if(r.filters.includes("supplier")&&v.supplier!=="all")p.set("supplierId",v.supplier);if(r.filters.includes("product")&&v.product!=="all")p.set("productId",v.product);if(r.filters.includes("category")&&v.category!=="all")p.set("categoryId",v.category);if(r.filters.includes("ledger")){if(v.product!=="all")p.set("productId",v.product);if(v.location!=="all")p.set("locationId",v.location)}if(r.filters.includes("horizon"))p.set("horizonDays",v.horizon);if(r.exportable||["customer-ledger"].includes(r.id)){p.set("page","0");p.set("size","100")}const q=p.toString();return q?`${path}?${q}`:path}
-function Filters({report,values:v,setters:s,names}:{report:ReportDef;values:Values;setters:{setFrom:(x:string)=>void;setTo:(x:string)=>void;setLocation:(x:string)=>void;setCustomer:(x:string)=>void;setSupplier:(x:string)=>void;setProduct:(x:string)=>void;setCategory:(x:string)=>void;setHorizon:(x:string)=>void};names:Names}){const f=report.filters;return <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{f.includes("dates")&&<><Field label="From"><Input type="date" value={v.from} onChange={e=>s.setFrom(e.target.value)}/></Field><Field label="To"><Input type="date" value={v.to} onChange={e=>s.setTo(e.target.value)}/></Field></>}{(f.includes("location")||f.includes("ledger"))&&<Field label="Location"><Picker value={v.location} set={s.setLocation} items={[["all","All locations"],...names.locations.map(x=>[String(x.id),x.name] as [string,string])]}/></Field>}{f.includes("customer")&&<Field label="Customer"><Picker value={v.customer} set={s.setCustomer} items={[["all",report.id==="customer-ledger"?"Choose customer":"All customers"],...names.customers.map(x=>[String(x.id),x.name] as [string,string])]}/></Field>}{f.includes("supplier")&&<Field label="Supplier"><Picker value={v.supplier} set={s.setSupplier} items={[["all","All suppliers"],...names.suppliers.map(x=>[String(x.id),x.name] as [string,string])]}/></Field>}{(f.includes("product")||f.includes("ledger"))&&<Field label="Product"><Picker value={v.product} set={s.setProduct} items={[["all",f.includes("ledger")?"Choose product":"All products"],...names.products.map(x=>[String(x.id),`${x.code} — ${x.name}`] as [string,string])]}/></Field>}{f.includes("category")&&<Field label="Category"><Picker value={v.category} set={s.setCategory} items={[["all","All categories"],...categoryHierarchy(names.categories).map(({category,label})=>[String(category.id),label] as [string,string])]}/></Field>}{f.includes("horizon")&&<Field label="Expiry horizon (days)"><Input type="number" min="0" value={v.horizon} onChange={e=>s.setHorizon(e.target.value)}/></Field>}</div>}
-function ReportResult({data,names}:{data:unknown;names:Names}){if(!data)return <Empty text="No report data returned."/>;const obj=data as Record<string,unknown>;const page=Array.isArray(obj.content)?obj:(obj.transactions&&typeof obj.transactions==="object"?obj.transactions as Record<string,unknown>:null);const rows=(page?.content??(Array.isArray(data)?data:null)) as Record<string,unknown>[]|null;const primitives=Object.entries(obj).filter(([,v])=>v===null||["string","number","boolean"].includes(typeof v));const nested=Object.entries(obj).filter(([,v])=>Array.isArray(v));return <div className="space-y-5">{primitives.length>0&&<div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">{primitives.filter(([k])=>!k.toLowerCase().includes("companyid")).map(([k,v])=><div key={k} className="rounded-lg border p-3"><p className="text-xs text-muted-foreground">{label(k)}</p><p className="mt-1 font-semibold">{format(k,v,names)}</p></div>)}</div>}{rows&&<DataRows rows={rows} names={names}/>} {!rows&&nested.map(([k,v])=><section key={k}><h3 className="mb-2 font-medium">{label(k)}</h3><DataRows rows={v as Record<string,unknown>[]} names={names}/></section>)}{!rows&&nested.length===0&&primitives.length===0&&<ObjectSections value={obj} names={names}/>}</div>}
-function ObjectSections({value,names}:{value:Record<string,unknown>;names:Names}){return <div className="grid gap-4 xl:grid-cols-2">{Object.entries(value).filter(([,v])=>v&&typeof v==="object").map(([k,v])=><div key={k} className="rounded-lg border p-4"><h3 className="mb-3 font-medium">{label(k)}</h3>{Array.isArray(v)?<DataRows rows={v as Record<string,unknown>[]} names={names}/>:<div className="space-y-2">{Object.entries(v as Record<string,unknown>).map(([a,b])=><div key={a} className="flex justify-between gap-3 text-sm"><span className="text-muted-foreground">{label(a)}</span><span className="font-medium">{format(a,b,names)}</span></div>)}</div>}</div>)}</div>}
-function DataRows({rows,names}:{rows:Record<string,unknown>[];names:Names}){if(rows.length===0)return <Empty text="No records match the selected filters."/>;const keys=Object.keys(rows[0]).filter(k=>!k.toLowerCase().includes("companyid"));return <div className="overflow-x-auto"><Table><TableHeader><TableRow>{keys.map(k=><TableHead key={k}>{label(k)}</TableHead>)}</TableRow></TableHeader><TableBody>{rows.map((row,i)=><TableRow key={i}>{keys.map(k=><TableCell key={k} className="max-w-64">{format(k,row[k],names)}</TableCell>)}</TableRow>)}</TableBody></Table></div>}
-function format(key:string,value:unknown,n:Names):React.ReactNode{if(value===null||value===undefined)return "—";if(typeof value==="boolean")return <Badge variant={value?"secondary":"outline"}>{value?"Yes":"No"}</Badge>;if(key==="productId")return entity(value,n.products,"Product");if(key==="locationId")return entity(value,n.locations,"Location");if(key==="customerId")return entity(value,n.customers,"Customer");if(key==="supplierId")return entity(value,n.suppliers,"Supplier");if(key==="categoryId")return entity(value,n.categories,"Category");if(typeof value==="number"&&/(amount|total|revenue|sales|paid|outstanding|value|cost|profit|loss|tax|discount|balance|payable|receivable|inflow|outflow)/i.test(key))return new Intl.NumberFormat("en-IN",{style:"currency",currency:"INR"}).format(value);if(Array.isArray(value))return `${value.length} records`;if(typeof value==="object")return JSON.stringify(value);return String(value)}
-function entity(value:unknown,list:{id:number;name:string}[],prefix:string){const x=list.find(i=>i.id===Number(value));return x?`${x.name} (#${value})`:`${prefix} #${value}`};function label(k:string){return k.replace(/([A-Z])/g," $1").replaceAll("_"," ").replace(/^./,x=>x.toUpperCase())};function filename(cd:string|null,fallback:string){return cd?.match(/filename="?([^";]+)"?/)?.[1]??fallback};function Field({label:caption,children}:{label:string;children:React.ReactNode}){return <div className="grid gap-2"><Label>{caption}</Label>{children}</div>};function Picker({value,set,items}:{value:string;set:(v:string)=>void;items:[string,string][]}){return <Select items={Object.fromEntries(items)} value={value} onValueChange={v=>set(v??"")}><SelectTrigger><SelectValue placeholder="Select"/></SelectTrigger><SelectContent>{items.map(([v,l])=><SelectItem key={v} value={v}>{l}</SelectItem>)}</SelectContent></Select>};function Empty({text}:{text:string}){return <div className="py-10 text-center text-sm text-muted-foreground"><BarChart3 className="mx-auto mb-2 size-8"/>{text}</div>}
+export function ReportsClient() {
+  const [group, setGroup] = React.useState<Group>("Executive");
+  const [id, setId] = React.useState("overview");
+  const [from, setFrom] = React.useState(`${new Date().getFullYear()}-01-01`);
+  const [to, setTo] = React.useState(localDateInputValue());
+  const [location, setLocation] = React.useState("all");
+  const [customer, setCustomer] = React.useState("all");
+  const [supplier, setSupplier] = React.useState("all");
+  const [product, setProduct] = React.useState("all");
+  const [category, setCategory] = React.useState("all");
+  const [horizon, setHorizon] = React.useState("30");
+
+  const locations = useQuery({ queryKey: ["reports", "locations"], queryFn: () => apiClient.get<PagedResult<Location>>("master/locations?page=0&size=100") });
+  const customers = useQuery({ queryKey: ["reports", "customers"], queryFn: () => apiClient.get<PagedResult<Customer>>("sales/customers?page=0&size=100") });
+  const suppliers = useQuery({ queryKey: ["reports", "suppliers"], queryFn: () => apiClient.get<Supplier[]>("purchases/suppliers") });
+  const products = useQuery({ queryKey: ["reports", "products"], queryFn: () => apiClient.get<PagedResult<Product>>("products?page=0&size=100") });
+  const categories = useCategoriesLookup();
+
+  const report = reports.find((x) => x.id === id) ?? reports[0];
+  React.useEffect(() => {
+    const first = reports.find((x) => x.group === group);
+    if (first) setId(first.id);
+  }, [group]);
+
+  const path = React.useMemo(
+    () => buildPath(report, { from, to, location, customer, supplier, product, category, horizon }),
+    [report, from, to, location, customer, supplier, product, category, horizon]
+  );
+  const runnable =
+    (!report.filters.includes("ledger") || (product !== "all" && location !== "all")) &&
+    (report.id !== "customer-ledger" || customer !== "all");
+
+  const result = useQuery({ queryKey: ["reports", report.id, path], queryFn: () => apiClient.get<unknown>(`reports/${path}`), enabled: runnable });
+  const names = {
+    locations: locations.data?.content ?? [],
+    customers: customers.data?.content ?? [],
+    suppliers: suppliers.data ?? [],
+    products: products.data?.content ?? [],
+    categories: categories.data?.content ?? [],
+  };
+
+  const download = async (format: "CSV" | "EXCEL") => {
+    try {
+      const sep = path.includes("?") ? "&" : "?";
+      const r = await fetch(`/api/backend/reports/${path}${sep}export=${format}`);
+      if (!r.ok) {
+        const body = await r.json();
+        throw new Error(body.error?.message ?? "Export failed");
+      }
+      const blob = await r.blob(),
+        url = URL.createObjectURL(blob),
+        a = document.createElement("a");
+      a.href = url;
+      a.download = filename(r.headers.get("content-disposition"), `${report.id}.${format === "CSV" ? "csv" : "xlsx"}`);
+      a.click();
+      URL.revokeObjectURL(url);
+      toast.success(`${report.name} downloaded`);
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : "Export failed");
+    }
+  };
+
+  return (
+    <div className="flex flex-col gap-5 w-full max-w-full">
+      {/* Header */}
+      <div className="flex flex-col gap-2">
+        <h1 className="text-2xl font-semibold">Reports</h1>
+        <p className="text-sm text-muted-foreground">
+          Operational and statutory insights drawn directly from Sales, Purchases, Inventory, Expenses and Finance.
+        </p>
+      </div>
+
+      {/* Group Tabs List (Horizontally Scrollable on Mobile) */}
+      <Tabs value={group} onValueChange={(v) => setGroup(v as Group)} className="w-full">
+        <div className="border-b overflow-x-auto scrollbar-none">
+          <TabsList className="flex h-auto flex-wrap w-max sm:w-auto">
+            {groups.map(([v, l]) => (
+              <TabsTrigger key={v} value={v}>
+                {l}
+              </TabsTrigger>
+            ))}
+          </TabsList>
+        </div>
+      </Tabs>
+
+      {/* Main Reports Sidebar & Workspace */}
+      <div className="grid gap-4 lg:grid-cols-[280px_minmax(0,1fr)]">
+        {/* Reports Selector Sidebar Card */}
+        <Card className="h-fit shadow-xs border-slate-200/80">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base">{group} reports</CardTitle>
+            <CardDescription>Choose the business question you need answered.</CardDescription>
+          </CardHeader>
+          <CardContent className="grid gap-2">
+            {reports
+              .filter((x) => x.group === group)
+              .map((x) => (
+                <button
+                  key={x.id}
+                  onClick={() => setId(x.id)}
+                  className={`rounded-xl border p-3 text-left transition-colors ${
+                    id === x.id ? "border-[#0F3D3E] bg-[#0F3D3E]/5 text-foreground" : "hover:bg-muted/50 border-slate-200/80"
+                  }`}
+                >
+                  <span className="block text-sm font-medium">{x.name}</span>
+                  <span className="mt-1 block text-xs text-muted-foreground">{x.description}</span>
+                </button>
+              ))}
+          </CardContent>
+        </Card>
+
+        {/* Report Content Workspace */}
+        <div className="min-w-0 space-y-4">
+          <Card className="shadow-xs border-slate-200/80">
+            <CardHeader>
+              <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+                <div>
+                  <CardTitle>{report.name}</CardTitle>
+                  <CardDescription>{report.description}</CardDescription>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {report.exportable && (
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => download("CSV")}>
+                        <Download className="h-3.5 w-3.5 mr-1" /> CSV
+                      </Button>
+                      <Button variant="outline" size="sm" onClick={() => download("EXCEL")}>
+                        <FileSpreadsheet className="h-3.5 w-3.5 mr-1" /> Excel
+                      </Button>
+                    </>
+                  )}
+                  <Button size="sm" variant="outline" onClick={() => result.refetch()}>
+                    <RefreshCw className="h-3.5 w-3.5 mr-1" /> Refresh
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              <Filters
+                report={report}
+                values={{ from, to, location, customer, supplier, product, category, horizon }}
+                setters={{ setFrom, setTo, setLocation, setCustomer, setSupplier, setProduct, setCategory, setHorizon }}
+                names={names}
+              />
+            </CardContent>
+          </Card>
+
+          {/* Report Results */}
+          <Card className="shadow-xs border-slate-200/80">
+            <CardContent className="pt-5">
+              {!runnable ? (
+                <Empty
+                  text={
+                    report.id === "customer-ledger"
+                      ? "Choose a customer to run the ledger."
+                      : "Choose both a product and location to run the stock ledger."
+                  }
+                />
+              ) : result.isLoading ? (
+                <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                  <Loader2 className="animate-spin text-[#0F3D3E] h-5 w-5" /> Running report…
+                </div>
+              ) : result.error ? (
+                <Empty text={result.error instanceof ApiRequestError ? result.error.message : "Report could not be loaded"} />
+              ) : (
+                <ReportResult data={result.data} names={names} />
+              )}
+            </CardContent>
+          </Card>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+type Values = { from: string; to: string; location: string; customer: string; supplier: string; product: string; category: string; horizon: string };
+type Names = { locations: Location[]; customers: Customer[]; suppliers: Supplier[]; products: Product[]; categories: Category[] };
+
+function buildPath(r: ReportDef, v: Values) {
+  let path = r.path.replace("{customerId}", v.customer);
+  const p = new URLSearchParams();
+  if (r.filters.includes("dates")) {
+    p.set("from", v.from);
+    p.set("to", v.to);
+  }
+  if (r.filters.includes("location") && v.location !== "all") p.set("locationId", v.location);
+  if (r.filters.includes("customer") && v.customer !== "all" && !r.path.includes("{")) p.set("customerId", v.customer);
+  if (r.filters.includes("supplier") && v.supplier !== "all") p.set("supplierId", v.supplier);
+  if (r.filters.includes("product") && v.product !== "all") p.set("productId", v.product);
+  if (r.filters.includes("category") && v.category !== "all") p.set("categoryId", v.category);
+  if (r.filters.includes("ledger")) {
+    if (v.product !== "all") p.set("productId", v.product);
+    if (v.location !== "all") p.set("locationId", v.location);
+  }
+  if (r.filters.includes("horizon")) p.set("horizonDays", v.horizon);
+  if (r.exportable || ["customer-ledger"].includes(r.id)) {
+    p.set("page", "0");
+    p.set("size", "100");
+  }
+  const q = p.toString();
+  return q ? `${path}?${q}` : path;
+}
+
+function Filters({
+  report,
+  values: v,
+  setters: s,
+  names,
+}: {
+  report: ReportDef;
+  values: Values;
+  setters: {
+    setFrom: (x: string) => void;
+    setTo: (x: string) => void;
+    setLocation: (x: string) => void;
+    setCustomer: (x: string) => void;
+    setSupplier: (x: string) => void;
+    setProduct: (x: string) => void;
+    setCategory: (x: string) => void;
+    setHorizon: (x: string) => void;
+  };
+  names: Names;
+}) {
+  const f = report.filters;
+  return (
+    <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {f.includes("dates") && (
+        <>
+          <Field label="From">
+            <Input type="date" value={v.from} onChange={(e) => s.setFrom(e.target.value)} />
+          </Field>
+          <Field label="To">
+            <Input type="date" value={v.to} onChange={(e) => s.setTo(e.target.value)} />
+          </Field>
+        </>
+      )}
+      {(f.includes("location") || f.includes("ledger")) && (
+        <Field label="Location">
+          <Picker value={v.location} set={s.setLocation} items={[["all", "All locations"], ...names.locations.map((x) => [String(x.id), x.name] as [string, string])]} />
+        </Field>
+      )}
+      {f.includes("customer") && (
+        <Field label="Customer">
+          <Picker
+            value={v.customer}
+            set={s.setCustomer}
+            items={[["all", report.id === "customer-ledger" ? "Choose customer" : "All customers"], ...names.customers.map((x) => [String(x.id), x.name] as [string, string])]}
+          />
+        </Field>
+      )}
+      {f.includes("supplier") && (
+        <Field label="Supplier">
+          <Picker value={v.supplier} set={s.setSupplier} items={[["all", "All suppliers"], ...names.suppliers.map((x) => [String(x.id), x.name] as [string, string])]} />
+        </Field>
+      )}
+      {(f.includes("product") || f.includes("ledger")) && (
+        <Field label="Product">
+          <Picker
+            value={v.product}
+            set={s.setProduct}
+            items={[["all", f.includes("ledger") ? "Choose product" : "All products"], ...names.products.map((x) => [String(x.id), `${x.code} — ${x.name}`] as [string, string])]}
+          />
+        </Field>
+      )}
+      {f.includes("category") && (
+        <Field label="Category">
+          <Picker
+            value={v.category}
+            set={s.setCategory}
+            items={[["all", "All categories"], ...categoryHierarchy(names.categories).map(({ category, label }) => [String(category.id), label] as [string, string])]}
+          />
+        </Field>
+      )}
+      {f.includes("horizon") && (
+        <Field label="Expiry horizon (days)">
+          <Input type="number" min="0" value={v.horizon} onChange={(e) => s.setHorizon(e.target.value)} />
+        </Field>
+      )}
+    </div>
+  );
+}
+
+function ReportResult({ data, names }: { data: unknown; names: Names }) {
+  if (!data) return <Empty text="No report data returned." />;
+  const obj = data as Record<string, unknown>;
+  const page = Array.isArray(obj.content) ? obj : obj.transactions && typeof obj.transactions === "object" ? (obj.transactions as Record<string, unknown>) : null;
+  const rows = (page?.content ?? (Array.isArray(data) ? data : null)) as Record<string, unknown>[] | null;
+  const primitives = Object.entries(obj).filter(([, v]) => v === null || ["string", "number", "boolean"].includes(typeof v));
+  const nested = Object.entries(obj).filter(([, v]) => Array.isArray(v));
+
+  return (
+    <div className="space-y-5">
+      {/* Primitives Summary Metrics Grid */}
+      {primitives.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          {primitives
+            .filter(([k]) => !k.toLowerCase().includes("companyid"))
+            .map(([k, v]) => (
+              <div key={k} className="rounded-2xl border p-3.5 bg-card shadow-xs">
+                <p className="text-xs text-muted-foreground">{label(k)}</p>
+                <p className="mt-1 font-semibold">{format(k, v, names)}</p>
+              </div>
+            ))}
+        </div>
+      )}
+
+      {/* Main Data Rows (Dual Card / Table View) */}
+      {rows && <DataRows rows={rows} names={names} />}
+
+      {!rows &&
+        nested.map(([k, v]) => (
+          <section key={k} className="space-y-2">
+            <h3 className="font-medium">{label(k)}</h3>
+            <DataRows rows={v as Record<string, unknown>[]} names={names} />
+          </section>
+        ))}
+
+      {!rows && nested.length === 0 && primitives.length === 0 && <ObjectSections value={obj} names={names} />}
+    </div>
+  );
+}
+
+function ObjectSections({ value, names }: { value: Record<string, unknown>; names: Names }) {
+  return (
+    <div className="grid gap-4 xl:grid-cols-2">
+      {Object.entries(value)
+        .filter(([, v]) => v && typeof v === "object")
+        .map(([k, v]) => (
+          <div key={k} className="rounded-2xl border p-4 bg-card shadow-xs">
+            <h3 className="mb-3 font-medium">{label(k)}</h3>
+            {Array.isArray(v) ? (
+              <DataRows rows={v as Record<string, unknown>[]} names={names} />
+            ) : (
+              <div className="space-y-2">
+                {Object.entries(v as Record<string, unknown>).map(([a, b]) => (
+                  <div key={a} className="flex justify-between gap-3 text-sm border-b pb-1.5 last:border-0">
+                    <span className="text-muted-foreground">{label(a)}</span>
+                    <span className="font-medium text-right break-words">{format(a, b, names)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        ))}
+    </div>
+  );
+}
+
+function DataRows({ rows, names }: { rows: Record<string, unknown>[]; names: Names }) {
+  if (rows.length === 0) return <Empty text="No records match the selected filters." />;
+  const keys = Object.keys(rows[0]).filter((k) => !k.toLowerCase().includes("companyid"));
+
+  return (
+    <>
+      {/* Mobile Card List (<md) */}
+      <div className="md:hidden space-y-3">
+        {rows.map((row, i) => (
+          <div key={i} className="p-4 border rounded-2xl bg-card space-y-2 shadow-xs">
+            {keys.map((k) => (
+              <div key={k} className="flex items-start justify-between gap-3 text-xs border-b pb-1.5 last:border-0 last:pb-0">
+                <span className="text-muted-foreground shrink-0">{label(k)}</span>
+                <span className="font-medium text-right break-words min-w-0">{format(k, row[k], names)}</span>
+              </div>
+            ))}
+          </div>
+        ))}
+      </div>
+
+      {/* Desktop Table (≥md) */}
+      <div className="hidden md:block overflow-x-auto border rounded-xl">
+        <Table>
+          <TableHeader>
+            <TableRow>
+              {keys.map((k) => (
+                <TableHead key={k}>{label(k)}</TableHead>
+              ))}
+            </TableRow>
+          </TableHeader>
+          <TableBody>
+            {rows.map((row, i) => (
+              <TableRow key={i}>
+                {keys.map((k) => (
+                  <TableCell key={k} className="max-w-64">
+                    {format(k, row[k], names)}
+                  </TableCell>
+                ))}
+              </TableRow>
+            ))}
+          </TableBody>
+        </Table>
+      </div>
+    </>
+  );
+}
+
+function format(key: string, value: unknown, n: Names): React.ReactNode {
+  if (value === null || value === undefined) return "—";
+  if (typeof value === "boolean")
+    return <Badge variant={value ? "secondary" : "outline"}>{value ? "Yes" : "No"}</Badge>;
+  if (key === "productId") return entity(value, n.products, "Product");
+  if (key === "locationId") return entity(value, n.locations, "Location");
+  if (key === "customerId") return entity(value, n.customers, "Customer");
+  if (key === "supplierId") return entity(value, n.suppliers, "Supplier");
+  if (key === "categoryId") return entity(value, n.categories, "Category");
+  if (
+    typeof value === "number" &&
+    /(amount|total|revenue|sales|paid|outstanding|value|cost|profit|loss|tax|discount|balance|payable|receivable|inflow|outflow)/i.test(key)
+  )
+    return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(value);
+  if (Array.isArray(value)) return `${value.length} records`;
+  if (typeof value === "object") return JSON.stringify(value);
+  return String(value);
+}
+
+function entity(value: unknown, list: { id: number; name: string }[], prefix: string) {
+  const x = list.find((i) => i.id === Number(value));
+  return x ? `${x.name} (#${value})` : `${prefix} #${value}`;
+}
+
+function label(k: string) {
+  return k.replace(/([A-Z])/g, " $1").replaceAll("_", " ").replace(/^./, (x) => x.toUpperCase());
+}
+
+function filename(cd: string | null, fallback: string) {
+  return cd?.match(/filename="?([^";]+)"?/)?.[1] ?? fallback;
+}
+
+function Field({ label: caption, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid gap-2">
+      <Label>{caption}</Label>
+      {children}
+    </div>
+  );
+}
+
+function Picker({ value, set, items }: { value: string; set: (v: string) => void; items: [string, string][] }) {
+  return (
+    <Select items={Object.fromEntries(items)} value={value} onValueChange={(v) => set(v ?? "")}>
+      <SelectTrigger className="w-full h-9">
+        <SelectValue placeholder="Select" />
+      </SelectTrigger>
+      <SelectContent>
+        {items.map(([v, l]) => (
+          <SelectItem key={v} value={v}>
+            {l}
+          </SelectItem>
+        ))}
+      </SelectContent>
+    </Select>
+  );
+}
+
+function Empty({ text }: { text: string }) {
+  return (
+    <div className="py-10 text-center text-sm text-muted-foreground flex flex-col items-center justify-center">
+      <BarChart3 className="mb-2 size-8 text-[#0F3D3E]" />
+      {text}
+    </div>
+  );
+}

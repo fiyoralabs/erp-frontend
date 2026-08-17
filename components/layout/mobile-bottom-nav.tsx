@@ -19,7 +19,7 @@ import {
 // Preferred order for the handful of slots that fit in the bar; anything not
 // visible for this user (permissions) is skipped rather than left blank, and
 // everything else -- the full nav-config list -- lives behind "More".
-const PRIMARY_TITLES = ["Dashboard", "Sales", "Purchases", "Inventory"];
+const PRIMARY_TITLES = ["Dashboard", "Purchases", "Sales", "Inventory"];
 
 export function MobileBottomNav({ permissions }: { permissions: readonly string[] }) {
   const pathname = usePathname();
