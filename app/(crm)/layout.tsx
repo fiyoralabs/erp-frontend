@@ -6,6 +6,7 @@ import { CrmSidebar } from "@/components/crm/shared/crm-sidebar";
 import { CrmTopbar } from "@/components/crm/shared/crm-topbar";
 import { CrmSubNav } from "@/components/crm/shared/crm-sub-nav";
 import { CrmThemeScope } from "@/components/crm/shared/crm-theme-scope";
+import { QueryProvider } from "@/components/providers/query-provider";
 import "./crm-theme.css";
 
 type WorkingLocationContext = {
@@ -33,25 +34,27 @@ export default async function StandaloneCrmLayout({
   };
 
   return (
-    <div className="flex h-screen w-screen overflow-hidden bg-background">
-      <CrmThemeScope />
-      {/* Standalone CRM Sidebar -- visible on lg: and above only */}
-      <div className="hidden lg:flex lg:w-64 lg:shrink-0 h-full overflow-hidden border-r bg-sidebar">
-        <CrmSidebar />
-      </div>
+    <QueryProvider>
+      <div className="flex h-screen w-screen overflow-hidden bg-background">
+        <CrmThemeScope />
+        {/* Standalone CRM Sidebar -- visible on lg: and above only */}
+        <div className="hidden lg:flex lg:w-64 lg:shrink-0 h-full overflow-hidden border-r bg-sidebar">
+          <CrmSidebar />
+        </div>
 
-      {/* Main CRM Workspace Area */}
-      <div className="flex flex-1 flex-col h-full min-w-0 overflow-hidden">
-        <CrmTopbar
-          userName={user?.fullName ?? session.sub}
-          userEmail={user?.email ?? session.sub}
-          locationContext={locationContext}
-        />
-        <CrmSubNav />
-        <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-20 md:pb-6 min-h-0">
-          {children}
-        </main>
+        {/* Main CRM Workspace Area */}
+        <div className="flex flex-1 flex-col h-full min-w-0 overflow-hidden">
+          <CrmTopbar
+            userName={user?.fullName ?? session.sub}
+            userEmail={user?.email ?? session.sub}
+            locationContext={locationContext}
+          />
+          <CrmSubNav />
+          <main className="flex-1 overflow-y-auto p-4 sm:p-6 pb-20 md:pb-6 min-h-0">
+            {children}
+          </main>
+        </div>
       </div>
-    </div>
+    </QueryProvider>
   );
 }

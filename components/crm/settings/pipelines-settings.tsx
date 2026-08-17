@@ -49,7 +49,7 @@ export function PipelinesSettings() {
       {(listQuery.data ?? []).map((pipeline) => (
         <Card key={pipeline.id}>
           <CardHeader className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
-            <CardTitle className="flex items-center gap-2 text-base">
+            <CardTitle className="flex items-center gap-2 text-sm md:text-base">
               {pipeline.name}
               {pipeline.isDefault && <Badge variant="secondary">Default</Badge>}
               {!pipeline.active && <Badge variant="outline">Inactive</Badge>}

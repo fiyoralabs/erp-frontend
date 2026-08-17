@@ -51,7 +51,7 @@ export function DateRangePicker({ from, to }: { from: string; to: string }) {
       <Button
         size="sm"
         onClick={apply}
-        className="w-full sm:w-auto rounded-xl bg-[#0F3D3E] text-white hover:bg-[#0F3D3E]/90 dark:bg-[#beebeb] dark:text-[#002020] dark:hover:bg-[#beebeb]/90"
+        className="w-full sm:w-auto rounded-xl bg-[#0F3D3E] text-white hover:bg-[#0F3D3E]/90 dark:bg-[#beebeb] dark:text-[#002020] dark:hover:bg-[#beebeb]/90 lg:h-9 lg:px-4 lg:text-sm"
       >
         Apply
       </Button>

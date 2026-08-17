@@ -111,7 +111,7 @@ function ForgotPasswordForm() {
             <p className="mt-1.5 text-sm sm:text-base text-[#545f73]">{copy.description(email)}</p>
           </div>
 
-          <form onSubmit={submit} className="space-y-4 sm:space-y-5">
+          <form method="POST" onSubmit={submit} className="space-y-4 sm:space-y-5">
             {step === "email" && (
               <div className="space-y-1.5">
                 <label htmlFor="email" className="text-xs sm:text-sm font-medium text-[#1a1c1c]">

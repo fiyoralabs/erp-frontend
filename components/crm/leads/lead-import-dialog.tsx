@@ -372,7 +372,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
                 <FileSpreadsheet className="h-5 w-5 text-[#0f3d3e] dark:text-[#a3cfcf]" />
               </div>
               <div>
-                <DialogTitle className="text-lg sm:text-xl font-bold tracking-tight text-foreground">
+                <DialogTitle className="text-lg md:text-xl font-bold tracking-tight text-foreground">
                   Import Leads from Excel / CSV
                 </DialogTitle>
                 <DialogDescription className="text-xs text-muted-foreground">
@@ -473,7 +473,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
                 <div className="p-4 rounded-full bg-background dark:bg-card shadow-md mb-4 group-hover:scale-110 transition-transform">
                   <Upload className="h-9 w-9 text-[#0f3d3e] dark:text-[#a3cfcf]" />
                 </div>
-                <h3 className="text-base sm:text-lg font-bold text-foreground mb-1 text-center">
+                <h3 className="text-base md:text-lg font-bold text-foreground mb-1 text-center">
                   Click or Drag & Drop Excel / CSV file
                 </h3>
                 <p className="text-xs text-muted-foreground mb-5 text-center max-w-sm">
@@ -823,7 +823,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
               {isSubmitting ? (
                 <div className="py-12 space-y-4 flex flex-col items-center">
                   <div className="animate-spin rounded-full h-12 w-12 border-4 border-[#0f3d3e] dark:border-[#beebeb] border-t-transparent" />
-                  <h3 className="text-lg font-bold text-foreground">Importing Leads into Database...</h3>
+                  <h3 className="text-base md:text-lg font-bold text-foreground">Importing Leads into Database...</h3>
                   <p className="text-xs text-muted-foreground max-w-md">
                     Creating database lead records, standardizing phone numbers, and attaching custom fields.
                   </p>
@@ -837,7 +837,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
 
                   {/* Heading & Subtext */}
                   <div>
-                    <h3 className="text-xl sm:text-2xl font-bold text-foreground">Import Complete</h3>
+                    <h3 className="text-xl md:text-2xl font-bold text-foreground">Import Complete</h3>
                     <p className="text-sm text-muted-foreground mt-1">
                       {importResult.importedCount} leads successfully imported into your CRM.
                     </p>
@@ -846,7 +846,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
                   {/* Stats Card Row */}
                   <div className="grid grid-cols-3 gap-3 w-full bg-card rounded-2xl p-4 border border-border shadow-xs">
                     <div className="flex flex-col items-center p-2">
-                      <span className="text-2xl font-bold text-emerald-600 dark:text-emerald-400">
+                      <span className="text-xl md:text-2xl font-bold text-emerald-600 dark:text-emerald-400">
                         {importResult.importedCount}
                       </span>
                       <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -855,7 +855,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
                     </div>
 
                     <div className="flex flex-col items-center p-2 border-x border-border">
-                      <span className="text-2xl font-bold text-amber-600 dark:text-amber-400">
+                      <span className="text-xl md:text-2xl font-bold text-amber-600 dark:text-amber-400">
                         {importResult.skippedCount}
                       </span>
                       <span className="text-[11px] font-semibold text-muted-foreground uppercase tracking-wider">
@@ -864,7 +864,7 @@ export function LeadImportDialog({ open, onOpenChange, onSuccess }: LeadImportDi
                     </div>
 
                     <div className="flex flex-col items-center p-2">
-                      <span className="text-2xl font-bold text-destructive">
+                      <span className="text-xl md:text-2xl font-bold text-destructive">
                         {importResult.errors.length}
                       </span>
                       <span className="text-[11px] font-semibold text-destructive uppercase tracking-wider">

@@ -102,7 +102,7 @@ export function AccountsListClient() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold sm:text-2xl">Accounts</h1>
+          <h1 className="text-xl font-semibold md:text-2xl">Accounts</h1>
           <p className="text-sm text-muted-foreground">Companies and business customers.</p>
         </div>
         <Button className="h-11 gap-1.5 sm:h-8" onClick={() => setDialogState({ mode: "create" })}>
@@ -140,7 +140,7 @@ export function AccountsListClient() {
             value={sort}
             onValueChange={(v) => { setSort(v ?? "createdAt,desc"); setPage(0); }}
           >
-            <SelectTrigger className="h-10 w-full sm:w-44">
+            <SelectTrigger className="h-10 w-28 shrink-0 sm:w-44">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>

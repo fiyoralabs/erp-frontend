@@ -70,7 +70,9 @@ export async function proxy(request: NextRequest) {
   }
 
   if (!hasSession && !isPublicRoute && pathname !== "/") {
-    return NextResponse.redirect(new URL("/login", request.url));
+    const loginUrl = new URL("/login", request.url);
+    loginUrl.search = "";
+    return NextResponse.redirect(loginUrl);
   }
 
   if (hasSession && isPublicRoute) {

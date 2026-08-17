@@ -1,24 +1,8 @@
 import type { Metadata, Viewport } from "next";
-import { Geist_Mono, Hanken_Grotesk, Inter } from "next/font/google";
+import { Analytics } from "@vercel/analytics/next";
 import { Toaster } from "@/components/ui/sonner";
 import { QueryProvider } from "@/components/providers/query-provider";
 import "./globals.css";
-
-const inter = Inter({
-  variable: "--font-sans",
-  subsets: ["latin"],
-});
-
-const hankenGrotesk = Hanken_Grotesk({
-  variable: "--font-heading",
-  subsets: ["latin"],
-  weight: ["600", "700"],
-});
-
-const geistMono = Geist_Mono({
-  variable: "--font-geist-mono",
-  subsets: ["latin"],
-});
 
 export const metadata: Metadata = {
   title: "Fiyora ERP",
@@ -38,12 +22,13 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`${inter.variable} ${hankenGrotesk.variable} ${geistMono.variable} h-full antialiased`}
+      className="h-full antialiased font-sans"
     >
       <body className="min-h-full flex flex-col">
         <QueryProvider>
           {children}
           <Toaster richColors position="top-right" />
+          <Analytics />
         </QueryProvider>
       </body>
     </html>

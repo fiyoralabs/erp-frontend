@@ -119,7 +119,7 @@ export function OpportunityDetailClient({ opportunityId }: { opportunityId: numb
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
             <div>
               <div className="flex flex-wrap items-center gap-2">
-                <h1 className="text-xl font-semibold sm:text-2xl">{opportunity.name}</h1>
+                <h1 className="text-xl font-semibold md:text-2xl">{opportunity.name}</h1>
                 <OpportunityStatusBadge status={opportunity.status} />
               </div>
               <p className="text-sm text-muted-foreground">

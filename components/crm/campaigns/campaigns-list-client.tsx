@@ -66,7 +66,7 @@ export function CampaignsListClient() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold sm:text-2xl">Campaigns</h1>
+          <h1 className="text-xl font-semibold md:text-2xl">Campaigns</h1>
           <p className="text-sm text-muted-foreground">Marketing campaigns and their CRM impact.</p>
         </div>
         <Button className="h-11 gap-1.5 sm:h-8" onClick={() => setDialogState({ mode: "create" })}>

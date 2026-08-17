@@ -127,7 +127,7 @@ export function OpportunitiesListClient() {
     <div className="flex flex-col gap-4">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <h1 className="text-xl font-semibold sm:text-2xl">Opportunities</h1>
+          <h1 className="text-xl font-semibold md:text-2xl">Opportunities</h1>
           <p className="text-sm text-muted-foreground">Deals in progress across your pipelines.</p>
         </div>
         <div className="flex gap-2">
@@ -156,7 +156,7 @@ export function OpportunitiesListClient() {
             value={status}
             onValueChange={(v) => { setStatus(v ?? ""); setPage(0); }}
           >
-            <SelectTrigger className="h-10 w-full sm:w-36">
+            <SelectTrigger className="h-10 w-32 shrink-0 sm:w-36">
               <SelectValue placeholder="All Statuses" />
             </SelectTrigger>
             <SelectContent>
@@ -170,7 +170,7 @@ export function OpportunitiesListClient() {
             value={sort}
             onValueChange={(v) => { setSort(v ?? "createdAt,desc"); setPage(0); }}
           >
-            <SelectTrigger className="h-10 w-full sm:w-44">
+            <SelectTrigger className="h-10 w-28 shrink-0 sm:w-44">
               <SelectValue placeholder="Sort by" />
             </SelectTrigger>
             <SelectContent>

@@ -242,7 +242,7 @@ export function LeadForm({ lead }: { lead?: Lead }) {
           >
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-foreground font-heading">
+          <h1 className="text-xl md:text-3xl font-bold tracking-tight text-foreground font-heading">
             {isEdit ? "Edit Lead" : "New Lead"}
           </h1>
         </div>
@@ -353,7 +353,7 @@ export function LeadForm({ lead }: { lead?: Lead }) {
                   <User className="h-4 w-4" />
                 </div>
                 <div>
-                  <CardTitle className="text-base font-bold text-foreground">Contact Information</CardTitle>
+                  <CardTitle className="text-sm md:text-base font-bold text-foreground">Contact Information</CardTitle>
                   <CardDescription className="text-xs text-muted-foreground">
                     Primary personal contact details for this lead
                   </CardDescription>
@@ -473,7 +473,7 @@ export function LeadForm({ lead }: { lead?: Lead }) {
                   <Building2 className="h-4 w-4" />
                 </div>
                 <div>
-                  <CardTitle className="text-base font-bold text-foreground">Company Information</CardTitle>
+                  <CardTitle className="text-sm md:text-base font-bold text-foreground">Company Information</CardTitle>
                   <CardDescription className="text-xs text-muted-foreground">
                     Organization background and size metrics
                   </CardDescription>
@@ -587,7 +587,7 @@ export function LeadForm({ lead }: { lead?: Lead }) {
                   <Tag className="h-4 w-4" />
                 </div>
                 <div>
-                  <CardTitle className="text-base font-bold text-foreground">Qualification & Ownership</CardTitle>
+                  <CardTitle className="text-sm md:text-base font-bold text-foreground">Qualification & Ownership</CardTitle>
                   <CardDescription className="text-xs text-muted-foreground">
                     Lead source, rating, deal potential, and assigned sales rep
                   </CardDescription>
@@ -710,7 +710,7 @@ export function LeadForm({ lead }: { lead?: Lead }) {
                   <MapPin className="h-4 w-4" />
                 </div>
                 <div>
-                  <CardTitle className="text-base font-bold text-foreground">Address Information</CardTitle>
+                  <CardTitle className="text-sm md:text-base font-bold text-foreground">Address Information</CardTitle>
                   <CardDescription className="text-xs text-muted-foreground">Location and mailing details</CardDescription>
                 </div>
               </div>
@@ -800,7 +800,7 @@ export function LeadForm({ lead }: { lead?: Lead }) {
                   <FileText className="h-4 w-4" />
                 </div>
                 <div>
-                  <CardTitle className="text-base font-bold text-foreground">Description & Notes</CardTitle>
+                  <CardTitle className="text-sm md:text-base font-bold text-foreground">Description & Notes</CardTitle>
                   <CardDescription className="text-xs text-muted-foreground">
                     Rich requirement summary, internal remarks, and custom properties
                   </CardDescription>

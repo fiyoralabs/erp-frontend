@@ -242,7 +242,7 @@ export function CrmSubNav() {
           </SheetTrigger>
           <SheetContent side="bottom" className="rounded-t-[24px] max-h-[85vh] overflow-y-auto px-4 pb-8 pt-6 border-[#e2e2e2] dark:border-[#404848]">
             <SheetHeader className="pb-4 border-b border-[#e2e2e2] dark:border-[#404848] mb-4">
-              <SheetTitle className="text-left text-lg font-bold flex items-center gap-2 text-[#002627] dark:text-white">
+              <SheetTitle className="text-left text-base md:text-lg font-bold flex items-center gap-2 text-[#002627] dark:text-white">
                 <LayoutDashboard className="h-5 w-5 text-[#0F3D3E]" />
                 CRM Navigation Hub
               </SheetTitle>

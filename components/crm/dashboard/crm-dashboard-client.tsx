@@ -67,7 +67,7 @@ function ChartCard({
       className={`bg-white dark:bg-[#1a1c1c] border border-[#e2e2e2] dark:border-[#404848] rounded-[18px] p-5 sm:p-6 shadow-xs hover:shadow-[0_4px_20px_rgba(0,0,0,0.05)] transition-all duration-200 flex flex-col justify-between ${className ?? ""}`}
     >
       <div className="flex justify-between items-center mb-5">
-        <h3 className="font-bold text-sm sm:text-base text-[#1a1c1c] dark:text-white">
+        <h3 className="font-bold text-xs sm:text-sm md:text-base text-[#1a1c1c] dark:text-white">
           {title}
         </h3>
         {action || (
@@ -202,10 +202,10 @@ export function CrmDashboardClient() {
       {/* ======================================================== */}
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-end gap-4">
         <div>
-          <h1 className="font-heading text-2xl sm:text-3xl font-semibold tracking-tight text-[#1a1c1c] dark:text-white">
+          <h1 className="font-heading text-xl md:text-3xl font-semibold tracking-tight text-[#1a1c1c] dark:text-white">
             CRM Dashboard
           </h1>
-          <p className="mt-1 text-xs sm:text-sm text-[#545f73] dark:text-[#a3cfcf]">
+          <p className="mt-1 text-xs md:text-sm text-[#545f73] dark:text-[#a3cfcf]">
             Your sales pipeline and performance at a glance.
           </p>
         </div>
@@ -241,10 +241,10 @@ export function CrmDashboardClient() {
             <AlertTriangle className="h-4.5 w-4.5" />
           </div>
           <div className="min-w-0 flex-1">
-            <p className="text-sm font-semibold text-[#7a1414] dark:text-[#ffb4ab]">
+            <p className="text-xs sm:text-sm font-semibold text-[#7a1414] dark:text-[#ffb4ab]">
               {totalOverdue} overdue item{totalOverdue === 1 ? "" : "s"} need{totalOverdue === 1 ? "s" : ""} attention
             </p>
-            <p className="text-xs text-[#94433d] dark:text-[#e6a29c]">
+            <p className="text-[11px] sm:text-xs text-[#94433d] dark:text-[#e6a29c]">
               {data.overdueTasks} task{data.overdueTasks === 1 ? "" : "s"} and {data.overdueFollowUps} follow-up{data.overdueFollowUps === 1 ? "" : "s"} past their due date.
             </p>
           </div>
@@ -262,6 +262,7 @@ export function CrmDashboardClient() {
         <StatTile
           label="Overdue Follow-ups"
           value={String(data.overdueFollowUps)}
+          valueClassName="text-lg md:text-2xl"
           tone={data.overdueFollowUps > 0 ? "danger" : "default"}
           icon={AlertTriangle}
           href="/crm/activities?view=OVERDUE"
@@ -277,18 +278,21 @@ export function CrmDashboardClient() {
         <StatTile
           label="Total Leads"
           value={String(data.totalLeads)}
+          valueClassName="text-lg md:text-2xl"
           icon={Users}
           href="/crm/leads"
         />
         <StatTile
           label="New Leads"
           value={String(data.newLeads)}
+          valueClassName="text-lg md:text-2xl"
           icon={UserPlus}
           href="/crm/leads?status=NEW"
         />
         <StatTile
           label="Qualified Leads"
           value={String(data.qualifiedLeads)}
+          valueClassName="text-lg md:text-2xl"
           icon={UserCheck}
           href="/crm/leads?status=QUALIFIED"
         />
@@ -297,6 +301,7 @@ export function CrmDashboardClient() {
         <StatTile
           label="Converted Leads"
           value={String(data.convertedLeads)}
+          valueClassName="text-lg md:text-2xl"
           tone="success"
           href="/crm/leads?status=CONVERTED"
           badge={
@@ -308,12 +313,14 @@ export function CrmDashboardClient() {
         <StatTile
           label="Open Opportunities"
           value={String(data.openOpportunities)}
+          valueClassName="text-lg md:text-2xl"
           icon={Target}
           href="/crm/opportunities?status=OPEN"
         />
         <StatTile
           label="Won Opportunities"
           value={String(data.wonOpportunities)}
+          valueClassName="text-lg md:text-2xl"
           tone="success"
           icon={Trophy}
           href="/crm/opportunities?status=WON"
@@ -321,6 +328,7 @@ export function CrmDashboardClient() {
         <StatTile
           label="Lost Opportunities"
           value={String(data.lostOpportunities)}
+          valueClassName="text-lg md:text-2xl"
           tone={data.lostOpportunities > 0 ? "danger" : "default"}
           icon={XCircle}
           href="/crm/opportunities?status=LOST"
@@ -330,24 +338,28 @@ export function CrmDashboardClient() {
         <StatTile
           label="Pipeline Value"
           value={formatCurrency(data.pipelineValue)}
+          valueClassName="text-base sm:text-lg md:text-2xl"
           icon={IndianRupee}
           href="/crm/pipeline"
         />
         <StatTile
           label="Weighted Pipeline"
           value={formatCurrency(data.weightedPipelineValue)}
+          valueClassName="text-base sm:text-lg md:text-2xl"
           icon={Scale}
           href="/crm/pipeline"
         />
         <StatTile
           label="Conversion Rate"
           value={`${data.conversionRate.toFixed(1)}%`}
+          valueClassName="text-lg md:text-2xl"
           icon={Percent}
           href="/crm/reports"
         />
         <StatTile
           label="Tasks Due Today"
           value={String(data.tasksDueToday)}
+          valueClassName="text-lg md:text-2xl"
           tone={data.tasksDueToday > 0 ? "warning" : "default"}
           icon={ListChecks}
           href="/crm/tasks?view=TODAY"
@@ -439,7 +451,7 @@ export function CrmDashboardClient() {
                       <span className="text-[#545f73] dark:text-[#a3cfcf]">
                         {stage.name} <span className="text-[10px] text-[#717978]">({stage.count} deals)</span>
                       </span>
-                      <span className="text-[#1a1c1c] dark:text-white font-semibold">
+                      <span className="text-[#1a1c1c] dark:text-white font-semibold text-[11px] md:text-xs">
                         {formatCurrency(stage.value)}
                       </span>
                     </div>
@@ -462,7 +474,7 @@ export function CrmDashboardClient() {
             {/* Won Ring */}
             <div className="text-center">
               <div className="w-24 h-24 rounded-full border-8 border-[#0F3D3E] flex items-center justify-center mb-3 mx-auto shadow-sm">
-                <span className="text-2xl font-bold text-[#1a1c1c] dark:text-white">
+                <span className="text-lg md:text-2xl font-bold text-[#1a1c1c] dark:text-white">
                   {data.wonOpportunities}
                 </span>
               </div>
@@ -476,7 +488,7 @@ export function CrmDashboardClient() {
             {/* Lost Ring */}
             <div className="text-center">
               <div className="w-24 h-24 rounded-full border-8 border-[#e2e2e2] dark:border-[#404848] flex items-center justify-center mb-3 mx-auto">
-                <span className="text-2xl font-bold text-[#717978]">
+                <span className="text-lg md:text-2xl font-bold text-[#717978]">
                   {data.lostOpportunities}
                 </span>
               </div>
@@ -546,7 +558,7 @@ export function CrmDashboardClient() {
         {/* Recent Leads Feed */}
         <div className="bg-white dark:bg-[#1a1c1c] border border-[#e2e2e2] dark:border-[#404848] rounded-[18px] overflow-hidden shadow-xs flex flex-col">
           <div className="p-4 sm:p-5 border-b border-[#e2e2e2] dark:border-[#404848] flex justify-between items-center">
-            <h3 className="font-bold text-sm sm:text-base text-[#1a1c1c] dark:text-white">
+            <h3 className="font-bold text-xs sm:text-sm md:text-base text-[#1a1c1c] dark:text-white">
               Recent Leads
             </h3>
             <Link
@@ -575,7 +587,7 @@ export function CrmDashboardClient() {
                     <div className="min-w-0">
                       <Link
                         href={`/crm/leads/${lead.id}`}
-                        className="font-semibold text-xs sm:text-sm text-[#1a1c1c] dark:text-white hover:text-[#0F3D3E] hover:underline truncate block"
+                        className="font-semibold text-xs md:text-sm text-[#1a1c1c] dark:text-white hover:text-[#0F3D3E] hover:underline truncate block"
                       >
                         {lead.fullName}
                       </Link>
@@ -594,7 +606,7 @@ export function CrmDashboardClient() {
         {/* Recent Opportunities Feed */}
         <div className="bg-white dark:bg-[#1a1c1c] border border-[#e2e2e2] dark:border-[#404848] rounded-[18px] overflow-hidden shadow-xs flex flex-col">
           <div className="p-4 sm:p-5 border-b border-[#e2e2e2] dark:border-[#404848] flex justify-between items-center">
-            <h3 className="font-bold text-sm sm:text-base text-[#1a1c1c] dark:text-white">
+            <h3 className="font-bold text-xs sm:text-sm md:text-base text-[#1a1c1c] dark:text-white">
               Recent Opportunities
             </h3>
             <Link
@@ -627,7 +639,7 @@ export function CrmDashboardClient() {
                     <div className="min-w-0">
                       <Link
                         href={`/crm/opportunities/${opp.id}`}
-                        className="font-semibold text-xs sm:text-sm text-[#1a1c1c] dark:text-white hover:text-[#0F3D3E] hover:underline truncate block"
+                        className="font-semibold text-xs md:text-sm text-[#1a1c1c] dark:text-white hover:text-[#0F3D3E] hover:underline truncate block"
                       >
                         {opp.name}
                       </Link>
