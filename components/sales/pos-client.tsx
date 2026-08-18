@@ -339,10 +339,15 @@ export function POSClient() {
     // Wait for the price list to resolve before firing the first fetch --
     // otherwise this fires once with priceListId=null (every item priced at
     // 0), then immediately refires once storePriceLists resolves and sets
-    // selectedPriceListId, wasting a full page fetch on every page load. No
-    // active location yet means storePriceListsQuery is disabled and will
-    // never set a price list, so don't block on it in that case.
-    enabled: !activeLocation?.id || storePriceListsQuery.isFetched,
+    // selectedPriceListId, wasting a full page fetch on every page load.
+    // Also wait for contextQuery itself to settle first: activeLocation is
+    // `null` both "genuinely no location" AND "context still loading" --
+    // without gating on contextQuery.isFetched, the query fires once with
+    // that ambiguous null before contextQuery resolves, then fires again
+    // once the real location (and its price list) come in. No active
+    // location once context IS resolved means storePriceListsQuery is
+    // disabled and will never set a price list, so don't block on it then.
+    enabled: contextQuery.isFetched && (!activeLocation?.id || storePriceListsQuery.isFetched),
     initialPageParam: 0,
     queryFn: async ({ pageParam }) => {
       const params = new URLSearchParams();
