@@ -23,7 +23,7 @@ export interface SalesInvoice {
   id: number; customerId: number; locationId: number; invoiceNumber: string; invoiceDate: string;
   dueDate: string; subtotal: number; discountAmount: number; taxAmount: number; totalAmount: number;
   paidAmount: number; returnAppliedAmount: number; creditAppliedAmount: number; balanceAmount: number; status: string;
-  createdAt: string; lines: SalesInvoiceLine[]; payments: SalesPayment[];
+  createdAt: string; lines: SalesInvoiceLine[]; payments: SalesPayment[]; verifyToken?: string | null;
 }
 export interface SalesReturnLine {
   id: number; invoiceItemId: number; productId: number; productVariantId: number | null;

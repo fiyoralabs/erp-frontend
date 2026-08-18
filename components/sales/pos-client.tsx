@@ -2,9 +2,10 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
+  AlertTriangle,
   ArrowLeft,
   Barcode,
   Building2,
@@ -53,8 +54,8 @@ import {
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { CameraScannerDialog, isMobileDevice } from "@/components/shared/camera-scanner-dialog";
 import { apiClient, PagedResult } from "@/lib/api-client";
+import { useCategoriesLookup, useTaxesLookup } from "@/lib/hooks/use-master-data";
 import type { Location } from "@/lib/types/master";
-import type { ProductSummary, Variant, Barcode as ProductBarcode } from "@/lib/types/product";
 
 interface Customer {
   id: number;
@@ -66,10 +67,6 @@ interface Customer {
   active: boolean;
 }
 
-interface PriceMap {
-  [priceListId: number]: number;
-}
-
 interface SellableItem {
   productId: number;
   variantId: number | null;
@@ -79,7 +76,7 @@ interface SellableItem {
   sku: string;
   barcodes: string[];
   price: number;
-  pricesByList?: PriceMap;
+  taxId?: number | null;
   imageUrl?: string | null;
   stockQty?: number;
   taxPercentage: number;
@@ -90,6 +87,15 @@ interface CartItem {
   quantity: number;
   unitPrice: number;
   lineTotal: number;
+  stockOverride?: boolean;
+}
+
+// A pending "inventory shows insufficient stock" confirmation -- opened
+// instead of hard-blocking the add, since customers don't always keep the
+// inventory module in sync and a stale zero shouldn't stop a real sale.
+interface StockOverrideRequest {
+  message: string;
+  onConfirm: () => void;
 }
 
 interface ProductGroup {
@@ -112,6 +118,7 @@ interface SalesInvoiceResult {
   totalAmount: number;
   paidAmount: number;
   creditAppliedAmount: number;
+  verifyToken?: string | null;
   previousBalance?: number;
   tenderedCash?: number;
   changeDue?: number;
@@ -149,6 +156,7 @@ export function POSClient() {
   });
   const canOverrideDiscount = (permissionsQuery.data ?? []).includes("SALES_DISCOUNT_OVERRIDE");
   const DISCOUNT_SELF_SERVICE_LIMIT = 10;
+  const SEARCH_DEBOUNCE_MS = 300;
 
   // State
   const [barcodeInput, setBarcodeInput] = React.useState("");
@@ -171,6 +179,7 @@ export function POSClient() {
 
   // Cart & Payment
   const [cart, setCart] = React.useState<CartItem[]>([]);
+  const [stockOverrideRequest, setStockOverrideRequest] = React.useState<StockOverrideRequest | null>(null);
   const [mobileCartOpen, setMobileCartOpen] = React.useState(false);
   const [isCameraScannerOpen, setIsCameraScannerOpen] = React.useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = React.useState(false);
@@ -182,15 +191,28 @@ export function POSClient() {
   const [postedInvoice, setPostedInvoice] = React.useState<SalesInvoiceResult | null>(null);
   const [isSendingWa, setIsSendingWa] = React.useState(false);
 
-  // 1. Fetch Customers — use isolated key so we don't collide with
-  // sales-client.tsx which caches a PagedResult shape on ["sales","customers"]
+  // 1. Search customers server-side as the cashier types -- was previously
+  // an eager `sales/customers?page=0&size=100` fetch-everything-then-filter-
+  // in-JS, same anti-pattern as the old products load: hard-capped at 100
+  // (customers beyond that were invisible and unsearchable) and never hit
+  // the backend on keystroke. Debounced (~300ms) and only queries once
+  // something's actually typed, so it costs nothing on page load. Isolated
+  // query key so it doesn't collide with sales-client.tsx's cache.
+  const [debouncedCustomerQuery, setDebouncedCustomerQuery] = React.useState("");
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebouncedCustomerQuery(customerPhoneQuery.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [customerPhoneQuery]);
+
   const customersQuery = useQuery({
-    queryKey: ["pos", "customers"],
+    queryKey: ["pos", "customers", debouncedCustomerQuery],
+    enabled: debouncedCustomerQuery.length > 0,
     queryFn: async () => {
-      const res = await apiClient.get<PagedResult<Customer>>("sales/customers?page=0&size=100");
-      // Guard: API may return PagedResult or raw array depending on cache shape
+      const res = await apiClient.get<PagedResult<Customer>>(
+        `sales/customers?search=${encodeURIComponent(debouncedCustomerQuery)}&page=0&size=20`
+      );
       const items = Array.isArray(res) ? res : res.content ?? [];
-      return (items as Customer[]).filter((c) => c.active);
+      return items as Customer[];
     },
   });
 
@@ -259,173 +281,199 @@ export function POSClient() {
     }
   }, [storePriceLists, selectedPriceListId]);
 
-  // 2. Fetch Sellable Products with photos, barcodes, location stock and price list prices
-  const sellablesQuery = useQuery({
-    queryKey: ["sales", "pos-sellables", activeLocation?.id],
+  // 2. Fetch Sellable Products, paginated + server-side filtered (search and
+  // category both hit the backend query, never a client-side .filter() over
+  // an already-fetched array), enriched in bulk per page (variants, prices,
+  // barcodes) instead of one round trip per product. See products/pos-enrich
+  // and products/by-code on the backend (ProductPosService).
+  const POS_PAGE_SIZE = 48;
+  const [debouncedSearch, setDebouncedSearch] = React.useState("");
+  React.useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(productSearch.trim()), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(t);
+  }, [productSearch]);
+
+  const categoriesQuery = useCategoriesLookup();
+  const categories = categoriesQuery.data?.content ?? [];
+  const topLevelCategories = React.useMemo(
+    () =>
+      categories
+        .filter((c) => c.isActive && c.parentCategoryId == null)
+        .sort((a, b) => a.displayOrder - b.displayOrder),
+    [categories]
+  );
+
+  // Bulk stock at the active location -- one request regardless of catalog size.
+  const stockQuery = useQuery({
+    queryKey: ["sales", "pos-stock", activeLocation?.id],
+    enabled: !!activeLocation?.id,
     queryFn: async () => {
-      const p = await apiClient.get<PagedResult<ProductSummary>>("products?page=0&size=100");
-      const activeProds = p.content.filter((x) => x.isActive);
-
-      // Fetch stock for active store location if available
-      let stockMap = new Map<string, number>();
-      if (activeLocation?.id) {
-        try {
-          const stockRes = await apiClient.get<any>(`inventory?locationId=${activeLocation.id}&size=500`);
-          const stockList = Array.isArray(stockRes) ? stockRes : stockRes?.content ?? [];
-          for (const s of stockList) {
-            const key = `${s.productId}:${s.productVariantId ?? "base"}`;
-            stockMap.set(key, Number(s.availableQuantity ?? s.quantityOnHand ?? 0));
-          }
-        } catch (e) {
-          // ignore
-        }
+      const stockRes = await apiClient.get<any>(`inventory?locationId=${activeLocation!.id}&size=500`);
+      const stockList = Array.isArray(stockRes) ? stockRes : stockRes?.content ?? [];
+      const map = new Map<string, number>();
+      for (const s of stockList) {
+        const key = `${s.productId}:${s.productVariantId ?? "base"}`;
+        map.set(key, Number(s.availableQuantity ?? s.quantityOnHand ?? 0));
       }
-
-      // Fetch master taxes to resolve product-associated tax rates
-      let taxMap = new Map<number, number>();
-      try {
-        const taxesRes = await apiClient.get<any>("master/taxes?page=0&size=100");
-        const list = Array.isArray(taxesRes) ? taxesRes : taxesRes?.content ?? [];
-        for (const t of list) {
-          if (t.id != null && t.taxPercentage != null) {
-            taxMap.set(t.id, Number(t.taxPercentage));
-          }
-        }
-      } catch (e) {
-        // ignore
-      }
-
-      const items: SellableItem[] = [];
-
-      for (const prod of activeProds) {
-        let resolvedTaxId = (prod as any).taxId;
-        if (!resolvedTaxId) {
-          try {
-            const detail = await apiClient.get<any>(`products/${prod.id}`);
-            if (detail?.taxId) resolvedTaxId = detail.taxId;
-          } catch (e) {
-            // ignore
-          }
-        }
-        const prodTaxPercentage = resolvedTaxId && taxMap.has(resolvedTaxId) ? taxMap.get(resolvedTaxId)! : 18;
-
-        let pricesByList: PriceMap = {};
-        try {
-          const pricesRes = await apiClient.get<any[]>(`products/prices/product/${prod.id}`);
-          if (Array.isArray(pricesRes)) {
-            for (const pr of pricesRes) {
-              if (pr.sellingPrice != null && pr.isActive !== false) {
-                pricesByList[pr.priceListId] = Number(pr.sellingPrice);
-              }
-            }
-          }
-        } catch (e) {
-          // ignore
-        }
-
-        // Fetch barcodes for product
-        let productBarcodes: ProductBarcode[] = [];
-        try {
-          const bRes = await apiClient.get<ProductBarcode[]>(`products/${prod.id}/barcodes`);
-          if (Array.isArray(bRes)) {
-            productBarcodes = bRes;
-          }
-        } catch (e) {
-          // ignore
-        }
-
-        if (prod.hasVariants) {
-          const variants = await apiClient.get<Variant[]>(`products/${prod.id}/variants`);
-          for (const v of variants.filter((x) => x.isActive)) {
-            const basePrice = (v as any).retailPrice || (prod as any).basePrice || 0;
-            const variantBarcodes = productBarcodes.filter((b) => b.variantId === v.id).map((b) => b.barcode);
-            const parentBarcodes = productBarcodes.filter((b) => b.variantId === null).map((b) => b.barcode);
-            const allBarcodes = variantBarcodes.length > 0 ? variantBarcodes : parentBarcodes;
-
-            const stockKey = `${prod.id}:${v.id}`;
-            const availQty = stockMap.has(stockKey) ? stockMap.get(stockKey)! : 0;
-
-            items.push({
-              productId: prod.id,
-              variantId: v.id,
-              code: prod.code,
-              name: prod.name,
-              variantName: v.variantName,
-              sku: v.sku || prod.code,
-              barcodes: allBarcodes,
-              price: basePrice,
-              pricesByList,
-              imageUrl: prod.primaryImageUrl,
-              stockQty: availQty,
-              taxPercentage: prodTaxPercentage,
-            });
-          }
-        } else {
-          const basePrice = (prod as any).basePrice || 0;
-          const allBarcodes = productBarcodes.map((b) => b.barcode);
-          const stockKey = `${prod.id}:base`;
-          const availQty = stockMap.has(stockKey) ? stockMap.get(stockKey)! : 0;
-
-          items.push({
-            productId: prod.id,
-            variantId: null,
-            code: prod.code,
-            name: prod.name,
-            sku: prod.code,
-            barcodes: allBarcodes,
-            price: basePrice,
-            pricesByList,
-            imageUrl: prod.primaryImageUrl,
-            stockQty: availQty,
-            taxPercentage: prodTaxPercentage,
-          });
-        }
-      }
-      return items;
+      return map;
     },
   });
 
+  // Tax rates -- reuses the app-wide shared lookup (lib/hooks/use-master-data.ts)
+  // instead of a POS-only fetch, so this is often already warm from the cache
+  // if the cashier has visited Products/Inventory/Sales in the same session.
+  const taxRatesQuery = useTaxesLookup();
+  const taxRateById = React.useMemo(() => {
+    const map = new Map<number, number>();
+    for (const t of taxRatesQuery.data?.content ?? []) {
+      if (t.id != null && t.taxPercentage != null) map.set(t.id, Number(t.taxPercentage));
+    }
+    return map;
+  }, [taxRatesQuery.data]);
+
+  // One request per catalog page: search + variant/price/barcode enrichment
+  // + custom sets, all assembled server-side (products/pos-catalog) instead
+  // of three separate round trips per page.
+  const productsQuery = useInfiniteQuery({
+    queryKey: ["sales", "pos-catalog", debouncedSearch, selectedCategory, selectedPriceListId],
+    // Wait for the price list to resolve before firing the first fetch --
+    // otherwise this fires once with priceListId=null (every item priced at
+    // 0), then immediately refires once storePriceLists resolves and sets
+    // selectedPriceListId, wasting a full page fetch on every page load. No
+    // active location yet means storePriceListsQuery is disabled and will
+    // never set a price list, so don't block on it in that case.
+    enabled: !activeLocation?.id || storePriceListsQuery.isFetched,
+    initialPageParam: 0,
+    queryFn: async ({ pageParam }) => {
+      const params = new URLSearchParams();
+      params.set("page", String(pageParam));
+      params.set("size", String(POS_PAGE_SIZE));
+      if (debouncedSearch) params.set("search", debouncedSearch);
+      if (selectedCategory !== "ALL") params.set("categoryId", selectedCategory);
+      if (selectedPriceListId) params.set("priceListId", String(selectedPriceListId));
+      const result = await apiClient.get<{
+        items: Array<{
+          productId: number;
+          variantId: number | null;
+          code: string;
+          name: string;
+          variantName: string | null;
+          sku: string;
+          barcodes: string[];
+          sellingPrice: number | null;
+          taxId: number | null;
+          imageUrl: string | null;
+        }>;
+        customSets: any[];
+        pageNumber: number;
+        totalPages: number;
+      }>(`products/pos-catalog?${params.toString()}`);
+
+      const items: SellableItem[] = result.items.map((row) => ({
+        productId: row.productId,
+        variantId: row.variantId ?? null,
+        code: row.code,
+        name: row.name,
+        variantName: row.variantName ?? null,
+        sku: row.sku,
+        barcodes: row.barcodes ?? [],
+        price: Number(row.sellingPrice ?? 0),
+        taxId: row.taxId ?? null,
+        imageUrl: row.imageUrl ?? null,
+        taxPercentage: 18,
+      }));
+
+      return { items, customSets: result.customSets ?? [], pageNumber: result.pageNumber, totalPages: result.totalPages };
+    },
+    getNextPageParam: (lastPage) => {
+      const next = lastPage.pageNumber + 1;
+      return next < lastPage.totalPages ? next : undefined;
+    },
+  });
+
+  // Flat list of every sellable loaded so far, with stock/tax merged in from
+  // the two bulk lookups above (kept separate from pagination so switching
+  // location/tax data doesn't force a full catalog refetch).
+  const sellables: SellableItem[] = React.useMemo(() => {
+    const rows = productsQuery.data?.pages.flatMap((p) => p.items) ?? [];
+    const stockMap = stockQuery.data ?? new Map<string, number>();
+    return rows.map((row) => {
+      const stockKey = `${row.productId}:${row.variantId ?? "base"}`;
+      return {
+        ...row,
+        stockQty: stockMap.has(stockKey) ? stockMap.get(stockKey)! : 0,
+        taxPercentage: row.taxId != null && taxRateById.has(row.taxId) ? taxRateById.get(row.taxId)! : 18,
+      };
+    });
+  }, [productsQuery.data, stockQuery.data, taxRateById]);
+
+  // Custom Sets ("Add Set" dropdown) already arrive inline with each catalog
+  // page above -- group them by product here instead of a separate
+  // per-page/per-card request.
+  const productSetsByProduct = React.useMemo(() => {
+    const map = new Map<number, any[]>();
+    for (const page of productsQuery.data?.pages ?? []) {
+      for (const set of page.customSets) {
+        const list = map.get(set.productId) ?? [];
+        list.push(set);
+        map.set(set.productId, list);
+      }
+    }
+    return map;
+  }, [productsQuery.data]);
+
   const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
 
-  const getEffectivePrice = React.useCallback(
-    (item: SellableItem, priceListId?: number | null) => {
-      if (priceListId && item.pricesByList && item.pricesByList[priceListId] != null) {
-        return item.pricesByList[priceListId];
-      }
-      return item.price || 0;
-    },
-    []
-  );
+  // Price resolution already happened server-side (products/pos-enrich or
+  // products/by-code, scoped to the selected price list) -- no client-side
+  // price-list lookup needed here anymore.
+  const getEffectivePrice = React.useCallback((item: SellableItem) => item.price || 0, []);
 
-  const handlePriceListChange = (newPlId: number) => {
+  // Prices are resolved server-side per price list (not cached client-side
+  // for every list the way the old pricesByList map did), so switching price
+  // lists mid-cart needs one small bulk lookup for just the cart's distinct
+  // products -- reusing the same pos-enrich endpoint the catalog grid uses.
+  const handlePriceListChange = async (newPlId: number) => {
     setSelectedPriceListId(newPlId);
-    setCart((prev) =>
-      prev.map((ci) => {
-        const newPrice = getEffectivePrice(ci.sellable, newPlId);
-        return {
-          ...ci,
-          unitPrice: newPrice,
-          lineTotal: newPrice * ci.quantity,
-        };
-      })
-    );
+    if (cart.length === 0) return;
+    const productIds = Array.from(new Set(cart.map((ci) => ci.sellable.productId)));
+    try {
+      const params = new URLSearchParams();
+      for (const id of productIds) params.append("productIds", String(id));
+      params.set("priceListId", String(newPlId));
+      const rows = await apiClient.get<any[]>(`products/pos-enrich?${params.toString()}`);
+      const priceByKey = new Map<string, number>();
+      for (const row of rows) {
+        priceByKey.set(`${row.productId}:${row.variantId ?? "base"}`, Number(row.sellingPrice ?? 0));
+      }
+      setCart((prev) =>
+        prev.map((ci) => {
+          const key = `${ci.sellable.productId}:${ci.sellable.variantId ?? "base"}`;
+          const newPrice = priceByKey.get(key) ?? ci.unitPrice;
+          return {
+            ...ci,
+            sellable: { ...ci.sellable, price: newPrice },
+            unitPrice: newPrice,
+            lineTotal: newPrice * ci.quantity,
+          };
+        })
+      );
+    } catch {
+      toast.error("Could not reprice cart for the new price list; amounts may be stale.");
+    }
   };
 
-  // Filtered Customer Search
-  const matchingCustomers = React.useMemo(() => {
-    if (!customersQuery.data || !customerPhoneQuery.trim()) return [];
-    const q = customerPhoneQuery.trim().toLowerCase();
-    return customersQuery.data.filter(
-      (c) => (c.phone && c.phone.toLowerCase().includes(q)) || c.name.toLowerCase().includes(q)
-    );
-  }, [customersQuery.data, customerPhoneQuery]);
+  // Search now happens server-side (sales/customers?search=...); this is
+  // just what's currently loaded for the debounced query.
+  const matchingCustomers = customerPhoneQuery.trim() ? customersQuery.data ?? [] : [];
 
   // Group Sellables by Parent Product (Flipkart-style: one card per product,
   // variants picked via chips on the card instead of one card per SKU).
-  const productGroups = React.useMemo(() => {
-    if (!sellablesQuery.data) return [];
+  // Search/category filtering already happened server-side (see
+  // productsQuery above), so this only needs to group what was returned.
+  const filteredProductGroups = React.useMemo(() => {
     const map = new Map<number, ProductGroup>();
-    for (const item of sellablesQuery.data) {
+    for (const item of sellables) {
       const existing = map.get(item.productId);
       if (existing) {
         existing.variants.push(item);
@@ -440,52 +488,19 @@ export function POSClient() {
       }
     }
     return Array.from(map.values());
-  }, [sellablesQuery.data]);
+  }, [sellables]);
 
-  // Filtered Products — a product matches if its name/code match, or ANY of
-  // its variants match; once a group matches, all of its variants stay
-  // selectable on the card (not just the one that matched the search).
-  const filteredProductGroups = React.useMemo(() => {
-    if (!productSearch.trim()) return productGroups;
-    const s = productSearch.trim().toLowerCase();
-    return productGroups.filter(
-      (group) =>
-        group.name.toLowerCase().includes(s) ||
-        group.code.toLowerCase().includes(s) ||
-        group.variants.some(
-          (v) =>
-            v.sku.toLowerCase().includes(s) ||
-            (v.variantName && v.variantName.toLowerCase().includes(s)) ||
-            (v.barcodes && v.barcodes.some((b) => b.toLowerCase().includes(s)))
-        )
-    );
-  }, [productGroups, productSearch]);
-
-  // Add Item to Cart (with strict Inventory Stock Validation)
-  const addToCart = React.useCallback(
-    (sellable: SellableItem, quantityToAdd: number = 1): boolean => {
-      // Stock Validation: Check available inventory at active location
-      const existingInCart = cart?.find(
-        (i) => i.sellable.productId === sellable.productId && i.sellable.variantId === sellable.variantId
-      )?.quantity ?? 0;
-
-      const totalRequested = existingInCart + quantityToAdd;
-      if (sellable.stockQty !== undefined) {
-        if (sellable.stockQty <= 0) {
-          toast.error(`'${sellable.name}' (${sellable.variantName || sellable.sku}) is Out of Stock in inventory.`);
-          return false;
-        }
-        if (totalRequested > sellable.stockQty) {
-          toast.error(
-            `Insufficient available stock for '${sellable.name}' (${sellable.variantName || sellable.sku}). Inventory stock: ${sellable.stockQty}, already in cart: ${existingInCart}.`
-          );
-          return false;
-        }
-      }
-
-      const itemUnitPrice = getEffectivePrice(sellable, selectedPriceListId);
+  // Applies a cart quantity change directly, no stock check -- shared by the
+  // normal (in-stock) path and by the "Add anyway" override confirmation.
+  const commitToCart = React.useCallback(
+    (sellable: SellableItem, quantityToAdd: number, override: boolean) => {
+      const itemUnitPrice = getEffectivePrice(sellable);
       setCart((prev) => {
-        if (!prev) return [{ sellable, quantity: quantityToAdd, unitPrice: itemUnitPrice, lineTotal: itemUnitPrice * quantityToAdd }];
+        if (!prev) {
+          return [
+            { sellable, quantity: quantityToAdd, unitPrice: itemUnitPrice, lineTotal: itemUnitPrice * quantityToAdd, stockOverride: override },
+          ];
+        }
         const idx = prev.findIndex(
           (i) => i.sellable.productId === sellable.productId && i.sellable.variantId === sellable.variantId
         );
@@ -496,6 +511,7 @@ export function POSClient() {
             ...next[idx],
             quantity: newQty,
             lineTotal: newQty * next[idx].unitPrice,
+            stockOverride: next[idx].stockOverride || override,
           };
           return next;
         }
@@ -506,28 +522,103 @@ export function POSClient() {
             quantity: quantityToAdd,
             unitPrice: itemUnitPrice,
             lineTotal: itemUnitPrice * quantityToAdd,
+            stockOverride: override,
           },
         ];
       });
+    },
+    [getEffectivePrice]
+  );
+
+  // Add Item to Cart. Inventory showing zero/insufficient stock no longer
+  // blocks the sale outright -- customers don't always keep the inventory
+  // module in sync, so a stale record shouldn't stop a real sale. Instead we
+  // ask the cashier to confirm via the "Add anyway" popup, and the line gets
+  // flagged (stockOverride) so it can be reconciled later.
+  const addToCart = React.useCallback(
+    (sellable: SellableItem, quantityToAdd: number = 1, forceOverride: boolean = false): boolean => {
+      if (forceOverride) {
+        commitToCart(sellable, quantityToAdd, true);
+        return true;
+      }
+
+      const existingInCart = cart?.find(
+        (i) => i.sellable.productId === sellable.productId && i.sellable.variantId === sellable.variantId
+      )?.quantity ?? 0;
+
+      const totalRequested = existingInCart + quantityToAdd;
+      if (sellable.stockQty !== undefined && (sellable.stockQty <= 0 || totalRequested > sellable.stockQty)) {
+        const message =
+          sellable.stockQty <= 0
+            ? `'${sellable.name}' (${sellable.variantName || sellable.sku}) shows 0 in inventory.`
+            : `'${sellable.name}' (${sellable.variantName || sellable.sku}) shows only ${sellable.stockQty} in inventory (already ${existingInCart} in cart).`;
+        setStockOverrideRequest({
+          message,
+          onConfirm: () => {
+            commitToCart(sellable, quantityToAdd, true);
+            toast.success(`Added '${sellable.name}' -- flagged for stock review.`);
+          },
+        });
+        return false;
+      }
+
+      commitToCart(sellable, quantityToAdd, false);
       return true;
     },
-    [cart, getEffectivePrice, selectedPriceListId]
+    [cart, commitToCart]
+  );
+
+  // A scanned/typed code that doesn't match anything in the currently
+  // loaded page(s) -- pagination shouldn't make a real product unscannable,
+  // so fall back to a single server-side lookup (barcode, SKU, or product
+  // code) covering the whole catalog. Runs async and adds to cart itself
+  // (via side effects/toast) rather than through processBarcodeScan's
+  // synchronous return contract, which other callers (camera scanner) rely on.
+  const lookupByCode = React.useCallback(
+    async (code: string) => {
+      try {
+        const params = new URLSearchParams({ code });
+        if (selectedPriceListId) params.set("priceListId", String(selectedPriceListId));
+        const row = await apiClient.get<any>(`products/by-code?${params.toString()}`);
+        const stockKey = `${row.productId}:${row.variantId ?? "base"}`;
+        const stockMap = stockQuery.data ?? new Map<string, number>();
+        const sellable: SellableItem = {
+          productId: row.productId,
+          variantId: row.variantId ?? null,
+          code: row.code,
+          name: row.name,
+          variantName: row.variantName ?? null,
+          sku: row.sku,
+          barcodes: row.barcodes ?? [],
+          price: Number(row.sellingPrice ?? 0),
+          taxId: row.taxId ?? null,
+          imageUrl: row.imageUrl ?? null,
+          stockQty: stockMap.has(stockKey) ? stockMap.get(stockKey)! : 0,
+          taxPercentage: row.taxId != null && taxRateById.has(row.taxId) ? taxRateById.get(row.taxId)! : 18,
+        };
+        const added = addToCart(sellable);
+        if (added !== false) {
+          toast.success(`Scanned: ${sellable.name}${sellable.variantName ? ` (${sellable.variantName})` : ""}`);
+        }
+      } catch {
+        toast.error(`No product found for '${code}'`);
+      }
+    },
+    [selectedPriceListId, stockQuery.data, taxRateById, addToCart]
   );
 
   // Process Barcode Scan (Exact Barcode Matching)
   const processBarcodeScan = React.useCallback(
     (scannedString: string) => {
       const query = scannedString.trim();
-      if (!query || !sellablesQuery.data) return { success: false, error: "Empty query" };
+      if (!query) return { success: false, error: "Empty query" };
 
       // 1. Search exact barcode match first (preserving leading zeroes, string exact match)
-      let match = sellablesQuery.data.find(
-        (x) => x.barcodes && x.barcodes.some((b) => b === query)
-      );
+      let match = sellables.find((x) => x.barcodes && x.barcodes.some((b) => b === query));
 
       // 2. Fallback to exact SKU or code match
       if (!match) {
-        match = sellablesQuery.data.find(
+        match = sellables.find(
           (x) =>
             x.sku === query ||
             x.code === query ||
@@ -536,33 +627,28 @@ export function POSClient() {
         );
       }
 
-      if (match) {
-        // Stock Validation at Active Store Location
-        if (match.stockQty !== undefined && match.stockQty <= 0) {
-          toast.error(`Product '${match.name}' is out of stock at this location.`);
-          setBarcodeInput("");
-          setTimeout(() => barcodeInputRef.current?.focus(), 10);
-          return { success: false, name: match.name, error: `'${match.name}' is out of stock` };
-        }
+      setBarcodeInput("");
+      setTimeout(() => barcodeInputRef.current?.focus(), 10);
 
-        addToCart(match);
-        setBarcodeInput("");
-        toast.success(`Scanned: ${match.name}${match.variantName ? ` (${match.variantName})` : ""}`);
-        setTimeout(() => barcodeInputRef.current?.focus(), 10);
-        return {
-          success: true,
-          name: match.name,
-          variantName: match.variantName ?? undefined,
-          price: match.price,
-        };
-      } else {
-        toast.error(`No product found for barcode ${query}`);
-        setBarcodeInput("");
-        setTimeout(() => barcodeInputRef.current?.focus(), 10);
-        return { success: false, error: `No product found for barcode ${query}` };
+      if (match) {
+        const added = addToCart(match);
+        if (added !== false) {
+          toast.success(`Scanned: ${match.name}${match.variantName ? ` (${match.variantName})` : ""}`);
+          return {
+            success: true,
+            name: match.name,
+            variantName: match.variantName ?? undefined,
+            price: match.price,
+          };
+        }
+        return { success: false, name: match.name, error: `'${match.name}' shows low/no stock -- confirm in the popup to add` };
       }
+
+      // Not on the currently loaded page(s) -- check the full catalog server-side.
+      lookupByCode(query);
+      return { success: false, error: `Checking full catalog for '${query}'...` };
     },
-    [sellablesQuery.data, addToCart]
+    [sellables, addToCart, lookupByCode]
   );
 
   // Handle Barcode / SKU Scan Form Submission
@@ -572,19 +658,9 @@ export function POSClient() {
     processBarcodeScan(barcodeInput);
   };
 
-  // Cart Qty Operations (with Inventory Stock Validation)
-  const updateCartQty = (index: number, delta: number) => {
-    const item = cart[index];
-    if (!item) return;
-    const newQty = Math.max(0, parseFloat((item.quantity + delta).toFixed(3)));
-
-    if (delta > 0 && item.sellable.stockQty !== undefined && newQty > item.sellable.stockQty) {
-      toast.error(
-        `Insufficient available stock for '${item.sellable.name}' (${item.sellable.variantName || item.sellable.sku}). Inventory stock: ${item.sellable.stockQty}`
-      );
-      return;
-    }
-
+  // Applies a cart quantity change directly, no stock check -- shared by the
+  // normal (in-stock) path and by the "Add anyway" override confirmation.
+  const applyCartQty = (index: number, newQty: number, override: boolean) => {
     setCart((prev) => {
       const next = [...prev];
       if (newQty <= 0) {
@@ -594,9 +670,28 @@ export function POSClient() {
         ...next[index],
         quantity: newQty,
         lineTotal: newQty * next[index].unitPrice,
+        stockOverride: next[index].stockOverride || override,
       };
       return next;
     });
+  };
+
+  // Cart Qty Operations (insufficient stock opens the override confirmation
+  // instead of blocking, same as addToCart)
+  const updateCartQty = (index: number, delta: number) => {
+    const item = cart[index];
+    if (!item) return;
+    const newQty = Math.max(0, parseFloat((item.quantity + delta).toFixed(3)));
+
+    if (delta > 0 && item.sellable.stockQty !== undefined && newQty > item.sellable.stockQty) {
+      setStockOverrideRequest({
+        message: `'${item.sellable.name}' (${item.sellable.variantName || item.sellable.sku}) shows only ${item.sellable.stockQty} in inventory, but you're setting quantity to ${newQty}.`,
+        onConfirm: () => applyCartQty(index, newQty, true),
+      });
+      return;
+    }
+
+    applyCartQty(index, newQty, false);
   };
 
   const updateCartQtyExact = (index: number, val: number) => {
@@ -604,24 +699,14 @@ export function POSClient() {
     if (!item || isNaN(val)) return;
 
     if (val > item.quantity && item.sellable.stockQty !== undefined && val > item.sellable.stockQty) {
-      toast.error(
-        `Insufficient available stock for '${item.sellable.name}' (${item.sellable.variantName || item.sellable.sku}). Inventory stock: ${item.sellable.stockQty}`
-      );
+      setStockOverrideRequest({
+        message: `'${item.sellable.name}' (${item.sellable.variantName || item.sellable.sku}) shows only ${item.sellable.stockQty} in inventory, but you're setting quantity to ${val}.`,
+        onConfirm: () => applyCartQty(index, val, true),
+      });
       return;
     }
 
-    setCart((prev) => {
-      const next = [...prev];
-      if (val <= 0) {
-        return next.filter((_, i) => i !== index);
-      }
-      next[index] = {
-        ...next[index],
-        quantity: val,
-        lineTotal: val * next[index].unitPrice,
-      };
-      return next;
-    });
+    applyCartQty(index, val, false);
   };
 
   const removeCartItem = (index: number) => {
@@ -754,6 +839,7 @@ export function POSClient() {
           quantity: item.quantity,
           sellingPrice: item.unitPrice,
           discountPercentage: Math.min(100, Math.max(0, Number(linesDiscountPct.toFixed(2)))),
+          overrideStock: item.stockOverride ?? false,
         })),
         payments: [],
         applyCreditAmount: creditToApply > 0 ? Number(creditToApply.toFixed(2)) : undefined,
@@ -763,11 +849,14 @@ export function POSClient() {
         id: number;
         invoiceNumber: string;
         invoiceDate: string;
+        subtotal: number;
+        taxAmount: number;
         totalAmount: number;
         paidAmount: number;
         creditAppliedAmount: number;
         balanceAmount: number;
         status: string;
+        verifyToken?: string | null;
         lines: Array<{
           productName: string;
           variantName?: string | null;
@@ -843,8 +932,6 @@ export function POSClient() {
         }
       }
 
-      const linesSubtotal = invoice.lines.reduce((sum, line) => sum + (line.lineTotal || 0), 0);
-      const taxAmt = Math.max(0, invoice.totalAmount - linesSubtotal);
       const cashTenderedVal = paymentMethod === "CASH" && tenderedCash ? Number(tenderedCash) : 0;
       const changeVal = cashTenderedVal > paymentAmount ? cashTenderedVal - paymentAmount : 0;
 
@@ -855,11 +942,12 @@ export function POSClient() {
         customerName: selectedCustomer.name,
         customerPhone: selectedCustomer.phone ?? undefined,
         customerGstin: selectedCustomer.gstin ?? undefined,
-        subtotal: linesSubtotal,
-        taxAmount: taxAmt,
+        subtotal: invoice.subtotal,
+        taxAmount: invoice.taxAmount,
         totalAmount: invoice.totalAmount,
         paidAmount: paidAmount ?? 0,
         creditAppliedAmount: invoice.creditAppliedAmount ?? 0,
+        verifyToken: invoice.verifyToken ?? undefined,
         previousBalance: priorBalanceDue > 0 ? priorBalanceDue : undefined,
         tenderedCash: cashTenderedVal > 0 ? cashTenderedVal : undefined,
         changeDue: changeVal > 0 ? changeVal : undefined,
@@ -1068,6 +1156,11 @@ export function POSClient() {
                       <div className="text-[10px] text-muted-foreground">{item.sellable.variantName}</div>
                     )}
                     <div className="text-[10px] text-muted-foreground font-mono">{item.sellable.sku}</div>
+                    {item.stockOverride && (
+                      <Badge variant="outline" className="mt-0.5 text-[9px] border-amber-500 text-amber-600">
+                        Stock not confirmed
+                      </Badge>
+                    )}
                   </TableCell>
                   <TableCell className="p-2 text-center">
                     <div className="flex items-center justify-center gap-1">
@@ -1392,52 +1485,99 @@ export function POSClient() {
           </div>
 
           {/* Product Search & Filter Bar */}
-          <div className="p-2.5 sm:p-3 border-b bg-card flex items-center justify-between gap-2 shrink-0">
-            <div className="relative flex-1 min-w-0">
-              <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
-              <Input
-                placeholder="Search catalog by name, code, SKU or barcode..."
-                value={productSearch}
-                onChange={(e) => setProductSearch(e.target.value)}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && productSearch.trim()) {
-                    e.preventDefault();
-                    const query = productSearch.trim();
-                    const handled = processBarcodeScan(query);
-                    if (handled) {
-                      setProductSearch("");
+          <div className="p-2.5 sm:p-3 border-b bg-card space-y-2 shrink-0">
+            <div className="flex items-center justify-between gap-2">
+              <div className="relative flex-1 min-w-0">
+                <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+                <Input
+                  placeholder="Search catalog by name, code, SKU or barcode..."
+                  value={productSearch}
+                  onChange={(e) => setProductSearch(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && productSearch.trim()) {
+                      e.preventDefault();
+                      const query = productSearch.trim();
+                      const handled = processBarcodeScan(query);
+                      if (handled) {
+                        setProductSearch("");
+                      }
                     }
-                  }
-                }}
-                className="pl-8 text-xs h-8 sm:h-9"
-              />
+                  }}
+                  className="pl-8 text-xs h-8 sm:h-9"
+                />
+              </div>
+              <Badge variant="outline" className="text-xs shrink-0">
+                {filteredProductGroups.length} loaded
+              </Badge>
             </div>
-            <Badge variant="outline" className="text-xs shrink-0">
-              {filteredProductGroups.length} Products
-            </Badge>
+            {topLevelCategories.length > 0 && (
+              <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCategory("ALL")}
+                  className={`shrink-0 px-2.5 py-1 rounded-full border text-[11px] font-medium transition-colors ${
+                    selectedCategory === "ALL"
+                      ? "bg-primary text-primary-foreground border-primary"
+                      : "bg-background text-muted-foreground border-border hover:border-primary"
+                  }`}
+                >
+                  All
+                </button>
+                {topLevelCategories.map((cat) => (
+                  <button
+                    key={cat.id}
+                    type="button"
+                    onClick={() => setSelectedCategory(String(cat.id))}
+                    className={`shrink-0 px-2.5 py-1 rounded-full border text-[11px] font-medium transition-colors ${
+                      selectedCategory === String(cat.id)
+                        ? "bg-primary text-primary-foreground border-primary"
+                        : "bg-background text-muted-foreground border-border hover:border-primary"
+                    }`}
+                  >
+                    {cat.name}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* Product Cards Grid */}
           <div className="flex-1 overflow-y-auto p-2.5 sm:p-4 pb-20 lg:pb-4">
-            {sellablesQuery.isLoading ? (
+            {productsQuery.isPending ? (
               <div className="p-8 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
                 <Loader2 className="h-4 w-4 animate-spin" /> Loading catalog items...
               </div>
             ) : filteredProductGroups.length === 0 ? (
               <div className="p-8 text-center text-xs text-muted-foreground">No products match your search.</div>
             ) : (
-              <div className="grid gap-2.5 sm:gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
-                {filteredProductGroups.map((group) => (
-                  <ProductGroupCard
-                    key={group.productId}
-                    group={group}
-                    money={money}
-                    getEffectivePrice={getEffectivePrice}
-                    selectedPriceListId={selectedPriceListId}
-                    onAdd={addToCart}
-                  />
-                ))}
-              </div>
+              <>
+                <div className="grid gap-2.5 sm:gap-3 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5">
+                  {filteredProductGroups.map((group) => (
+                    <ProductGroupCard
+                      key={group.productId}
+                      group={group}
+                      money={money}
+                      getEffectivePrice={getEffectivePrice}
+                      onAdd={addToCart}
+                      requestStockOverride={setStockOverrideRequest}
+                      customSets={productSetsByProduct.get(group.productId) ?? []}
+                    />
+                  ))}
+                </div>
+                {/* Infinite-scroll sentinel: fetches the next page once it enters view */}
+                <InfiniteScrollSentinel
+                  onVisible={() => {
+                    if (productsQuery.hasNextPage && !productsQuery.isFetchingNextPage) {
+                      productsQuery.fetchNextPage();
+                    }
+                  }}
+                />
+                {productsQuery.isFetchingNextPage && (
+                  <div className="py-4 text-center text-xs text-muted-foreground flex items-center justify-center gap-2">
+                    <Loader2 className="h-3.5 w-3.5 animate-spin" /> Loading more products...
+                  </div>
+                )}
+              </>
             )}
           </div>
         </div>
@@ -1573,7 +1713,13 @@ export function POSClient() {
       <Dialog open={isPaymentOpen} onOpenChange={setIsPaymentOpen}>
         <DialogContent className="sm:max-w-md">
           {(() => {
-            const totalCollectionAmount = amountDueAfterCredit + priorBalanceDue;
+            // Rounded once here, at the source -- amountDueAfterCredit/
+            // priorBalanceDue are each the result of chained float division
+            // (tax %, discount shares), so their sum can land on something
+            // like 1121.6399999999999 instead of 1121.64. Every downstream
+            // use (cash placeholder, UPI QR amount, change-due math) reads
+            // this rounded value instead of re-deriving the float error.
+            const totalCollectionAmount = Number((amountDueAfterCredit + priorBalanceDue).toFixed(2));
             return (
               <>
                 <DialogHeader>
@@ -1591,9 +1737,9 @@ export function POSClient() {
                         Includes {money.format(priorBalanceDue)} previous customer balance
                       </span>
                     )}
-                    <div>
+                    <span className="block">
                       Amount Due: <strong className="text-foreground text-sm">{money.format(totalCollectionAmount)}</strong>
-                    </div>
+                    </span>
                   </DialogDescription>
                 </DialogHeader>
 
@@ -1715,13 +1861,65 @@ export function POSClient() {
         onClose={() => setPostedInvoice(null)}
       />
 
+      {/* Stock Override Confirmation -- inventory reported this item as
+          zero/insufficient, but the inventory module may just be stale. */}
+      <Dialog open={!!stockOverrideRequest} onOpenChange={(open) => !open && setStockOverrideRequest(null)}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-500" /> Stock not available
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              {stockOverrideRequest?.message} This may just mean inventory hasn't been updated yet
+              -- you can still add it and reconcile stock later.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setStockOverrideRequest(null)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                stockOverrideRequest?.onConfirm();
+                setStockOverrideRequest(null);
+              }}
+            >
+              Add anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       {/* Mobile Camera Barcode Scanner Modal */}
       <CameraScannerDialog
         open={isCameraScannerOpen}
         onOpenChange={setIsCameraScannerOpen}
         onScan={(scannedCode) => processBarcodeScan(scannedCode)}
         onOpenPayment={() => setIsPaymentOpen(true)}
-        cartCount={cart.reduce((sum, item) => sum + item.quantity, 0)}
+        onIncrementQty={(key) => updateCartQty(key as number, 1)}
+        onDecrementQty={(key) => updateCartQty(key as number, -1)}
+        cart={cart.map((item, idx) => ({
+          key: idx,
+          name: item.sellable.name,
+          variantName: item.sellable.variantName,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          lineTotal: item.lineTotal,
+        }))}
+        searchQuery={productSearch}
+        onSearchQueryChange={setProductSearch}
+        isSearching={productsQuery.isFetching}
+        searchResults={sellables.map((s) => ({
+          key: `${s.productId}:${s.variantId ?? "base"}`,
+          name: s.name,
+          variantName: s.variantName,
+          price: s.price,
+        }))}
+        onAddSearchResult={(key) => {
+          const match = sellables.find((s) => `${s.productId}:${s.variantId ?? "base"}` === key);
+          if (match) addToCart(match);
+        }}
       />
     </div>
   );
@@ -1734,14 +1932,16 @@ function ProductGroupCard({
   group,
   money,
   getEffectivePrice,
-  selectedPriceListId,
   onAdd,
+  requestStockOverride,
+  customSets,
 }: {
   group: ProductGroup;
   money: Intl.NumberFormat;
-  getEffectivePrice: (item: SellableItem, priceListId?: number | null) => number;
-  selectedPriceListId: number | null;
-  onAdd: (item: SellableItem, quantityToAdd?: number) => boolean | void;
+  getEffectivePrice: (item: SellableItem) => number;
+  onAdd: (item: SellableItem, quantityToAdd?: number, forceOverride?: boolean) => boolean | void;
+  requestStockOverride: (request: StockOverrideRequest) => void;
+  customSets: any[];
 }) {
   const variantKey = (v: SellableItem) => `${v.productId}:${v.variantId ?? "base"}`;
   const hasVariants = group.variants.length > 1;
@@ -1753,12 +1953,6 @@ function ProductGroupCard({
   const [selectedKey, setSelectedKey] = React.useState(variantKey(defaultVariant));
   const selected = group.variants.find((v) => variantKey(v) === selectedKey) ?? defaultVariant;
   const outOfStock = selected.stockQty !== undefined && selected.stockQty <= 0;
-
-  const productSetsQuery = useQuery({
-    queryKey: ["product-sets", "product", group.productId],
-    queryFn: () => apiClient.get<any[]>(`product-sets?productId=${group.productId}`),
-  });
-  const customSets = productSetsQuery.data ?? [];
 
   const [activeSetModal, setActiveSetModal] = React.useState<{ setObj?: any; isBulk?: boolean } | null>(null);
   const [modalQty, setModalQty] = React.useState("1");
@@ -1773,30 +1967,45 @@ function ProductGroupCard({
         toast.success(`Added ${count} units of '${selected.variantName || selected.sku}' to cart`);
       }
     } else if (activeSetModal?.setObj) {
-      // Validate inventory stock for all items in the set prior to adding
-      for (const item of activeSetModal.setObj.items ?? []) {
+      const setName = activeSetModal.setObj.name;
+      const setItems = activeSetModal.setObj.items ?? [];
+
+      // Check inventory for every item in the set upfront so a single "low
+      // stock" popup covers the whole set, instead of one hard block.
+      const shortItems: string[] = [];
+      for (const item of setItems) {
         const match = group.variants.find((v) => v.variantId === item.productVariantId) ?? selected;
         if (match && match.stockQty !== undefined) {
           const reqQty = item.quantity * count;
-          if (reqQty > match.stockQty) {
-            toast.error(
-              `Cannot add Set '${activeSetModal.setObj.name}': Insufficient inventory stock for '${match.variantName || match.sku}'. Required: ${reqQty}, Available: ${match.stockQty}.`
-            );
-            return;
+          if (match.stockQty <= 0 || reqQty > match.stockQty) {
+            shortItems.push(`'${match.variantName || match.sku}' (need ${reqQty}, have ${match.stockQty})`);
           }
         }
       }
 
-      let addedCount = 0;
-      for (const item of activeSetModal.setObj.items ?? []) {
-        const match = group.variants.find((v) => v.variantId === item.productVariantId) ?? selected;
-        if (match) {
-          onAdd(match, item.quantity * count);
-          addedCount++;
+      const addAllSetItems = (force: boolean) => {
+        let addedCount = 0;
+        for (const item of setItems) {
+          const match = group.variants.find((v) => v.variantId === item.productVariantId) ?? selected;
+          if (match) {
+            const reqQty = item.quantity * count;
+            const isShort = match.stockQty !== undefined && (match.stockQty <= 0 || reqQty > match.stockQty);
+            onAdd(match, reqQty, force && isShort);
+            addedCount++;
+          }
         }
-      }
-      if (addedCount > 0) {
-        toast.success(`Added ${count} Set(s) of '${activeSetModal.setObj.name}' to cart`);
+        if (addedCount > 0) {
+          toast.success(`Added ${count} Set(s) of '${setName}' to cart`);
+        }
+      };
+
+      if (shortItems.length > 0) {
+        requestStockOverride({
+          message: `Set '${setName}' shows low/no stock for ${shortItems.join(", ")}.`,
+          onConfirm: () => addAllSetItems(true),
+        });
+      } else {
+        addAllSetItems(false);
       }
     }
     setActiveSetModal(null);
@@ -1861,7 +2070,7 @@ function ProductGroupCard({
 
         <div className="flex items-center justify-between pt-1">
           <div className="text-xs font-bold text-foreground">
-            {money.format(getEffectivePrice(selected, selectedPriceListId))}
+            {money.format(getEffectivePrice(selected))}
           </div>
           <DropdownMenu>
             <DropdownMenuTrigger
@@ -1869,7 +2078,6 @@ function ProductGroupCard({
                 <Button
                   size="icon"
                   variant="ghost"
-                  disabled={outOfStock}
                   className="h-7 w-7 rounded-full border hover:bg-primary hover:text-primary-foreground"
                   onClick={(e) => e.stopPropagation()}
                 />
@@ -1878,7 +2086,7 @@ function ProductGroupCard({
               <MoreVertical className="h-3.5 w-3.5" />
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
-              <DropdownMenuItem onClick={() => !outOfStock && onAdd(selected, 1)}>
+              <DropdownMenuItem onClick={() => onAdd(selected, 1)}>
                 <Plus className="mr-2 h-3.5 w-3.5" /> Add 1 Unit ({selected.variantName || selected.sku})
               </DropdownMenuItem>
 
@@ -1908,7 +2116,6 @@ function ProductGroupCard({
               <DropdownMenuItem
                 className="border-t mt-1"
                 onClick={() => {
-                  if (outOfStock) return;
                   setModalQty("10");
                   setActiveSetModal({ isBulk: true });
                 }}
@@ -1986,4 +2193,29 @@ function ProductGroupCard({
       </CardContent>
     </Card>
   );
+}
+
+// Fires `onVisible` once whenever this (otherwise invisible) marker scrolls
+// into view -- the standard infinite-scroll trigger, placed just below the
+// product grid so the next page loads a little before the cashier hits the
+// bottom.
+function InfiniteScrollSentinel({ onVisible }: { onVisible: () => void }) {
+  const ref = React.useRef<HTMLDivElement | null>(null);
+  const onVisibleRef = React.useRef(onVisible);
+  onVisibleRef.current = onVisible;
+
+  React.useEffect(() => {
+    const node = ref.current;
+    if (!node) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries.some((e) => e.isIntersecting)) onVisibleRef.current();
+      },
+      { rootMargin: "200px" }
+    );
+    observer.observe(node);
+    return () => observer.disconnect();
+  }, []);
+
+  return <div ref={ref} className="h-1" aria-hidden="true" />;
 }
