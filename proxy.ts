@@ -13,7 +13,14 @@ import { NextRequest, NextResponse } from "next/server";
 // of being redirected client-side first.
 import { getErpApiUrl } from "@/lib/env-config";
 
+// Auth pages -- redirected AWAY from once a session exists (no reason to see
+// the login form while logged in).
 const PUBLIC_ROUTES = ["/login", "/forgot-password"];
+// Genuinely public content -- accessible regardless of session state, in
+// EITHER direction. Must never hit the "redirect logged-in users away"
+// branch below, unlike PUBLIC_ROUTES: a logged-in staff member scanning
+// their own receipt should see it, not get bounced to the dashboard.
+const PUBLIC_CONTENT_ROUTES = ["/verify"];
 const ACCESS_TOKEN_COOKIE = "fiyora_erp_at";
 const REFRESH_TOKEN_COOKIE = "fiyora_erp_rt";
 const ERP_API_URL = getErpApiUrl();
@@ -47,6 +54,11 @@ async function refreshForNavigation(request: NextRequest) {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (PUBLIC_CONTENT_ROUTES.some((route) => pathname.startsWith(route))) {
+    return NextResponse.next();
+  }
+
   const accessToken = request.cookies.get(ACCESS_TOKEN_COOKIE)?.value;
   let hasSession = tokenIsUsable(accessToken);
   const isPublicRoute = PUBLIC_ROUTES.some((route) => pathname.startsWith(route));
