@@ -2,7 +2,8 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { resolveReturnTo } from "@/lib/return-to";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -71,6 +72,7 @@ function errorMessage(err: unknown) {
 export function LeadDetailClient({ leadId }: { leadId: number }) {
   const qc = useQueryClient();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [convertOpen, setConvertOpen] = React.useState(false);
   const [deleteOpen, setDeleteOpen] = React.useState(false);
 
@@ -121,13 +123,16 @@ export function LeadDetailClient({ leadId }: { leadId: number }) {
 
   return (
     <div className="flex flex-col gap-4 sm:gap-6 max-w-6xl mx-auto w-full pb-12 sm:pb-20">
-      {/* Back Navigation */}
+      {/* Back Navigation -- return to wherever the user came from (e.g. the
+          Activities list) via the explicit ?returnTo= the linking page set,
+          rather than always jumping to the Leads list. Falls back to the
+          Leads list when there's no returnTo (e.g. opened from the Leads
+          list itself, or a direct URL/bookmark). */}
       <Button
-        nativeButton={false}
         variant="ghost"
         size="sm"
         className="w-fit gap-1.5 text-xs text-muted-foreground hover:text-foreground p-0 h-auto"
-        render={<Link href="/crm/leads" />}
+        onClick={() => router.push(resolveReturnTo(searchParams, "/crm/leads"))}
       >
         <ArrowLeft className="h-4 w-4" /> Back to Leads
       </Button>

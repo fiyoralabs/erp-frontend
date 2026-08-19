@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DataTable, type DataTableColumn } from "@/components/data-table/data-table";
 import { FiltersButton, FiltersPanel, FilterField } from "@/components/crm/shared/filters-panel";
 import { apiClient, type PagedResult } from "@/lib/api-client";
+import { buildReturnTo } from "@/lib/return-to";
 import type { Account, AccountType } from "@/lib/types/crm";
 import { ActiveBadge } from "@/components/shared/active-badge";
 import { AccountDialog } from "@/components/crm/accounts/account-dialog";
@@ -67,6 +68,9 @@ export function AccountsListClient() {
   if (assignedUserId) params.set("assignedUserId", assignedUserId);
   if (active) params.set("active", active);
 
+  // So an Account's Back button returns to this exact filtered/paginated view.
+  const accountHref = (id: number) => `/crm/accounts/${id}?returnTo=${encodeURIComponent(buildReturnTo(pathname, params))}`;
+
   const listQuery = useQuery({
     queryKey: ["crm", "accounts", page, sort, debouncedSearch, accountType, assignedUserId, active],
     queryFn: () => apiClient.get<PagedResult<Account>>(`crm/accounts?${params.toString()}`),
@@ -90,7 +94,7 @@ export function AccountsListClient() {
   }
 
   const columns: DataTableColumn<Account>[] = [
-    { key: "name", header: "Account", render: (r) => <Link href={`/crm/accounts/${r.id}`} className="font-medium text-primary hover:underline">{r.name}</Link> },
+    { key: "name", header: "Account", render: (r) => <Link href={accountHref(r.id)} className="font-medium text-primary hover:underline">{r.name}</Link> },
     { key: "type", header: "Type", render: (r) => r.accountType },
     { key: "industry", header: "Industry", render: (r) => r.industry ?? "—" },
     { key: "phone", header: "Contact", render: (r) => r.phone ?? r.email ?? "—" },
@@ -163,7 +167,7 @@ export function AccountsListClient() {
         onPageChange={setPage}
         actions={(row) => (
           <>
-            <Button nativeButton={false} variant="ghost" size="sm" render={<Link href={`/crm/accounts/${row.id}`} />}>View</Button>
+            <Button nativeButton={false} variant="ghost" size="sm" render={<Link href={accountHref(row.id)} />}>View</Button>
             <Button variant="ghost" size="icon" className="size-8" onClick={() => setDialogState({ mode: "edit", row })} aria-label="Edit account">
               <Pencil className="size-4" />
             </Button>

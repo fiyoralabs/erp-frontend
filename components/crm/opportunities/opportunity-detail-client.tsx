@@ -2,10 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ArrowLeft, Pencil, Trophy, XCircle, FileText, Loader2, MoreVertical, DollarSign, Percent, TrendingUp, CalendarClock } from "lucide-react";
 
+import { resolveReturnTo } from "@/lib/return-to";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
@@ -35,6 +37,8 @@ function errorMessage(err: unknown) {
 
 export function OpportunityDetailClient({ opportunityId }: { opportunityId: number }) {
   const qc = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [editOpen, setEditOpen] = React.useState(false);
   const [wonOpen, setWonOpen] = React.useState(false);
   const [lostOpen, setLostOpen] = React.useState(false);
@@ -110,7 +114,7 @@ export function OpportunityDetailClient({ opportunityId }: { opportunityId: numb
 
   return (
     <div className="flex flex-col gap-4">
-      <Button nativeButton={false} variant="ghost" size="sm" className="w-fit gap-1.5" render={<Link href="/crm/opportunities" />}>
+      <Button variant="ghost" size="sm" className="w-fit gap-1.5" onClick={() => router.push(resolveReturnTo(searchParams, "/crm/opportunities"))}>
         <ArrowLeft className="size-4" /> Back to Opportunities
       </Button>
 

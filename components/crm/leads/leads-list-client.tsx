@@ -28,6 +28,7 @@ import { formatCurrency, formatDate } from "@/components/crm/shared/format";
 import { useCrmUsers, useUserNameLookup } from "@/components/crm/shared/user-select";
 import { LeadImportDialog } from "@/components/crm/leads/lead-import-dialog";
 import { FiltersPanel } from "@/components/crm/shared/filters-panel";
+import { buildReturnTo } from "@/lib/return-to";
 import { cn } from "@/lib/utils";
 
 function errorMessage(err: unknown) {
@@ -105,6 +106,9 @@ export function LeadsListClient() {
   if (sourceId) params.set("leadSourceId", sourceId);
   if (assignedUserId) params.set("assignedUserId", assignedUserId);
   if (followUp) params.set("followUp", followUp);
+
+  // So a Lead's Back button returns to this exact filtered/paginated view.
+  const leadHref = (id: number) => `/crm/leads/${id}?returnTo=${encodeURIComponent(buildReturnTo(pathname, params))}`;
 
   const listQuery = useQuery({
     queryKey: ["crm", "leads", page, debouncedSearch, status, rating, sourceId, assignedUserId, followUp, excludeLostAndUnqualified],
@@ -200,7 +204,7 @@ export function LeadsListClient() {
       header: "Lead",
       render: (row) => (
         <div className="flex items-center gap-2">
-          <Link href={`/crm/leads/${row.id}`} className="font-semibold text-[#0F3D3E] hover:underline dark:text-[#7da8a8]">
+          <Link href={leadHref(row.id)} className="font-semibold text-[#0F3D3E] hover:underline dark:text-[#7da8a8]">
             {row.fullName}
           </Link>
           {row.status === "NEW" && (
@@ -312,7 +316,7 @@ export function LeadsListClient() {
             {newLeadsQuery.data?.content.map((lead) => (
               <Link
                 key={lead.id}
-                href={`/crm/leads/${lead.id}`}
+                href={leadHref(lead.id)}
                 className="flex w-56 shrink-0 flex-col gap-1.5 rounded-xl border border-[#e2e2e2] bg-white p-3.5 shadow-xs transition-colors hover:border-[#0F3D3E] dark:border-[#404848] dark:bg-[#1a1c1c] dark:hover:border-[#a3cfcf]"
               >
                 <div className="flex items-center justify-between gap-2">
@@ -470,10 +474,10 @@ export function LeadsListClient() {
             page={page}
             totalPages={listQuery.data?.totalPages}
             onPageChange={setPage}
-            onRowClick={(row) => router.push(`/crm/leads/${row.id}`)}
+            onRowClick={(row) => router.push(leadHref(row.id))}
             actions={(row) => (
               <div className="flex items-center justify-end gap-1">
-                <Button nativeButton={false} variant="ghost" size="sm" render={<Link href={`/crm/leads/${row.id}`} />}>
+                <Button nativeButton={false} variant="ghost" size="sm" render={<Link href={leadHref(row.id)} />}>
                   View
                 </Button>
                 <Button
