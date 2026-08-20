@@ -14,23 +14,49 @@ function probabilityTone(probability: number) {
   return "bg-[#f3f4f3] text-[#545f73] border-[#e2e2e2] dark:bg-[#2f3131] dark:text-[#a3cfcf] dark:border-[#404848]";
 }
 
-export function PipelineCard({ opportunity, accountName }: { opportunity: Opportunity; accountName?: string }) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({ id: opportunity.id });
-  const style = transform
+export function PipelineCard({
+  opportunity,
+  accountName,
+  isPlaceholder,
+  isOverlay,
+}: {
+  opportunity: Opportunity;
+  accountName?: string;
+  isPlaceholder?: boolean;
+  isOverlay?: boolean;
+}) {
+  // Only register drag sensors if this card is NOT an overlay and NOT a placeholder
+  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+    id: opportunity.id,
+    disabled: !!isOverlay || !!isPlaceholder,
+  });
+
+  const style = transform && !isOverlay
     ? { transform: CSS.Translate.toString(transform), zIndex: isDragging ? 20 : undefined }
     : undefined;
+
+  // Placeholder slot styling
+  if (isPlaceholder) {
+    return (
+      <div
+        ref={setNodeRef}
+        className="rounded-xl border-2 border-dashed border-[#0F3D3E]/20 bg-slate-50/20 dark:border-[#beebeb]/10 dark:bg-[#1a1c1c]/10 h-[104px] w-full transition-all duration-150"
+      />
+    );
+  }
 
   return (
     <div
       ref={setNodeRef}
       style={style}
-      {...listeners}
-      {...attributes}
+      {...(isOverlay || isPlaceholder ? {} : listeners)}
+      {...(isOverlay || isPlaceholder ? {} : attributes)}
       className={cn(
-        "group relative flex touch-none select-none flex-col gap-2 rounded-xl border border-[#e2e2e2] bg-white p-3 shadow-xs transition-all",
+        "group relative flex select-none flex-col gap-2 rounded-xl border border-[#e2e2e2] bg-white p-3 shadow-xs transition-all",
         "hover:border-[#0F3D3E]/30 hover:shadow-[0_4px_16px_rgba(0,0,0,0.08)]",
         "dark:border-[#404848] dark:bg-[#1a1c1c] dark:hover:border-[#a3cfcf]/40",
-        isDragging ? "cursor-grabbing opacity-60 shadow-lg rotate-1" : "cursor-grab"
+        isDragging ? "opacity-30 cursor-grabbing border-dashed" : "cursor-grab",
+        isOverlay ? "scale-[1.03] rotate-1 shadow-md cursor-grabbing bg-white/95 dark:bg-[#1a1c1c]/95 border-[#0F3D3E]/20 dark:border-[#beebeb]/20 pointer-events-none select-none" : ""
       )}
     >
       <div className="flex items-start justify-between gap-2">
@@ -41,7 +67,9 @@ export function PipelineCard({ opportunity, accountName }: { opportunity: Opport
         >
           {opportunity.name}
         </Link>
-        <GripVertical className="h-4 w-4 shrink-0 text-[#c0c8c8] opacity-0 transition-opacity group-hover:opacity-100 dark:text-[#545f73]" />
+        {!isOverlay && (
+          <GripVertical className="h-4 w-4 shrink-0 text-[#c0c8c8] opacity-0 transition-opacity group-hover:opacity-100 dark:text-[#545f73]" />
+        )}
       </div>
 
       <p className="flex min-w-0 items-center gap-1.5 text-xs text-[#545f73] dark:text-[#a3cfcf]">

@@ -4,6 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import {
   DndContext,
+  DragOverlay,
   type DragEndEvent,
   PointerSensor,
   TouchSensor,
@@ -19,6 +20,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { apiClient, ApiRequestError, type PagedResult } from "@/lib/api-client";
 import type { Opportunity, Pipeline } from "@/lib/types/crm";
 import { PipelineColumn } from "@/components/crm/pipeline/pipeline-column";
+import { PipelineCard } from "@/components/crm/pipeline/pipeline-card";
 import { OpportunityWonDialog } from "@/components/crm/opportunities/opportunity-won-dialog";
 import { OpportunityLostDialog } from "@/components/crm/opportunities/opportunity-lost-dialog";
 import { formatCurrency } from "@/components/crm/shared/format";
@@ -41,10 +43,11 @@ export function PipelineBoardClient() {
   const isMobile = useIsMobile();
   const accountNameById = useAccountNameLookup();
 
-  // Phones default to the Summary list -- the horizontal-scroll board is
-  // the better experience on tablet/desktop but easy to get lost in on a
-  // narrow screen. Only apply the default once; once the user has picked a
-  // view explicitly, respect it even if the viewport crosses the boundary.
+  // Drag-and-drop reactive states
+  const [activeId, setActiveId] = React.useState<number | null>(null);
+  const [tempOpportunities, setTempOpportunities] = React.useState<Opportunity[]>([]);
+
+  // Phones default to the Summary list
   const userPickedViewRef = React.useRef(false);
   React.useEffect(() => {
     if (isMobile && !userPickedViewRef.current) setViewMode("mobile-summary");
@@ -55,10 +58,10 @@ export function PipelineBoardClient() {
     setViewMode(mode);
   }
 
-  // Configured sensors for both pointer/mouse and touch screens
+  // Touch and pointer sensors for a physical experience on desktop & mobile
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 5 } })
+    useSensor(TouchSensor, { activationConstraint: { delay: 250, tolerance: 8 } })
   );
 
   const pipelinesQuery = useQuery({
@@ -82,6 +85,15 @@ export function PipelineBoardClient() {
       ),
     enabled: !!effectivePipelineId,
   });
+
+  const opportunities = opportunitiesQuery.data?.content ?? [];
+
+  // Keep local temporary opportunities in sync with fetched query updates
+  React.useEffect(() => {
+    if (opportunities.length > 0) {
+      setTempOpportunities(opportunities);
+    }
+  }, [opportunities]);
 
   // Optimistic mutation handling to prevent race conditions during rapid dragging
   const stageMutation = useMutation({
@@ -116,7 +128,6 @@ export function PipelineBoardClient() {
   });
 
   const pipeline = pipelinesQuery.data?.find((p) => p.id === effectivePipelineId);
-  const opportunities = opportunitiesQuery.data?.content ?? [];
   const stages = [...(pipeline?.stages ?? [])].sort((a, b) => a.sequence - b.sequence);
 
   const totalValue = opportunities.reduce(
@@ -124,26 +135,66 @@ export function PipelineBoardClient() {
     0
   );
 
-  function handleDragEnd(event: DragEndEvent) {
+  function handleDragStart(event: any) {
+    const id = Number(event.active.id);
+    setActiveId(id);
+    setTempOpportunities(opportunities);
+  }
+
+  function handleDragOver(event: any) {
     const { active, over } = event;
     if (!over) return;
+    const activeIdNum = Number(active.id);
+    const overIdNum = Number(over.id);
+
+    const targetStage = stages.find((s) => s.id === overIdNum);
+    if (targetStage) {
+      setTempOpportunities((prev) =>
+        prev.map((opp) => (opp.id === activeIdNum ? { ...opp, stageId: overIdNum } : opp))
+      );
+    }
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    setActiveId(null);
+    if (!over) {
+      setTempOpportunities(opportunities);
+      return;
+    }
     const opportunityId = Number(active.id);
     const targetStageId = Number(over.id);
     const opportunity = opportunities.find((o) => o.id === opportunityId);
-    if (!opportunity || opportunity.stageId === targetStageId) return;
+    if (!opportunity || opportunity.stageId === targetStageId) {
+      setTempOpportunities(opportunities);
+      return;
+    }
     const targetStage = stages.find((s) => s.id === targetStageId);
-    if (!targetStage) return;
+    if (!targetStage) {
+      setTempOpportunities(opportunities);
+      return;
+    }
 
     if (targetStage.isWon) {
       setWonTarget(opportunity);
+      setTempOpportunities(opportunities);
       return;
     }
     if (targetStage.isLost) {
       setLostTarget(opportunity);
+      setTempOpportunities(opportunities);
       return;
     }
     stageMutation.mutate({ id: opportunityId, stageId: targetStageId });
   }
+
+  function handleDragCancel() {
+    setActiveId(null);
+    setTempOpportunities(opportunities);
+  }
+
+  const displayedOpportunities = activeId !== null ? tempOpportunities : opportunities;
+  const activeOpportunity = activeId !== null ? opportunities.find((o) => o.id === activeId) : null;
 
   return (
     <div className="flex flex-col gap-4">
@@ -230,21 +281,43 @@ export function PipelineBoardClient() {
           <span className="text-sm">Loading pipeline stages...</span>
         </div>
       ) : viewMode === "board" ? (
-        <DndContext sensors={sensors} onDragEnd={handleDragEnd}>
+        <DndContext
+          sensors={sensors}
+          onDragStart={handleDragStart}
+          onDragOver={handleDragOver}
+          onDragEnd={handleDragEnd}
+          onDragCancel={handleDragCancel}
+        >
           <div className="scrollbar-thin flex snap-x gap-3 overflow-x-auto pb-6 pt-2">
             {stages.map((stage) => (
               <div key={stage.id} className="w-[270px] shrink-0 snap-start sm:w-[300px] xl:w-[320px]">
                 <PipelineColumn
                   stage={stage}
-                  opportunities={opportunities.filter((o) => o.stageId === stage.id)}
+                  opportunities={displayedOpportunities.filter((o) => o.stageId === stage.id)}
                   accountNameById={accountNameById}
+                  activeId={activeId}
                 />
               </div>
             ))}
           </div>
+
+          <DragOverlay
+            dropAnimation={{
+              duration: 250,
+              easing: "cubic-bezier(0.18, 0.89, 0.32, 1.28)", // spring snap back
+            }}
+          >
+            {activeOpportunity ? (
+              <PipelineCard
+                opportunity={activeOpportunity}
+                accountName={activeOpportunity.accountId ? accountNameById.get(activeOpportunity.accountId) : undefined}
+                isOverlay
+              />
+            ) : null}
+          </DragOverlay>
         </DndContext>
       ) : (
-        /* Mobile Summary View for fast overview on small screens */
+        /* Mobile Summary View */
         <div className="flex flex-col gap-3">
           <span className="inline-flex w-fit items-center rounded-full border border-[#e2e2e2] px-2.5 py-0.5 text-xs font-semibold text-[#545f73] dark:border-[#404848] dark:text-[#a3cfcf] sm:hidden">
             {opportunities.length} Deals ({formatCurrency(totalValue)})
@@ -278,9 +351,9 @@ export function PipelineBoardClient() {
                   ) : (
                     stageOpps.map((opp) => (
                       <Link
-                        key={opp.id}
-                        href={`/crm/opportunities/${opp.id}`}
-                        className="flex items-center justify-between gap-2 rounded-xl px-2.5 py-2.5 text-xs transition-colors hover:bg-[#f3f4f3] dark:hover:bg-[#2f3131]"
+                          key={opp.id}
+                          href={`/crm/opportunities/${opp.id}`}
+                          className="flex items-center justify-between gap-2 rounded-xl px-2.5 py-2.5 text-xs transition-colors hover:bg-[#f3f4f3] dark:hover:bg-[#2f3131]"
                       >
                         <div className="min-w-0">
                           <div className="truncate font-semibold text-[#1a1c1c] dark:text-white">{opp.name}</div>
