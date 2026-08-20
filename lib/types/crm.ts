@@ -294,6 +294,8 @@ export interface Activity {
   reminderAt: string | null;
   createdBy: number | null;
   createdAt: string;
+  leadName: string | null;
+  companyName: string | null;
 }
 
 export interface CrmTask {
@@ -327,6 +329,8 @@ export interface FollowUp {
   notes: string | null;
   nextFollowUpId: number | null;
   createdAt: string;
+  leadName: string | null;
+  companyName: string | null;
 }
 
 export interface CrmTag {

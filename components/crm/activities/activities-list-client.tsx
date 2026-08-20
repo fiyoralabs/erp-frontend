@@ -1,16 +1,17 @@
 "use client";
 
 import * as React from "react";
-import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useQuery } from "@tanstack/react-query";
-import { Phone, Mail, MessageSquare, StickyNote, CalendarCheck, MapPin, FileText, Clock, CheckCircle2, AlertCircle, ArrowUpRight } from "lucide-react";
+import { Phone, Mail, MessageSquare, StickyNote, CalendarCheck, MapPin, FileText, Clock, CheckCircle2, AlertCircle } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { DataTable, type DataTableColumn } from "@/components/data-table/data-table";
 import { apiClient, type PagedResult } from "@/lib/api-client";
+import { buildReturnTo } from "@/lib/return-to";
 import type { Activity, ActivityType, FollowUp } from "@/lib/types/crm";
 import { formatDateTime } from "@/components/crm/shared/format";
 import { useUserNameLookup } from "@/components/crm/shared/user-select";
@@ -20,10 +21,16 @@ const TYPE_ICON: Record<string, React.ComponentType<{ className?: string }>> = {
   NOTE: StickyNote, VISIT: MapPin, DEMO: FileText, PROPOSAL: FileText, OTHER: FileText,
 };
 
-function getRelatedLink(relatedType?: string, relatedId?: number) {
+function getRelatedLink(relatedType?: string, relatedId?: number, leadReturnTo?: string) {
   if (!relatedType || !relatedId) return null;
   const t = relatedType.toUpperCase();
-  if (t === "LEAD") return `/crm/leads/${relatedId}`;
+  // Lead detail's Back button reads this to return here (including whatever
+  // view/page this page was showing) instead of always landing on the plain
+  // Leads list -- see lead-detail-client.tsx.
+  if (t === "LEAD") {
+    const base = `/crm/leads/${relatedId}`;
+    return leadReturnTo ? `${base}?returnTo=${encodeURIComponent(leadReturnTo)}` : base;
+  }
   if (t === "OPPORTUNITY") return `/crm/opportunities/${relatedId}`;
   if (t === "CONTACT") return `/crm/contacts/${relatedId}`;
   if (t === "ACCOUNT") return `/crm/accounts/${relatedId}`;
@@ -48,16 +55,35 @@ const VIEW_VALUES = new Set(VIEWS.map((v) => v.value));
 
 export function ActivitiesListClient() {
   const router = useRouter();
-  // Read once on mount so dashboard links like /crm/activities?view=OVERDUE
-  // land pre-filtered.
-  const initialParams = useSearchParams();
-  const [filter, setFilter] = React.useState<ActivityViewFilter>(() => {
-    const requested = initialParams.get("view");
-    return requested && VIEW_VALUES.has(requested as ActivityViewFilter)
-      ? (requested as ActivityViewFilter)
+  // The URL is the source of truth for filter/page state -- not a parallel
+  // useState -- so a browser refresh, a direct link, and the Lead detail
+  // page's "Back" (which restores this exact URL) all land on the same
+  // filtered view without any separate persistence mechanism.
+  const searchParams = useSearchParams();
+
+  const requestedView = searchParams.get("view");
+  const filter: ActivityViewFilter =
+    requestedView && VIEW_VALUES.has(requestedView as ActivityViewFilter)
+      ? (requestedView as ActivityViewFilter)
       : "ALL";
-  });
-  const [page, setPage] = React.useState(0);
+  const page = Math.max(0, Number(searchParams.get("page") ?? 0) || 0);
+
+  function updateParams(next: { view?: ActivityViewFilter; page?: number }) {
+    const params = new URLSearchParams(searchParams.toString());
+    if (next.view !== undefined) {
+      if (next.view === "ALL") params.delete("view");
+      else params.set("view", next.view);
+      params.delete("page"); // changing the view resets pagination, same as before
+    }
+    if (next.page !== undefined) {
+      if (next.page === 0) params.delete("page");
+      else params.set("page", String(next.page));
+    }
+    const qs = params.toString();
+    router.replace(`/crm/activities${qs ? `?${qs}` : ""}`);
+  }
+
+  const returnTo = buildReturnTo("/crm/activities", searchParams);
 
   const actQuery = useQuery({
     queryKey: ["crm", "activities", "all", page],
@@ -80,6 +106,8 @@ export function ActivitiesListClient() {
       description?: string;
       relatedType?: string;
       relatedId?: number;
+      leadName?: string | null;
+      companyName?: string | null;
       dateStr: string;
       status: string;
       rawDate: number;
@@ -97,6 +125,8 @@ export function ActivitiesListClient() {
           description: a.description ?? undefined,
           relatedType: a.relatedType,
           relatedId: a.relatedId,
+          leadName: a.leadName,
+          companyName: a.companyName,
           dateStr: formatDateTime(a.createdAt),
           status: a.status,
           rawDate: new Date(a.createdAt).getTime(),
@@ -116,6 +146,8 @@ export function ActivitiesListClient() {
           description: f.notes || f.outcome || undefined,
           relatedType: f.relatedType ?? undefined,
           relatedId: f.relatedId ?? undefined,
+          leadName: f.leadName,
+          companyName: f.companyName,
           dateStr: `${f.followUpDate} ${f.followUpTime || ""}`,
           status: f.status,
           rawDate: new Date(f.followUpDate).getTime(),
@@ -163,24 +195,19 @@ export function ActivitiesListClient() {
       ),
     },
     {
-      key: "related",
-      header: "Related Record",
-      render: (r) => {
-        const link = getRelatedLink(r.relatedType, r.relatedId);
-        if (!link) return <span className="text-muted-foreground">—</span>;
-        return (
-          <Link href={link} onClick={(e) => e.stopPropagation()} className="inline-flex items-center gap-1 font-semibold text-primary hover:underline">
-            {r.relatedType} #{r.relatedId}
-            <ArrowUpRight className="size-3" />
-          </Link>
-        );
-      },
+      key: "leadName",
+      header: "Lead Name",
+      render: (r) => (r.leadName ? <span className="font-medium">{r.leadName}</span> : <span className="text-muted-foreground">—</span>),
+    },
+    {
+      key: "companyName",
+      header: "Company Name",
+      render: (r) => (r.companyName ? <span>{r.companyName}</span> : <span className="text-muted-foreground">—</span>),
     },
     {
       key: "assigned",
       header: "Assigned To",
       render: (r) => (r.assignedUserId ? userNameById.get(r.assignedUserId) ?? `User #${r.assignedUserId}` : <span className="text-muted-foreground">Unassigned</span>),
-      hideOnCard: true,
     },
     {
       key: "status",
@@ -204,7 +231,7 @@ export function ActivitiesListClient() {
       key: "action",
       header: "Direct Link",
       render: (r) => {
-        const link = getRelatedLink(r.relatedType, r.relatedId);
+        const link = getRelatedLink(r.relatedType, r.relatedId, returnTo);
         if (!link) return null;
         return (
           <Button size="sm" variant="ghost" onClick={(e) => { e.stopPropagation(); router.push(link); }}>
@@ -223,13 +250,30 @@ export function ActivitiesListClient() {
         <p className="text-sm text-muted-foreground">Unified 360° interaction hub for activities, follow-ups, and sales tasks.</p>
       </div>
 
-      <Tabs value={filter} onValueChange={(v) => { setFilter(v as typeof filter); setPage(0); }} className="w-full">
-        <div className="overflow-x-auto scrollbar-none pb-1">
-          <TabsList className="inline-flex h-10 items-center justify-start rounded-lg bg-muted p-1 text-muted-foreground w-max min-w-full">
-            {VIEWS.map((v) => <TabsTrigger key={v.value} value={v.value}>{v.label}</TabsTrigger>)}
-          </TabsList>
-        </div>
-      </Tabs>
+      {/* Desktop: existing tab strip, unchanged */}
+      <div className="hidden md:block">
+        <Tabs value={filter} onValueChange={(v) => updateParams({ view: v as ActivityViewFilter })} className="w-full">
+          <div className="overflow-x-auto scrollbar-none pb-1">
+            <TabsList className="inline-flex h-10 items-center justify-start rounded-lg bg-muted p-1 text-muted-foreground w-max min-w-full">
+              {VIEWS.map((v) => <TabsTrigger key={v.value} value={v.value}>{v.label}</TabsTrigger>)}
+            </TabsList>
+          </div>
+        </Tabs>
+      </div>
+
+      {/* Mobile: same view filter, as a full-width select instead of a
+          horizontally-scrolling pill strip -- every option stays reachable
+          and legible at narrow widths without introducing page overflow. */}
+      <div className="md:hidden">
+        <Select value={filter} onValueChange={(v) => updateParams({ view: v as ActivityViewFilter })}>
+          <SelectTrigger className="w-full h-11 rounded-xl bg-background">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {VIEWS.map((v) => <SelectItem key={v.value} value={v.value}>{v.label}</SelectItem>)}
+          </SelectContent>
+        </Select>
+      </div>
 
       <DataTable
         columns={columns}
@@ -239,9 +283,9 @@ export function ActivitiesListClient() {
         emptyMessage="No CRM activities or follow-ups found."
         page={page}
         totalPages={actQuery.data?.totalPages || fuQuery.data?.totalPages}
-        onPageChange={setPage}
+        onPageChange={(p) => updateParams({ page: p })}
         onRowClick={(r) => {
-          const link = getRelatedLink(r.relatedType, r.relatedId);
+          const link = getRelatedLink(r.relatedType, r.relatedId, returnTo);
           if (link) router.push(link);
         }}
       />

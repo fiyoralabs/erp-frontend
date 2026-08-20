@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DataTable, type DataTableColumn } from "@/components/data-table/data-table";
 import { FiltersButton, FiltersPanel, FilterField } from "@/components/crm/shared/filters-panel";
 import { apiClient, type PagedResult } from "@/lib/api-client";
+import { buildReturnTo } from "@/lib/return-to";
 import type { Opportunity, OpportunityStatus, Pipeline } from "@/lib/types/crm";
 import { OpportunityStatusBadge } from "@/components/crm/shared/status-badges";
 import { formatCurrency, formatDate } from "@/components/crm/shared/format";
@@ -81,6 +82,9 @@ export function OpportunitiesListClient() {
   if (closeFrom) params.set("expectedCloseFrom", closeFrom);
   if (closeTo) params.set("expectedCloseTo", closeTo);
 
+  // So a Deal's Back button returns to this exact filtered/paginated view.
+  const opportunityHref = (id: number) => `/crm/opportunities/${id}?returnTo=${encodeURIComponent(buildReturnTo(pathname, params))}`;
+
   const listQuery = useQuery({
     queryKey: ["crm", "opportunities", "list", page, sort, debouncedSearch, status, pipelineId, stageId, assignedUserId, accountId, closeFrom, closeTo],
     queryFn: () => apiClient.get<PagedResult<Opportunity>>(`crm/opportunities?${params.toString()}`),
@@ -114,7 +118,7 @@ export function OpportunitiesListClient() {
   }
 
   const columns: DataTableColumn<Opportunity>[] = [
-    { key: "name", header: "Opportunity", render: (r) => <Link href={`/crm/opportunities/${r.id}`} className="font-medium text-primary hover:underline">{r.name}</Link> },
+    { key: "name", header: "Opportunity", render: (r) => <Link href={opportunityHref(r.id)} className="font-medium text-primary hover:underline">{r.name}</Link> },
     { key: "account", header: "Account", render: (r) => <Link href={`/crm/accounts/${r.accountId}`} className="text-primary hover:underline">{accountNameById.get(r.accountId) ?? `#${r.accountId}`}</Link> },
     { key: "value", header: "Value", render: (r) => formatCurrency(r.amount) },
     { key: "probability", header: "Probability", render: (r) => `${r.probability}%`, hideOnCard: true },
@@ -192,7 +196,7 @@ export function OpportunitiesListClient() {
         totalPages={listQuery.data?.totalPages}
         onPageChange={setPage}
         actions={(row) => (
-          <Button nativeButton={false} variant="ghost" size="sm" render={<Link href={`/crm/opportunities/${row.id}`} />}>
+          <Button nativeButton={false} variant="ghost" size="sm" render={<Link href={opportunityHref(row.id)} />}>
             <LayoutList className="size-4" /> View
           </Button>
         )}

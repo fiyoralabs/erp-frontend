@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import {
@@ -31,6 +31,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { apiClient, ApiRequestError } from "@/lib/api-client";
+import { resolveReturnTo } from "@/lib/return-to";
 import type { Contact, ContactLinks } from "@/lib/types/crm";
 
 function errorMessage(err: unknown) {
@@ -53,6 +54,7 @@ import { useUserNameLookup } from "@/components/crm/shared/user-select";
 export function ContactDetailClient({ contactId }: { contactId: number }) {
   const qc = useQueryClient();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [editOpen, setEditOpen] = React.useState(false);
   const [linkedRecords, setLinkedRecords] = React.useState<ContactLinks | null>(null);
 
@@ -93,11 +95,10 @@ export function ContactDetailClient({ contactId }: { contactId: number }) {
     <div className="flex flex-col gap-6 max-w-6xl mx-auto w-full pb-20">
       {/* Back Navigation */}
       <Button
-        nativeButton={false}
         variant="ghost"
         size="sm"
         className="w-fit gap-1.5 text-xs text-muted-foreground hover:text-foreground p-0 h-auto"
-        render={<Link href="/crm/contacts" />}
+        onClick={() => router.push(resolveReturnTo(searchParams, "/crm/contacts"))}
       >
         <ArrowLeft className="h-4 w-4" /> Back to Contacts
       </Button>

@@ -2,10 +2,12 @@
 
 import * as React from "react";
 import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { ArrowLeft, Pencil, UserPlus, Phone, Mail, DollarSign, Users, CreditCard, Wallet, ShoppingBag } from "lucide-react";
 
+import { resolveReturnTo } from "@/lib/return-to";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsTrigger } from "@/components/ui/tabs";
@@ -31,6 +33,8 @@ function errorMessage(err: unknown) {
 
 export function AccountDetailClient({ accountId }: { accountId: number }) {
   const qc = useQueryClient();
+  const router = useRouter();
+  const searchParams = useSearchParams();
   const [editOpen, setEditOpen] = React.useState(false);
 
   const accountQuery = useQuery({
@@ -82,7 +86,7 @@ export function AccountDetailClient({ accountId }: { accountId: number }) {
 
   return (
     <div className="flex flex-col gap-4">
-      <Button nativeButton={false} variant="ghost" size="sm" className="w-fit gap-1.5" render={<Link href="/crm/accounts" />}>
+      <Button variant="ghost" size="sm" className="w-fit gap-1.5" onClick={() => router.push(resolveReturnTo(searchParams, "/crm/accounts"))}>
         <ArrowLeft className="size-4" /> Back to Accounts
       </Button>
 

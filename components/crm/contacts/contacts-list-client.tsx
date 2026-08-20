@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { DataTable, type DataTableColumn } from "@/components/data-table/data-table";
 import { FiltersButton, FiltersPanel, FilterField } from "@/components/crm/shared/filters-panel";
 import { apiClient, ApiRequestError, type PagedResult } from "@/lib/api-client";
+import { buildReturnTo } from "@/lib/return-to";
 import type { Contact, ContactLinks } from "@/lib/types/crm";
 import { ActiveBadge } from "@/components/shared/active-badge";
 import { ContactDialog } from "@/components/crm/contacts/contact-dialog";
@@ -75,6 +76,9 @@ export function ContactsListClient() {
   if (assignedUserId) params.set("assignedUserId", assignedUserId);
   if (active) params.set("active", active);
 
+  // So a Contact's Back button returns to this exact filtered/paginated view.
+  const contactHref = (id: number) => `/crm/contacts/${id}?returnTo=${encodeURIComponent(buildReturnTo(pathname, params))}`;
+
   const listQuery = useQuery({
     queryKey: ["crm", "contacts", page, sort, debouncedSearch, accountId, assignedUserId, active],
     queryFn: () => apiClient.get<PagedResult<Contact>>(`crm/contacts?${params.toString()}`),
@@ -126,7 +130,7 @@ export function ContactsListClient() {
   });
 
   const columns: DataTableColumn<Contact>[] = [
-    { key: "name", header: "Name", render: (r) => <Link href={`/crm/contacts/${r.id}`} className="font-medium text-primary hover:underline">{r.firstName} {r.lastName}</Link> },
+    { key: "name", header: "Name", render: (r) => <Link href={contactHref(r.id)} className="font-medium text-primary hover:underline">{r.firstName} {r.lastName}</Link> },
     { key: "title", header: "Title", render: (r) => r.jobTitle ?? "—", hideOnCard: true },
     { key: "email", header: "Email", render: (r) => r.email ?? "—" },
     { key: "phone", header: "Phone", render: (r) => r.mobile ?? r.phone ?? "—" },
@@ -199,7 +203,7 @@ export function ContactsListClient() {
         onPageChange={setPage}
         actions={(row) => (
           <>
-            <Button nativeButton={false} variant="ghost" size="sm" render={<Link href={`/crm/contacts/${row.id}`} />}>View</Button>
+            <Button nativeButton={false} variant="ghost" size="sm" render={<Link href={contactHref(row.id)} />}>View</Button>
             <Button variant="ghost" size="icon" className="size-8" onClick={() => setDialogState({ mode: "edit", row })} aria-label="Edit contact">
               <Pencil className="size-4" />
             </Button>
