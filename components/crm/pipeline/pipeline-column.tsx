@@ -8,11 +8,15 @@ import { formatCurrency } from "@/components/crm/shared/format";
 import { cn } from "@/lib/utils";
 
 export function PipelineColumn({
-  stage, opportunities, accountNameById,
+  stage,
+  opportunities,
+  accountNameById,
+  activeId,
 }: {
   stage: PipelineStage;
   opportunities: Opportunity[];
   accountNameById?: Map<number, string>;
+  activeId?: number | null;
 }) {
   const { setNodeRef, isOver } = useDroppable({ id: stage.id });
   const totalValue = opportunities.reduce((sum, o) => sum + o.amount, 0);
@@ -36,30 +40,28 @@ export function PipelineColumn({
         </div>
       </div>
 
-      {/* Drop Zone -- fixed viewport-relative height so every column lines up
-          evenly regardless of how many deals it holds, with its own internal
-          scroll for overflow. Matches standard Kanban behavior (Trello, Jira).
-          Set via inline style, not a Tailwind arbitrary-value class: Tailwind's
-          bracket syntax can't contain literal spaces (they'd be parsed as
-          separate class names), and calc() is only reliably parsed by the
-          browser with real whitespace around the operator -- easy to get
-          silently dropped either way, so this sidesteps it entirely. */}
+      {/* Drop Zone */}
       <div
         ref={setNodeRef}
         style={{ height: "calc(100vh - 340px)" }}
         className={cn(
-          "flex min-h-[220px] flex-col gap-2 overflow-y-auto p-2.5 transition-colors",
-          isOver && "bg-[#0F3D3E]/[0.06] dark:bg-[#a3cfcf]/[0.08]"
+          "flex min-h-[220px] flex-col gap-2 overflow-y-auto p-2.5 transition-all duration-200",
+          isOver && "bg-[#0F3D3E]/5 dark:bg-[#beebeb]/5 ring-2 ring-inset ring-[#0F3D3E]/20 dark:ring-[#beebeb]/20 rounded-b-2xl"
         )}
       >
         {opportunities.map((o) => (
-          <PipelineCard key={o.id} opportunity={o} accountName={o.accountId ? accountNameById?.get(o.accountId) : undefined} />
+          <PipelineCard
+            key={o.id}
+            opportunity={o}
+            accountName={o.accountId ? accountNameById?.get(o.accountId) : undefined}
+            isPlaceholder={activeId === o.id}
+          />
         ))}
         {opportunities.length === 0 && (
           <div
             className={cn(
               "flex flex-1 flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed py-8 text-center transition-colors",
-              isOver ? "border-[#0F3D3E] dark:border-[#a3cfcf]" : "border-[#e2e2e2] dark:border-[#404848]"
+              isOver ? "border-[#0F3D3E] dark:border-[#beebeb]" : "border-[#e2e2e2] dark:border-[#404848]"
             )}
           >
             <Inbox className="h-5 w-5 text-[#c0c8c8] dark:text-[#545f73]" />
