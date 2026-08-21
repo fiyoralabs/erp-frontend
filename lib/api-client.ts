@@ -63,6 +63,7 @@ async function request<T>(
   init?: RequestInit
 ): Promise<T> {
   const response = await fetch(`/api/backend/${path}`, {
+    cache: "no-store",
     ...init,
     headers: {
       ...(init?.body && !(init.body instanceof FormData)

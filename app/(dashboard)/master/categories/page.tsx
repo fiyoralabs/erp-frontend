@@ -74,16 +74,21 @@ export default function CategoriesPage() {
   // ourselves, same approach as Locations.
   const listQuery = useQuery({
     queryKey: ["master", "categories", "all"],
-    queryFn: () => apiClient.get<PagedResult<Category>>("master/categories?page=0&size=100"),
+    queryFn: () => apiClient.get<PagedResult<Category>>("master/categories?page=0&size=500"),
   });
 
-  const allCategories = (listQuery.data?.content ?? []).filter((category) => category.isActive);
+  const allCategories = React.useMemo(
+    () => (listQuery.data?.content ?? []).filter((category) => category.isActive),
+    [listQuery.data?.content]
+  );
 
   const tree = React.useMemo(
     () =>
       buildTree(allCategories, (c) => c.parentCategoryId, (a, b) => a.name.localeCompare(b.name)),
     [allCategories]
   );
+
+  const allIds = React.useMemo(() => collectAllIds(tree), [tree]);
 
   const visibleTree = React.useMemo(() => {
     const q = search.trim().toLowerCase();
@@ -93,19 +98,39 @@ export default function CategoriesPage() {
 
   React.useEffect(() => {
     if (!hasAutoExpanded && allCategories.length > 0) {
-      setExpandedIds(new Set(collectAllIds(tree)));
+      setExpandedIds(new Set(allIds));
       setHasAutoExpanded(true);
     }
-  }, [hasAutoExpanded, allCategories.length, tree]);
+  }, [hasAutoExpanded, allCategories.length, allIds]);
 
-  function toggleExpanded(id: number) {
+  const toggleExpanded = React.useCallback((id: number) => {
     setExpandedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
     });
-  }
+  }, []);
+
+  const handleExpandAll = React.useCallback(() => {
+    setExpandedIds(new Set(allIds));
+  }, [allIds]);
+
+  const handleCollapseAll = React.useCallback(() => {
+    setExpandedIds(new Set());
+  }, []);
+
+  const handleEdit = React.useCallback((row: Category) => {
+    setDialogState({ mode: "edit", row });
+  }, []);
+
+  const handleAddChild = React.useCallback((parent: Category) => {
+    setDialogState({ mode: "create", parent });
+  }, []);
+
+  const handleDelete = React.useCallback((category: Category) => {
+    setDeleteTarget(category);
+  }, []);
 
   const form = useForm<CategoryFormValues>({
     resolver: zodResolver(categorySchema),
@@ -129,9 +154,9 @@ export default function CategoriesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dialogState]);
 
-  function invalidate() {
+  const invalidate = React.useCallback(() => {
     qc.invalidateQueries({ queryKey: ["master", "categories"] });
-  }
+  }, [qc]);
 
   const createMutation = useMutation({
     mutationFn: (values: CategoryFormValues) =>
@@ -187,6 +212,13 @@ export default function CategoriesPage() {
     onError: (err) => toast.error(errorMessage(err)),
   });
 
+  const handleReactivate = React.useCallback(
+    (cat: Category) => {
+      reactivateMutation.mutate(cat);
+    },
+    [reactivateMutation]
+  );
+
   function onSubmit(values: CategoryFormValues) {
     if (dialogState?.mode === "edit") {
       updateMutation.mutate({ id: dialogState.row.id, values });
@@ -205,13 +237,28 @@ export default function CategoriesPage() {
     return collectDescendantIds(allCategories, (c) => c.parentCategoryId, editingId);
   }, [editingId, allCategories]);
 
-  const parentOptions = categoryHierarchy(allCategories).filter(({ category }) => !excludedParentIds.has(category.id));
+  const parentOptions = React.useMemo(
+    () =>
+      categoryHierarchy(allCategories).filter(
+        ({ category }) => !excludedParentIds.has(category.id)
+      ),
+    [allCategories, excludedParentIds]
+  );
+
   // Select.Value only shows the item's label instead of the raw id when
   // Select.Root gets this `items` map -- see products-list-client.tsx.
-  const parentItems = {
-    [NO_PARENT]: "None (top-level)",
-    ...Object.fromEntries(parentOptions.map(({ category, label }) => [String(category.id), `${label} (${category.code})`])),
-  };
+  const parentItems = React.useMemo(
+    () => ({
+      [NO_PARENT]: "None (top-level)",
+      ...Object.fromEntries(
+        parentOptions.map(({ category, label }) => [
+          String(category.id),
+          `${label} (${category.code})`,
+        ])
+      ),
+    }),
+    [parentOptions]
+  );
 
   return (
     <div className="flex flex-col gap-4">
@@ -248,7 +295,7 @@ export default function CategoriesPage() {
             variant="outline"
             size="sm"
             className="h-10 gap-1.5 rounded-xl border-[#c0c8c8] text-[#1a1c1c] hover:bg-[#f3f4f3] dark:border-[#717978] dark:text-white dark:hover:bg-[#2f3131]"
-            onClick={() => setExpandedIds(new Set(collectAllIds(tree)))}
+            onClick={handleExpandAll}
           >
             <ChevronsUpDown className="size-4" />
             Expand all
@@ -257,7 +304,7 @@ export default function CategoriesPage() {
             variant="outline"
             size="sm"
             className="h-10 gap-1.5 rounded-xl border-[#c0c8c8] text-[#1a1c1c] hover:bg-[#f3f4f3] dark:border-[#717978] dark:text-white dark:hover:bg-[#2f3131]"
-            onClick={() => setExpandedIds(new Set())}
+            onClick={handleCollapseAll}
           >
             <ChevronsDownUp className="size-4" />
             Collapse all
@@ -276,10 +323,10 @@ export default function CategoriesPage() {
           nodes={visibleTree}
           expandedIds={expandedIds}
           onToggle={toggleExpanded}
-          onEdit={(row) => setDialogState({ mode: "edit", row })}
-          onAddChild={(parent) => setDialogState({ mode: "create", parent })}
-          onDelete={setDeleteTarget}
-          onReactivate={(cat) => reactivateMutation.mutate(cat)}
+          onEdit={handleEdit}
+          onAddChild={handleAddChild}
+          onDelete={handleDelete}
+          onReactivate={handleReactivate}
         />
       )}
 

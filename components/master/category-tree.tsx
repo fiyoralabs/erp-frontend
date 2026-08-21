@@ -6,6 +6,8 @@
 // built on the shared lib/tree.ts algorithms since the two entities' parent
 // field is just named differently (parentId vs parentCategoryId).
 
+import * as React from "react";
+import Link from "next/link";
 import {
   ChevronRight,
   FolderTree,
@@ -16,7 +18,6 @@ import {
   RotateCcw,
   Trash2,
 } from "lucide-react";
-import Link from "next/link";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -42,7 +43,7 @@ interface CategoryTreeProps {
   onReactivate: (category: Category) => void;
 }
 
-export function CategoryTree({
+export const CategoryTree = React.memo(function CategoryTree({
   nodes,
   expandedIds,
   onToggle,
@@ -68,9 +69,9 @@ export function CategoryTree({
       ))}
     </div>
   );
-}
+});
 
-function CategoryTreeRow({
+const CategoryTreeRow = React.memo(function CategoryTreeRow({
   node,
   depth,
   expandedIds,
@@ -89,8 +90,29 @@ function CategoryTreeRow({
   onDelete: (category: Category) => void;
   onReactivate: (category: Category) => void;
 }) {
+  const [menuOpen, setMenuOpen] = React.useState(false);
   const hasChildren = node.children.length > 0;
   const isExpanded = expandedIds.has(node.id);
+
+  const handleToggle = React.useCallback(() => {
+    onToggle(node.id);
+  }, [onToggle, node.id]);
+
+  const handleEdit = React.useCallback(() => {
+    onEdit(node);
+  }, [onEdit, node]);
+
+  const handleAddChild = React.useCallback(() => {
+    onAddChild(node);
+  }, [onAddChild, node]);
+
+  const handleDelete = React.useCallback(() => {
+    onDelete(node);
+  }, [onDelete, node]);
+
+  const handleReactivate = React.useCallback(() => {
+    onReactivate(node);
+  }, [onReactivate, node]);
 
   return (
     <div>
@@ -104,7 +126,7 @@ function CategoryTreeRow({
         {hasChildren ? (
           <button
             type="button"
-            onClick={() => onToggle(node.id)}
+            onClick={handleToggle}
             className="flex size-7 shrink-0 items-center justify-center rounded-md text-muted-foreground hover:bg-muted hover:text-foreground"
             aria-label={isExpanded ? "Collapse" : "Expand"}
             aria-expanded={isExpanded}
@@ -132,7 +154,7 @@ function CategoryTreeRow({
               variant="outline"
               size="sm"
               className="h-8 gap-1.5 border-emerald-600/30 text-emerald-700 hover:bg-emerald-600/10 hover:text-emerald-700 dark:text-emerald-400"
-              onClick={() => onReactivate(node)}
+              onClick={handleReactivate}
             >
               <RotateCcw className="size-3.5" />
               Reactivate
@@ -159,7 +181,7 @@ function CategoryTreeRow({
               size="icon"
               className="size-8"
               aria-label="Add subcategory"
-              onClick={() => onAddChild(node)}
+              onClick={handleAddChild}
             >
               <Plus className="size-4" />
             </Button>
@@ -168,7 +190,7 @@ function CategoryTreeRow({
               size="icon"
               className="size-8"
               aria-label="Edit category"
-              onClick={() => onEdit(node)}
+              onClick={handleEdit}
             >
               <Pencil className="size-4" />
             </Button>
@@ -178,14 +200,14 @@ function CategoryTreeRow({
                 size="icon"
                 className="size-8 text-destructive hover:text-destructive"
                 aria-label="Deactivate category"
-                onClick={() => onDelete(node)}
+                onClick={handleDelete}
               >
                 <Trash2 className="size-4" />
               </Button>
             )}
           </div>
 
-          <DropdownMenu>
+          <DropdownMenu open={menuOpen} onOpenChange={setMenuOpen}>
             <DropdownMenuTrigger
               render={
                 <Button
@@ -198,27 +220,29 @@ function CategoryTreeRow({
             >
               <MoreVertical className="size-4" />
             </DropdownMenuTrigger>
-            <DropdownMenuContent align="end" className="w-44">
-              <DropdownMenuItem
-                render={<Link href={`/master/categories/${node.id}/attributes`} />}
-              >
-                <ListFilter className="size-3.5" /> Attributes
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onAddChild(node)}>
-                <Plus className="size-3.5" /> Add subcategory
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => onEdit(node)}>
-                <Pencil className="size-3.5" /> Edit
-              </DropdownMenuItem>
-              {node.isActive && (
-                <>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem variant="destructive" onClick={() => onDelete(node)}>
-                    <Trash2 className="size-3.5" /> Deactivate
-                  </DropdownMenuItem>
-                </>
-              )}
-            </DropdownMenuContent>
+            {menuOpen && (
+              <DropdownMenuContent align="end" className="w-44">
+                <DropdownMenuItem
+                  render={<Link href={`/master/categories/${node.id}/attributes`} />}
+                >
+                  <ListFilter className="size-3.5" /> Attributes
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleAddChild}>
+                  <Plus className="size-3.5" /> Add subcategory
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleEdit}>
+                  <Pencil className="size-3.5" /> Edit
+                </DropdownMenuItem>
+                {node.isActive && (
+                  <>
+                    <DropdownMenuSeparator />
+                    <DropdownMenuItem variant="destructive" onClick={handleDelete}>
+                      <Trash2 className="size-3.5" /> Deactivate
+                    </DropdownMenuItem>
+                  </>
+                )}
+              </DropdownMenuContent>
+            )}
           </DropdownMenu>
         </div>
       </div>
@@ -242,4 +266,4 @@ function CategoryTreeRow({
       )}
     </div>
   );
-}
+});

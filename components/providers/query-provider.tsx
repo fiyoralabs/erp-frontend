@@ -1,6 +1,6 @@
 "use client";
 
-import { isServer, MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { MutationCache, QueryCache, QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { errorMessage } from "@/lib/error-message";
 
@@ -32,7 +32,7 @@ function makeQueryClient() {
 let browserQueryClient: QueryClient | undefined = undefined;
 
 export function getQueryClient() {
-  if (isServer) {
+  if (typeof window === "undefined") {
     // Server: always make a new query client for SSR requests
     return makeQueryClient();
   } else {

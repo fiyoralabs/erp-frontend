@@ -101,6 +101,17 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
   const activePriceLists = (priceLists.data?.content ?? []).filter((p) => p.isActive);
   const categoryOptions = categoryHierarchy(categories.data?.content ?? []);
 
+  // Pre-populate product code from query parameters on mount (barcode scan workflow)
+  React.useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const codeParam = params.get("code") || params.get("barcode");
+      if (codeParam) {
+        setForm((f) => ({ ...f, code: codeParam.trim() }));
+      }
+    }
+  }, []);
+
   // Update hasVariants flag based on productKind
   React.useEffect(() => {
     setForm((f) => ({ ...f, hasVariants: productKind !== "SIMPLE" }));
