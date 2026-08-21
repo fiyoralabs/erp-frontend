@@ -5,7 +5,6 @@ import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { LogOut, UserCircle, Settings, ChevronDown, MapPin, Loader2 } from "lucide-react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 
 import {
@@ -41,8 +40,8 @@ function initials(name: string) {
 
 export function Topbar({ userName, userEmail, permissions, locationContext }: TopbarProps) {
   const router = useRouter();
-  const queryClient = useQueryClient();
   const [signingOut, setSigningOut] = useState(false);
+  const [isSwitchingLocation, setIsSwitchingLocation] = useState(false);
 
   async function handleLogout() {
     setSigningOut(true);
@@ -51,17 +50,24 @@ export function Topbar({ userName, userEmail, permissions, locationContext }: To
     router.refresh();
   }
 
-  const switchLocation = useMutation({
-    mutationFn: (locationId: string) => apiClient.post("auth/select-location", { locationId: Number(locationId) }),
-    onSuccess: async (_, locationId) => {
+  async function handleSwitchLocation(locationId: string) {
+    if (!locationId) return;
+    setIsSwitchingLocation(true);
+    try {
+      await apiClient.post("auth/select-location", { locationId: Number(locationId) });
       const location = locationContext.allowedLocations.find((item) => String(item.id) === locationId);
       toast.success(`Working location changed to ${location?.name ?? "selected location"}`);
-      await queryClient.invalidateQueries();
       router.refresh();
-    },
-    onError: (error) => toast.error(error instanceof Error ? error.message : "Unable to change working location"),
-  });
-  const locationItems = Object.fromEntries(locationContext.allowedLocations.map((location) => [String(location.id), location.name]));
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Unable to change working location");
+    } finally {
+      setIsSwitchingLocation(false);
+    }
+  }
+
+  const locationItems = Object.fromEntries(
+    locationContext.allowedLocations.map((location) => [String(location.id), location.name])
+  );
 
   return (
     <header className="sticky top-0 z-30 flex h-16 items-center gap-3 bg-white dark:bg-[#1a1c1c] px-4 sm:px-6">
@@ -82,33 +88,27 @@ export function Topbar({ userName, userEmail, permissions, locationContext }: To
           <Select
             items={locationItems}
             value={locationContext.activeLocation ? String(locationContext.activeLocation.id) : ""}
-            onValueChange={(value) => value && switchLocation.mutate(value)}
-            disabled={switchLocation.isPending}
+            onValueChange={handleSwitchLocation}
+            disabled={isSwitchingLocation}
           >
             <SelectTrigger className="h-9 w-[180px] max-w-[48vw] sm:w-[240px] rounded-xl border-[#c0c8c8] bg-white dark:border-[#717978] dark:bg-[#1a1c1c] text-xs sm:text-sm">
               <span className="flex min-w-0 items-center gap-2">
-                {switchLocation.isPending ? <Loader2 className="size-4 shrink-0 animate-spin" /> : <MapPin className="size-4 shrink-0 text-[#545f73] dark:text-[#a3cfcf]" />}
-                {/* The trigger's built-in truncation only targets a *direct*
-                    child with data-slot="select-value" -- wrapping it in this
-                    icon+value span breaks that match, so it's re-applied here
-                    explicitly (plus min-w-0, required for a flex child to
-                    shrink/truncate at all) instead of overflowing the pill. */}
+                {isSwitchingLocation ? (
+                  <Loader2 className="size-4 shrink-0 animate-spin" />
+                ) : (
+                  <MapPin className="size-4 shrink-0 text-[#545f73] dark:text-[#a3cfcf]" />
+                )}
                 <SelectValue placeholder="Select working store" className="min-w-0 truncate" />
               </span>
             </SelectTrigger>
-            {/* min-w so wrapped two-line item text (name + type/code) has room
-                to breathe instead of being squeezed to the trigger's width. */}
             <SelectContent className="min-w-[240px]">
               {locationContext.allowedLocations.map((location) => (
                 <SelectItem key={location.id} value={String(location.id)}>
-                  {/* SelectItem's own text wrapper forces whitespace-nowrap,
-                      which is inherited into these spans too -- overridden
-                      back to normal so long names wrap onto a second line
-                      instead of overflowing the popup. */}
                   <span className="flex flex-col whitespace-normal py-0.5">
                     <span>{location.name}</span>
                     <span className="text-xs text-[#545f73] dark:text-[#a3cfcf]">
-                      {location.type} · {location.code}{location.isUserDefault ? " · Default" : ""}
+                      {location.type} · {location.code}
+                      {location.isUserDefault ? " · Default" : ""}
                     </span>
                   </span>
                 </SelectItem>
@@ -137,12 +137,6 @@ export function Topbar({ userName, userEmail, permissions, locationContext }: To
             <ChevronDown className="size-4 text-[#717978] hidden sm:inline" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-56 rounded-xl border-[#e2e2e2] dark:border-[#404848]">
-            {/* Menu.GroupLabel (what DropdownMenuLabel wraps) throws at
-                runtime if it isn't inside a Menu.Group -- "MenuGroupContext
-                is missing" -- confirmed live via the dev server log (an
-                actual uncaught error, not just a console warning like the
-                nativeButton one). It was missing here from the very first
-                version of this dropdown. */}
             <DropdownMenuGroup>
               <DropdownMenuLabel className="flex flex-col gap-0.5 py-1.5">
                 <span className="truncate text-sm font-medium">{userName}</span>

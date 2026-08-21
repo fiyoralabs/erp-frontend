@@ -5,33 +5,9 @@ import { getErpApiUrl } from "@/lib/env-config";
 
 const ERP_API_URL = getErpApiUrl();
 
-// The 8 "simple" master data entities (see lib/types/master.ts) are
-// identical for every viewer with MASTER_VIEW permission and are
-// admin-edited only occasionally through master-crud-page.tsx / the
-// categories page -- both of which invalidate their own cache immediately
-// after any write. A short browser-side cache here doesn't risk anyone
-// seeing data they're not permissioned for (the browser cache is already
-// scoped per-user by the auth cookie) and saves a full round trip through
-// this proxy on every page load that renders a category/brand/unit/tax/
-// payment-method dropdown. Everything else keeps the no-store default --
-// transactional/business data (orders, invoices, inventory, CRM, dashboards)
-// must never be served stale.
-const CACHEABLE_MASTER_ENTITIES = new Set([
-  "categories",
-  "brands",
-  "units",
-  "taxes",
-  "payment-methods",
-  "reasons",
-  "customer-groups",
-  "price-lists",
-]);
-
-function cacheControlFor(method: string, path: string[]): string | undefined {
-  if (method !== "GET" || path.length !== 2 || path[0] !== "master") return undefined;
-  if (!CACHEABLE_MASTER_ENTITIES.has(path[1])) return undefined;
-  return "private, max-age=60, stale-while-revalidate=120";
-}
+// Master data caching is handled in-memory by React Query (e.g. useMasterList
+// staleTime). Dynamic proxied API responses must never be cached by the browser's
+// HTTP cache so that React Query invalidations immediately refetch fresh data.
 
 // Generic authenticated forwarder: browser -> this route (same origin, no
 // CORS needed) -> erp (localhost:8080). See ARCHITECTURE.md section 2 for
@@ -97,12 +73,11 @@ async function handle(
     }
 
     const responseBody = await erpResponse.arrayBuffer();
-    const cacheControl = erpResponse.ok ? cacheControlFor(request.method, path) : undefined;
     return new NextResponse(responseBody, {
       status: erpResponse.status,
       headers: {
         "Content-Type": erpResponse.headers.get("content-type") ?? "application/json",
-        ...(cacheControl ? { "Cache-Control": cacheControl } : {}),
+        "Cache-Control": "no-store, no-cache, must-revalidate",
       },
     });
   } catch (error) {
