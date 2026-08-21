@@ -50,7 +50,7 @@ export function Topbar({ userName, userEmail, permissions, locationContext }: To
     router.refresh();
   }
 
-  async function handleSwitchLocation(locationId: string) {
+  async function handleSwitchLocation(locationId: string | null) {
     if (!locationId) return;
     setIsSwitchingLocation(true);
     try {
