@@ -139,7 +139,6 @@ export interface Price {
   productId: number;
   variantId: number | null;
   priceListId: number;
-  costPrice: number;
   sellingPrice: number;
   mrp: number | null;
   effectiveFrom: string;
@@ -151,8 +150,6 @@ export interface Price {
 export interface PriceHistoryEntry {
   id: number;
   priceId: number;
-  oldCostPrice: number;
-  newCostPrice: number;
   oldSellingPrice: number;
   newSellingPrice: number;
   changedAt: string;

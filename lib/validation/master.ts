@@ -11,8 +11,17 @@ const codeSchema = z
 
 const nameSchema = z.string().min(1, "Name is required");
 
+// Category codes are optional on create -- erp auto-generates one from the name
+// (e.g. "Electronics" -> "ELECTRONICS") when left blank, so this only validates the
+// charset when the user does type one, unlike codeSchema's required min(1) above.
+const optionalCodeSchema = z
+  .string()
+  .regex(/^$|^[a-zA-Z0-9_-]+$/, "Code can only contain letters, numbers, hyphens, and underscores")
+  .optional()
+  .or(z.literal(""));
+
 export const categorySchema = z.object({
-  code: codeSchema,
+  code: optionalCodeSchema,
   name: nameSchema,
   parentCategoryId: z.number().nullable().optional(),
   displayOrder: z.number().int().optional(),

@@ -19,18 +19,18 @@ const ERP_API_URL = getErpApiUrl();
 // reachable through this proxy -- it's a different auth mechanism and, per
 // the production readiness audit, no controller for it was found to exist
 // in erp yet anyway.
+// body is read once by the caller and passed in here -- a NextRequest's body
+// stream can only be consumed once, but a 401 can make this run twice (see
+// handle()'s retry-with-refreshed-token path below), which previously crashed
+// with "Body is unusable: Body has already been read" on the second forward().
 async function forward(
   request: NextRequest,
   path: string[],
-  accessToken: string
+  accessToken: string,
+  body: ArrayBuffer | undefined
 ): Promise<Response> {
   const targetUrl = new URL(`${ERP_API_URL}/api/v1/${path.join("/")}`);
   targetUrl.search = request.nextUrl.search;
-
-  const body =
-    request.method === "GET" || request.method === "HEAD"
-      ? undefined
-      : await request.arrayBuffer();
 
   const contentType = request.headers.get("content-type");
 
@@ -62,13 +62,18 @@ async function handle(
       accessToken = refreshed.accessToken;
     }
 
-    let erpResponse = await forward(request, path, accessToken);
+    const body =
+      request.method === "GET" || request.method === "HEAD"
+        ? undefined
+        : await request.arrayBuffer();
+
+    let erpResponse = await forward(request, path, accessToken, body);
 
     if (erpResponse.status === 401) {
       const refreshed = await refreshAccessToken();
       if (refreshed.ok) {
         accessToken = refreshed.accessToken;
-        erpResponse = await forward(request, path, accessToken);
+        erpResponse = await forward(request, path, accessToken, body);
       }
     }
 

@@ -15,12 +15,12 @@ export interface SalesInvoiceLine {
   id: number; productId: number; productVariantId: number | null; productCode: string;
   productName: string; variantSku: string | null; variantName: string | null; quantity: number;
   priceListId: number; priceListCode: string; priceListName: string; normalSellingPrice: number;
-  sellingPrice: number; priceOverride: boolean; costPrice: number; discountPercentage: number;
+  sellingPrice: number; priceOverride: boolean; discountPercentage: number;
   discountAmount: number; taxName: string | null; taxPercentage: number; taxAmount: number;
   lineTotal: number; inventoryTracked: boolean; inventoryTransactionId: number | null;
 }
 export interface SalesInvoice {
-  id: number; customerId: number; locationId: number; invoiceNumber: string; invoiceDate: string;
+  id: number; customerId: number; customerName: string | null; locationId: number; invoiceNumber: string; invoiceDate: string;
   dueDate: string; subtotal: number; discountAmount: number; taxAmount: number; totalAmount: number;
   paidAmount: number; returnAppliedAmount: number; creditAppliedAmount: number; balanceAmount: number; status: string;
   createdAt: string; lines: SalesInvoiceLine[]; payments: SalesPayment[]; verifyToken?: string | null;
@@ -32,7 +32,7 @@ export interface SalesReturnLine {
   inventoryTracked: boolean; inventoryTransactionId: number | null;
 }
 export interface SalesReturn {
-  id: number; invoiceId: number; customerId: number; locationId: number; returnNumber: string;
+  id: number; invoiceId: number; customerId: number; customerName: string | null; locationId: number; returnNumber: string;
   returnDate: string; reason: string | null; totalAmount: number; receivableAppliedAmount: number;
   creditAmount: number; creditNumber: string | null; status: string; lines: SalesReturnLine[];
 }

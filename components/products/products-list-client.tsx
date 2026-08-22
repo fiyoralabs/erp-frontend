@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useQueries, useQuery, useMutation } from "@tanstack/react-query";
-import { ChevronDown, ChevronLeft, Filter, LayoutGrid, List, Package, Plus, Search, Trash2, X } from "lucide-react";
+import { ChevronDown, LayoutGrid, List, Package, Plus, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -11,15 +11,17 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 import { DataTable, type DataTableColumn } from "@/components/data-table/data-table";
 import { ActiveBadge } from "@/components/shared/active-badge";
 import { apiClient, type PagedResult } from "@/lib/api-client";
 import { categoryAndDescendantIds, categoryHierarchy } from "@/lib/category-hierarchy";
 import type { Brand, CategoryAttribute } from "@/lib/types/master";
 import type { ProductSummary } from "@/lib/types/product";
-import { SetsManagementClient } from "@/components/products/sets-management-client";
 import { useCategoriesLookup, usePriceListsLookup } from "@/lib/hooks/use-master-data";
+// Same shared filter UI as the CRM Leads list: one "Filters" button opens a
+// floating popover on mobile (<768px) or a right-side sheet on desktop, with
+// draft state applied on "Done" and removable chips for what's already active.
+import { FiltersButton, FiltersPanel, FilterField } from "@/components/crm/shared/filters-panel";
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
@@ -28,15 +30,25 @@ export function ProductsListClient({ companyId: _companyId }: { companyId: numbe
   const [search, setSearch] = React.useState("");
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
   const [view, setView] = React.useState<"grid" | "list">("grid");
-  const [mobileFiltersOpen, setMobileFiltersOpen] = React.useState(false);
-  const [desktopFiltersOpen, setDesktopFiltersOpen] = React.useState(true);
   const [sort, setSort] = React.useState("name,asc");
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
+
+  // Applied filters -- these actually drive the product query.
   const [categoryId, setCategoryId] = React.useState("");
   const [brandIds, setBrandIds] = React.useState<Set<number>>(new Set());
   const [priceListId, setPriceListId] = React.useState("");
   const [minPrice, setMinPrice] = React.useState("");
   const [maxPrice, setMaxPrice] = React.useState("");
   const [attributes, setAttributes] = React.useState<Set<string>>(new Set());
+
+  // Draft filters -- live inside the Filters panel, only committed on "Done".
+  const [draftCategoryId, setDraftCategoryId] = React.useState("");
+  const [draftBrandIds, setDraftBrandIds] = React.useState<Set<number>>(new Set());
+  const [draftPriceListId, setDraftPriceListId] = React.useState("");
+  const [draftMinPrice, setDraftMinPrice] = React.useState("");
+  const [draftMaxPrice, setDraftMaxPrice] = React.useState("");
+  const [draftAttributes, setDraftAttributes] = React.useState<Set<string>>(new Set());
+
   const [deleteTargetProduct, setDeleteTargetProduct] = React.useState<{ id: number; name: string } | null>(null);
 
   React.useEffect(() => {
@@ -46,16 +58,18 @@ export function ProductsListClient({ companyId: _companyId }: { companyId: numbe
 
   const categories = useCategoriesLookup();
   const priceLists = usePriceListsLookup();
-  const relevantCategoryIds = categoryId
-    ? categoryAndDescendantIds(categories.data?.content ?? [], Number(categoryId))
+  const relevantCategoryIds = draftCategoryId
+    ? categoryAndDescendantIds(categories.data?.content ?? [], Number(draftCategoryId))
     : [];
   const categoryAttributeQueries = useQueries({ queries: relevantCategoryIds.map((id) => ({
     queryKey: ["master", "categories", String(id), "filter-attributes"],
     queryFn: () => apiClient.get<CategoryAttribute[]>(`master/categories/${id}/attributes`),
   })) });
 
-  React.useEffect(() => { setAttributes(new Set()); }, [categoryId]);
-  React.useEffect(() => { setPage(0); }, [debouncedSearch, categoryId, brandIds, priceListId, minPrice, maxPrice, attributes, sort]);
+  function handleDraftCategoryChange(id: string) {
+    setDraftCategoryId(id);
+    setDraftAttributes(new Set());
+  }
 
   const params = React.useMemo(() => {
     const value = new URLSearchParams({ page: String(page), size: "20", sort });
@@ -75,6 +89,11 @@ export function ProductsListClient({ companyId: _companyId }: { companyId: numbe
   });
   const categoryOptions = categoryHierarchy(categories.data?.content ?? []);
   const activePriceLists = (priceLists.data?.content ?? []).filter((list) => list.isActive);
+  const categoryNameById = React.useMemo(() => {
+    const map = new Map<number, string>();
+    for (const { category } of categoryOptions) map.set(category.id, category.name);
+    return map;
+  }, [categoryOptions]);
   const filterAttributes = React.useMemo(() => {
     const byId = new Map<number, CategoryAttribute>();
     for (const result of categoryAttributeQueries) for (const attribute of result.data ?? []) {
@@ -84,15 +103,38 @@ export function ProductsListClient({ companyId: _companyId }: { companyId: numbe
   }, [categoryAttributeQueries]);
   const activeFilterCount = (categoryId ? 1 : 0) + brandIds.size + (priceListId ? 1 : 0) + (minPrice || maxPrice ? 1 : 0) + attributes.size;
 
-  function toggleBrand(id: number) {
-    setBrandIds((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
+  function toggleDraftBrand(id: number) {
+    setDraftBrandIds((current) => { const next = new Set(current); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   }
-  function toggleAttribute(id: number, value: string) {
+  function toggleDraftAttribute(id: number, value: string) {
     const key = `${id}:${value}`;
-    setAttributes((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
+    setDraftAttributes((current) => { const next = new Set(current); if (next.has(key)) next.delete(key); else next.add(key); return next; });
   }
-  function clearFilters() {
+
+  function handleOpenFilters() {
+    setDraftCategoryId(categoryId);
+    setDraftBrandIds(new Set(brandIds));
+    setDraftPriceListId(priceListId);
+    setDraftMinPrice(minPrice);
+    setDraftMaxPrice(maxPrice);
+    setDraftAttributes(new Set(attributes));
+    setFiltersOpen(true);
+  }
+  function applyFilters() {
+    setCategoryId(draftCategoryId);
+    setBrandIds(draftBrandIds);
+    setPriceListId(draftPriceListId);
+    setMinPrice(draftMinPrice);
+    setMaxPrice(draftMaxPrice);
+    setAttributes(draftAttributes);
+    setPage(0);
+  }
+  function clearDraftFilters() {
+    setDraftCategoryId(""); setDraftBrandIds(new Set()); setDraftPriceListId(""); setDraftMinPrice(""); setDraftMaxPrice(""); setDraftAttributes(new Set());
+  }
+  function clearAllFilters() {
     setCategoryId(""); setBrandIds(new Set()); setPriceListId(""); setMinPrice(""); setMaxPrice(""); setAttributes(new Set());
+    setPage(0);
   }
 
   const columns: DataTableColumn<ProductSummary>[] = [
@@ -105,57 +147,6 @@ export function ProductsListClient({ companyId: _companyId }: { companyId: numbe
     { key: "status", header: "Status", render: (row) => <ActiveBadge isActive={row.isActive} /> },
   ];
   const products = query.data?.content ?? [];
-  const filterContent = (
-    <div className="space-y-5">
-      <FilterField label="Category">
-        <CategoryPicker options={categoryOptions} value={categoryId} onChange={setCategoryId}/>
-        <p className="text-xs text-muted-foreground">Includes every subcategory below the selection.</p>
-      </FilterField>
-      <FilterField label="Brands">
-        <BrandPicker selected={brandIds} onToggle={toggleBrand}/>
-      </FilterField>
-      <FilterField label="Price list">
-        <select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={priceListId} onChange={(event) => setPriceListId(event.target.value)}>
-          <option value="">Any price list</option>
-          {activePriceLists.map((list) => <option key={list.id} value={list.id}>{list.name}</option>)}
-        </select>
-      </FilterField>
-      <div className="grid grid-cols-2 gap-2">
-        <FilterField label="Min price">
-          <Input type="number" min="0" step="0.01" value={minPrice} onChange={(event) => setMinPrice(event.target.value)} placeholder="0.00" />
-        </FilterField>
-        <FilterField label="Max price">
-          <Input type="number" min="0" step="0.01" value={maxPrice} onChange={(event) => setMaxPrice(event.target.value)} placeholder="Any" />
-        </FilterField>
-      </div>
-      {categoryId && (
-        <div className="space-y-4 border-t pt-4">
-          <div>
-            <p className="text-sm font-medium">Attributes</p>
-            <p className="text-xs text-muted-foreground">From this category and its subcategories. All selected filters must match.</p>
-          </div>
-          {categoryAttributeQueries.some((result) => result.isLoading) ? (
-            <p className="text-sm text-muted-foreground">Loading attributes…</p>
-          ) : filterAttributes.length === 0 ? (
-            <p className="text-sm text-muted-foreground">No filterable attributes.</p>
-          ) : (
-            filterAttributes.map((attribute) => (
-              <FilterGroup key={attribute.id} label={attribute.name}>
-                {attribute.options.filter((option) => option.isActive).map((option) => (
-                  <CheckOption key={option.id} checked={attributes.has(`${attribute.id}:${option.value}`)} onChange={() => toggleAttribute(attribute.id, option.value)}>
-                    {option.value}
-                  </CheckOption>
-                ))}
-              </FilterGroup>
-            ))
-          )}
-        </div>
-      )}
-      <Button className="w-full" variant="outline" onClick={clearFilters} disabled={activeFilterCount === 0}>
-        <X className="mr-1 size-4" />Clear filters
-      </Button>
-    </div>
-  );
 
   const deleteProductMutation = useMutation({
     mutationFn: (id: number) => apiClient.delete(`products/${id}`),
@@ -181,72 +172,95 @@ export function ProductsListClient({ companyId: _companyId }: { companyId: numbe
         </div>
       </div>
 
-      <div className={desktopFiltersOpen ? "grid gap-5 lg:grid-cols-[280px_minmax(0,1fr)]" : "grid gap-5"}>
-        {/* Desktop Filter Sidebar */}
-        {desktopFiltersOpen && (
-          <aside className="hidden h-fit rounded-xl border bg-card p-4 lg:block">
-            <div className="mb-4 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <h2 className="font-semibold">Filters</h2>
-                {activeFilterCount > 0 && <Badge>{activeFilterCount}</Badge>}
-              </div>
-              <Button type="button" size="icon-sm" variant="ghost" aria-label="Hide filters" title="Hide filters" onClick={() => setDesktopFiltersOpen(false)}>
-                <ChevronLeft />
+      <div className="flex flex-col rounded-xl border bg-card">
+        {/* Toolbar: search + sort + filters + view toggle */}
+        <div className="flex flex-col gap-2.5 border-b p-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="relative flex-1 sm:max-w-md">
+            <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              className="pl-9 h-9 text-sm"
+              value={search}
+              onChange={(event) => { setSearch(event.target.value); setPage(0); }}
+              placeholder="Search products, codes, SKUs or barcodes"
+            />
+          </div>
+          <div className="flex items-center gap-2 w-full sm:w-auto">
+            <select
+              aria-label="Sort products"
+              className="h-9 rounded-lg border bg-background px-2.5 text-xs font-medium flex-1 min-w-0 sm:flex-none sm:w-40 sm:text-sm"
+              value={sort}
+              onChange={(event) => { setSort(event.target.value); setPage(0); }}
+            >
+              <option value="name,asc">Name: A to Z</option>
+              <option value="name,desc">Name: Z to A</option>
+              <option value="createdAt,desc">Newest first</option>
+              <option value="createdAt,asc">Oldest first</option>
+              <option value="code,asc">Product code</option>
+            </select>
+            <FiltersButton activeCount={activeFilterCount} onClick={handleOpenFilters} className="h-9" />
+            <div className="flex rounded-lg border p-0.5 shrink-0 h-9 items-center">
+              <Button size="icon-sm" variant={view === "grid" ? "secondary" : "ghost"} aria-label="Grid view" onClick={() => setView("grid")}>
+                <LayoutGrid className="size-4" />
               </Button>
-            </div>
-            {filterContent}
-          </aside>
-        )}
-
-        <div className="min-w-0 space-y-4">
-          {/* Toolbar: Responsive Layout for Mobile & Desktop */}
-          <div className="flex flex-col gap-2.5 rounded-xl border bg-card p-3 sm:flex-row sm:items-center">
-            <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                className="pl-9 h-9 text-sm"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search products, codes, SKUs or barcodes"
-              />
-            </div>
-            <div className="flex items-center gap-2 w-full sm:w-auto">
-              <Button className="h-9 text-xs px-2.5 shrink-0 lg:hidden" variant="outline" onClick={() => setMobileFiltersOpen(true)}>
-                <Filter className="mr-1 size-3.5" />
-                Filters
-                {activeFilterCount > 0 && <Badge variant="secondary" className="ml-1 px-1.5 py-0 text-[10px]">{activeFilterCount}</Badge>}
+              <Button size="icon-sm" variant={view === "list" ? "secondary" : "ghost"} aria-label="List view" onClick={() => setView("list")}>
+                <List className="size-4" />
               </Button>
-              {!desktopFiltersOpen && (
-                <div className="hidden lg:block">
-                  <Button variant="outline" onClick={() => setDesktopFiltersOpen(true)}>
-                    <Filter className="mr-1 size-4" />Show filters{activeFilterCount > 0 && <Badge className="ml-1">{activeFilterCount}</Badge>}
-                  </Button>
-                </div>
-              )}
-              <select
-                aria-label="Sort products"
-                className="h-9 rounded-lg border bg-background px-2.5 text-xs font-medium flex-1 min-w-0 sm:flex-none sm:w-40 sm:text-sm"
-                value={sort}
-                onChange={(event) => setSort(event.target.value)}
-              >
-                <option value="name,asc">Name: A to Z</option>
-                <option value="name,desc">Name: Z to A</option>
-                <option value="createdAt,desc">Newest first</option>
-                <option value="createdAt,asc">Oldest first</option>
-                <option value="code,asc">Product code</option>
-              </select>
-              <div className="flex rounded-lg border p-0.5 shrink-0 h-9 items-center">
-                <Button size="icon-sm" variant={view === "grid" ? "secondary" : "ghost"} aria-label="Grid view" onClick={() => setView("grid")}>
-                  <LayoutGrid className="size-4" />
-                </Button>
-                <Button size="icon-sm" variant={view === "list" ? "secondary" : "ghost"} aria-label="List view" onClick={() => setView("list")}>
-                  <List className="size-4" />
-                </Button>
-              </div>
             </div>
           </div>
+        </div>
 
-          {/* Product Listing */}
+        {/* Active Filter Chips */}
+        {activeFilterCount > 0 && (
+          <div className="flex flex-wrap items-center gap-2 border-b bg-muted/30 px-3 py-2.5">
+            <span className="text-xs font-semibold text-muted-foreground">Active filters:</span>
+            {categoryId && (
+              <span className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                Category: {categoryNameById.get(Number(categoryId)) ?? categoryId}
+                <button type="button" onClick={() => { setCategoryId(""); setPage(0); }} className="hover:opacity-75">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {brandIds.size > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                {brandIds.size} brand{brandIds.size === 1 ? "" : "s"}
+                <button type="button" onClick={() => { setBrandIds(new Set()); setPage(0); }} className="hover:opacity-75">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {priceListId && (
+              <span className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                Price list: {activePriceLists.find((list) => String(list.id) === priceListId)?.name ?? priceListId}
+                <button type="button" onClick={() => { setPriceListId(""); setPage(0); }} className="hover:opacity-75">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {(minPrice || maxPrice) && (
+              <span className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                Price: {minPrice || "0"}–{maxPrice || "any"}
+                <button type="button" onClick={() => { setMinPrice(""); setMaxPrice(""); setPage(0); }} className="hover:opacity-75">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            {attributes.size > 0 && (
+              <span className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                {attributes.size} attribute{attributes.size === 1 ? "" : "s"}
+                <button type="button" onClick={() => { setAttributes(new Set()); setPage(0); }} className="hover:opacity-75">
+                  <X className="h-3 w-3" />
+                </button>
+              </span>
+            )}
+            <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground" onClick={clearAllFilters}>
+              Clear all
+            </Button>
+          </div>
+        )}
+
+        {/* Product Listing */}
+        <div className="p-3 sm:p-4">
           {query.isLoading ? (
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }, (_, index) => (
@@ -398,13 +412,14 @@ export function ProductsListClient({ companyId: _companyId }: { companyId: numbe
           )}
 
           {/* Pagination Controls */}
-          <div className="flex items-center justify-between sm:justify-end gap-2 pt-2">
+          <div className="flex items-center justify-between sm:justify-end gap-2 pt-4">
             <Button variant="outline" size="sm" disabled={page === 0} onClick={() => setPage((current) => current - 1)}>Previous</Button>
             <span className="text-xs sm:text-sm text-muted-foreground">Page {page + 1} of {Math.max(1, query.data?.totalPages ?? 1)}</span>
             <Button variant="outline" size="sm" disabled={page + 1 >= (query.data?.totalPages ?? 1)} onClick={() => setPage((current) => current + 1)}>Next</Button>
           </div>
         </div>
       </div>
+
       <ConfirmDialog
         open={!!deleteTargetProduct}
         onOpenChange={(open) => !open && setDeleteTargetProduct(null)}
@@ -419,15 +434,64 @@ export function ProductsListClient({ companyId: _companyId }: { companyId: numbe
           }
         }}
       />
-      <div className="mt-8 border-t pt-6">
-        <SetsManagementClient />
-      </div>
-      <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}><SheetContent side="left" className="w-[85vw] max-w-[340px] overflow-y-auto sm:max-w-sm"><SheetHeader><SheetTitle>Filter products</SheetTitle><SheetDescription>All selected filters must match.</SheetDescription></SheetHeader><div className="px-4 pb-6">{filterContent}</div></SheetContent></Sheet>
+
+      {/* Filters Panel -- category, brands, price list, price range, attributes */}
+      <FiltersPanel
+        open={filtersOpen}
+        onOpenChange={setFiltersOpen}
+        activeCount={activeFilterCount}
+        onClearAll={clearDraftFilters}
+        onApply={applyFilters}
+      >
+        <FilterField label="Category">
+          <CategoryPicker options={categoryOptions} value={draftCategoryId} onChange={handleDraftCategoryChange}/>
+          <p className="text-xs text-muted-foreground">Includes every subcategory below the selection.</p>
+        </FilterField>
+        <FilterField label="Brands">
+          <BrandPicker selected={draftBrandIds} onToggle={toggleDraftBrand}/>
+        </FilterField>
+        <FilterField label="Price list">
+          <select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={draftPriceListId} onChange={(event) => setDraftPriceListId(event.target.value)}>
+            <option value="">Any price list</option>
+            {activePriceLists.map((list) => <option key={list.id} value={list.id}>{list.name}</option>)}
+          </select>
+        </FilterField>
+        <div className="grid grid-cols-2 gap-2">
+          <FilterField label="Min price">
+            <Input type="number" min="0" step="0.01" value={draftMinPrice} onChange={(event) => setDraftMinPrice(event.target.value)} placeholder="0.00" />
+          </FilterField>
+          <FilterField label="Max price">
+            <Input type="number" min="0" step="0.01" value={draftMaxPrice} onChange={(event) => setDraftMaxPrice(event.target.value)} placeholder="Any" />
+          </FilterField>
+        </div>
+        {draftCategoryId && (
+          <div className="space-y-4 border-t pt-4">
+            <div>
+              <p className="text-sm font-medium">Attributes</p>
+              <p className="text-xs text-muted-foreground">From this category and its subcategories. All selected filters must match.</p>
+            </div>
+            {categoryAttributeQueries.some((result) => result.isLoading) ? (
+              <p className="text-sm text-muted-foreground">Loading attributes…</p>
+            ) : filterAttributes.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No filterable attributes.</p>
+            ) : (
+              filterAttributes.map((attribute) => (
+                <FilterGroup key={attribute.id} label={attribute.name}>
+                  {attribute.options.filter((option) => option.isActive).map((option) => (
+                    <CheckOption key={option.id} checked={draftAttributes.has(`${attribute.id}:${option.value}`)} onChange={() => toggleDraftAttribute(attribute.id, option.value)}>
+                      {option.value}
+                    </CheckOption>
+                  ))}
+                </FilterGroup>
+              ))
+            )}
+          </div>
+        )}
+      </FiltersPanel>
     </div>
   );
 }
 
-function FilterField({ label, children }: { label: string; children: React.ReactNode }) { return <label className="space-y-1.5"><span className="text-sm font-medium">{label}</span>{children}</label>; }
 function FilterGroup({ label, children }: { label: string; children: React.ReactNode }) { return <div className="space-y-2"><p className="text-sm font-medium">{label}</p><div className="flex flex-wrap gap-2">{children}</div></div>; }
 function CheckOption({ checked, onChange, children }: { checked: boolean; onChange: () => void; children: React.ReactNode }) { return <label className="flex min-h-10 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm hover:bg-muted"><Checkbox checked={checked} onCheckedChange={onChange}/>{children}</label>; }
 function CategoryPicker({ options, value, onChange }: { options: ReturnType<typeof categoryHierarchy>; value: string; onChange: (value: string) => void }) {
