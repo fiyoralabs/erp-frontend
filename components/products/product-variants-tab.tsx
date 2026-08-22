@@ -13,7 +13,8 @@ import { DataTable, type DataTableColumn } from "@/components/data-table/data-ta
 import { ActiveBadge } from "@/components/shared/active-badge";
 import { apiClient, ApiRequestError } from "@/lib/api-client";
 import type { CategoryAttribute } from "@/lib/types/master";
-import type { Variant } from "@/lib/types/product";
+import type { ProductAttribute, Variant } from "@/lib/types/product";
+import { ProductAttributesManager } from "./product-attributes-manager";
 
 function errorMessage(error: unknown) {
   if (error instanceof ApiRequestError || error instanceof Error) return error.message;
@@ -24,9 +25,23 @@ function skuPart(value: string) {
   return value.toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-function combinations(groups: { attributeId: number; values: string[] }[]) {
-  return groups.reduce<{ attributeId: number; value: string }[][]>(
-    (rows, group) => rows.flatMap((row) => group.values.map((value) => [...row, { attributeId: group.attributeId, value }])),
+// A single variant "group" the combination grid can pick values from -- either a
+// shared category attribute or one of this product's own attributes. groupKey is
+// unique across BOTH kinds (their numeric ids come from separate DB sequences and
+// can collide), so it -- not the raw id -- is what selection state, combinations,
+// and duplicate-detection key off of.
+type AttributeGroup = {
+  groupKey: string;
+  id: number;
+  productLevel: boolean;
+  name: string;
+  required: boolean;
+  options: { id: number; value: string; isActive: boolean }[];
+};
+
+function combinations(groups: { groupKey: string; values: string[] }[]) {
+  return groups.reduce<{ groupKey: string; value: string }[][]>(
+    (rows, group) => rows.flatMap((row) => group.values.map((value) => [...row, { groupKey: group.groupKey, value }])),
     [[]]
   );
 }
@@ -39,43 +54,53 @@ export function ProductVariantsTab({ productId, categoryId, productCode }: {
   productCode: string;
 }) {
   const qc = useQueryClient();
-  const [selected, setSelected] = React.useState<Record<number, Set<string>>>({});
+  const [selected, setSelected] = React.useState<Record<string, Set<string>>>({});
   const [deleteTargetVariant, setDeleteTargetVariant] = React.useState<{ id: number; name: string } | null>(null);
 
   const variantsQuery = useQuery({
     queryKey: ["products", productId, "variants"],
     queryFn: () => apiClient.get<Variant[]>(`products/${productId}/variants`),
   });
-  const attributesQuery = useQuery({
+  const categoryAttributesQuery = useQuery({
     queryKey: ["master", "categories", categoryId, "attributes"],
     queryFn: () => apiClient.get<CategoryAttribute[]>(`master/categories/${categoryId}/attributes`),
   });
-  const attributes = React.useMemo(
-    () => (attributesQuery.data ?? []).filter((attribute) => attribute.variant),
-    [attributesQuery.data]
-  );
+  const productAttributesQuery = useQuery({
+    queryKey: ["products", productId, "attributes"],
+    queryFn: () => apiClient.get<ProductAttribute[]>(`products/${productId}/attributes`),
+  });
+
+  const attributes: AttributeGroup[] = React.useMemo(() => [
+    ...(categoryAttributesQuery.data ?? []).filter((a) => a.variant).map((a): AttributeGroup => ({
+      groupKey: `c:${a.id}`, id: a.id, productLevel: false, name: a.name, required: a.required, options: a.options,
+    })),
+    ...(productAttributesQuery.data ?? []).map((a): AttributeGroup => ({
+      groupKey: `p:${a.id}`, id: a.id, productLevel: true, name: a.name, required: false, options: a.options,
+    })),
+  ], [categoryAttributesQuery.data, productAttributesQuery.data]);
 
   React.useEffect(() => {
     if (attributes.length === 0) return;
     setSelected((current) => {
       if (Object.keys(current).length > 0) return current;
       return Object.fromEntries(attributes.map((attribute) => [
-        attribute.id,
+        attribute.groupKey,
         new Set(attribute.options.filter((option) => option.isActive).map((option) => option.value)),
       ]));
     });
   }, [attributes]);
 
   const planned = React.useMemo(() => combinations(attributes.map((attribute) => ({
-    attributeId: attribute.id,
-    values: Array.from(selected[attribute.id] ?? []),
+    groupKey: attribute.groupKey,
+    values: Array.from(selected[attribute.groupKey] ?? []),
   }))), [attributes, selected]);
 
+  const groupKeyOf = (value: { attributeId: number; productLevel?: boolean }) => `${value.productLevel ? "p" : "c"}:${value.attributeId}`;
   const existingKeys = new Set((variantsQuery.data ?? []).map((variant) =>
-    (variant.attributeValues ?? []).map((value) => `${value.attributeId}:${value.value.toLowerCase()}`).sort().join("|")
+    (variant.attributeValues ?? []).map((value) => `${groupKeyOf(value)}:${value.value.toLowerCase()}`).sort().join("|")
   ));
   const missing = planned.filter((row) => !existingKeys.has(
-    row.map((value) => `${value.attributeId}:${value.value.toLowerCase()}`).sort().join("|")
+    row.map((value) => `${value.groupKey}:${value.value.toLowerCase()}`).sort().join("|")
   ));
 
   const generateMutation = useMutation({
@@ -85,7 +110,10 @@ export function ProductVariantsTab({ productId, categoryId, productCode }: {
         created.push(await apiClient.post<Variant>(`products/${productId}/variants`, {
           productId,
           sku: [productCode, ...row.map((value) => skuPart(value.value))].join("-"),
-          attributeValues: row,
+          attributeValues: row.map((value) => {
+            const group = attributes.find((a) => a.groupKey === value.groupKey)!;
+            return { attributeId: group.id, value: value.value, productLevel: group.productLevel };
+          }),
           isActive: true,
         }));
       }
@@ -117,13 +145,14 @@ export function ProductVariantsTab({ productId, categoryId, productCode }: {
 
   const columns: DataTableColumn<Variant>[] = [
     { key: "sku", header: "SKU", render: (row) => <span className="font-mono text-xs">{row.sku}</span> },
-    { key: "variant", header: "Variant", render: (row) => <div className="flex flex-wrap gap-1">{(row.attributeValues ?? []).length > 0 ? row.attributeValues.map((value) => <Badge key={value.attributeId} variant="outline">{value.attributeName}: {value.value}</Badge>) : row.variantName}</div> },
+    { key: "variant", header: "Variant", render: (row) => <div className="flex flex-wrap gap-1">{(row.attributeValues ?? []).length > 0 ? row.attributeValues.map((value) => <Badge key={`${value.productLevel ? "p" : "c"}-${value.attributeId}`} variant="outline">{value.attributeName}: {value.value}</Badge>) : row.variantName}</div> },
     { key: "status", header: "Status", render: (row) => <ActiveBadge isActive={row.isActive} /> },
   ];
 
-  if (attributesQuery.isLoading) return <p className="text-sm text-muted-foreground">Loading category variant setup...</p>;
+  if (categoryAttributesQuery.isLoading) return <p className="text-sm text-muted-foreground">Loading category variant setup...</p>;
 
   return <div className="flex flex-col gap-4 min-w-0 w-full">
+    <ProductAttributesManager productId={productId} />
     <Card>
       <CardHeader>
         <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -135,16 +164,16 @@ export function ProductVariantsTab({ productId, categoryId, productCode }: {
         </div>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {attributes.length === 0 ? <div className="rounded-lg border border-dashed p-6 text-center"><p className="font-medium">No variant attributes configured for this category</p><p className="text-sm text-muted-foreground">Open Master Data → Categories → Attributes and add Color, Size, Storage, or another variant attribute.</p></div> : attributes.map((attribute) => <div key={attribute.id} className="flex flex-col gap-2"><div className="flex items-center gap-2"><span className="text-sm font-medium">{attribute.name}</span>{attribute.required && <Badge variant="secondary">Required</Badge>}</div><div className="flex flex-wrap gap-2">{attribute.options.filter((option) => option.isActive).map((option) => {
-          const checked = selected[attribute.id]?.has(option.value) ?? false;
-          return <label key={option.id} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm hover:bg-muted/50"><Checkbox checked={checked} onCheckedChange={(value) => setSelected((current) => { const next = { ...current, [attribute.id]: new Set(current[attribute.id] ?? []) }; if (value) next[attribute.id].add(option.value); else next[attribute.id].delete(option.value); return next; })} />{option.value}</label>;
+        {attributes.length === 0 ? <div className="rounded-lg border border-dashed p-6 text-center"><p className="font-medium">No variant attributes configured</p><p className="text-sm text-muted-foreground">Open Master Data → Categories → Attributes for shared options, or add a product-specific attribute above.</p></div> : attributes.map((attribute) => <div key={attribute.groupKey} className="flex flex-col gap-2"><div className="flex items-center gap-2"><span className="text-sm font-medium">{attribute.name}</span>{attribute.productLevel && <Badge variant="secondary">Product-specific</Badge>}{attribute.required && <Badge variant="secondary">Required</Badge>}</div><div className="flex flex-wrap gap-2">{attribute.options.filter((option) => option.isActive).map((option) => {
+          const checked = selected[attribute.groupKey]?.has(option.value) ?? false;
+          return <label key={option.id} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3 text-sm hover:bg-muted/50"><Checkbox checked={checked} onCheckedChange={(value) => setSelected((current) => { const next = { ...current, [attribute.groupKey]: new Set(current[attribute.groupKey] ?? []) }; if (value) next[attribute.groupKey].add(option.value); else next[attribute.groupKey].delete(option.value); return next; })} />{option.value}</label>;
         })}</div></div>)}
         {attributes.length > 0 && <p className="text-xs text-muted-foreground">{planned.length} selected combination{planned.length === 1 ? "" : "s"} · {(variantsQuery.data ?? []).length} already created · {missing.length} missing</p>}
       </CardContent>
     </Card>
 
     <div><h3 className="font-medium">Sellable variants</h3><p className="text-sm text-muted-foreground">Each row is a stock-keeping unit with its own inventory, price, and barcode.</p></div>
-    <DataTable columns={columns} data={variantsQuery.data ?? []} rowKey={(row) => row.id} isLoading={variantsQuery.isLoading} emptyMessage={attributes.length ? "Select values above and generate the missing variants." : "Configure category attributes first."} actions={(row) => <div className="flex items-center gap-1"><Button variant="ghost" size="sm" disabled={toggleMutation.isPending} onClick={() => toggleMutation.mutate(row)}>{row.isActive ? <PowerOff /> : <Power />}{row.isActive ? "Deactivate" : "Activate"}</Button><Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteTargetVariant({ id: row.id, name: row.variantName || row.sku })}><Trash2 className="h-4 w-4" />Delete</Button></div>} />
+    <DataTable columns={columns} data={variantsQuery.data ?? []} rowKey={(row) => row.id} isLoading={variantsQuery.isLoading} emptyMessage={attributes.length ? "Select values above and generate the missing variants." : "Configure category or product-specific attributes first."} actions={(row) => <div className="flex items-center gap-1"><Button variant="ghost" size="sm" disabled={toggleMutation.isPending} onClick={() => toggleMutation.mutate(row)}>{row.isActive ? <PowerOff /> : <Power />}{row.isActive ? "Deactivate" : "Activate"}</Button><Button variant="ghost" size="sm" className="text-destructive hover:text-destructive" onClick={() => setDeleteTargetVariant({ id: row.id, name: row.variantName || row.sku })}><Trash2 className="h-4 w-4" />Delete</Button></div>} />
     <Button variant="outline" className="w-full sm:w-fit" onClick={() => variantsQuery.refetch()}><RefreshCw className="mr-1 size-4" />Refresh variants</Button>
 
     <ConfirmDialog

@@ -3,7 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { CreditCard, Loader2, Plus, RotateCcw, Search, Store, Users } from "lucide-react";
+import { ChevronDown, CreditCard, Loader2, Plus, RotateCcw, Search, Store, Users, X } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient, ApiRequestError, type PagedResult } from "@/lib/api-client";
 import { localDateInputValue } from "@/lib/date";
@@ -16,6 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -23,6 +24,10 @@ import { Textarea } from "@/components/ui/textarea";
 import { CustomerCrmDialog } from "@/components/crm/customer-360/customer-crm-dialog";
 import { SalesInvoiceDialog } from "@/components/sales/sales-invoice-dialog";
 import { usePaymentMethodsLookup, usePriceListsLookup } from "@/lib/hooks/use-master-data";
+// Same responsive filter pattern as CRM Leads: primary Search + Status stay inline, everything
+// else (Customer, Date range) lives behind the Filters button so a company with thousands of
+// customers never has to render them all into a single dropdown.
+import { FiltersButton, FiltersPanel, FilterField } from "@/components/crm/shared/filters-panel";
 
 type Sellable = { productId: number; variantId: number | null; label: string };
 type Action = "customer" | "invoice" | "payment" | "return" | null;
@@ -42,11 +47,72 @@ export function SalesClient() {
 
   // Search & Filter State
   const [searchQuery, setSearchQuery] = React.useState("");
-  const [customerFilter, setCustomerFilter] = React.useState("ALL");
   const [statusFilter, setStatusFilter] = React.useState("ALL");
+  const [invoicePage, setInvoicePage] = React.useState(0);
+
+  // Applied Customer/Date filters -- a shop can have thousands of customers, so this is a
+  // resolved customerId from a search-as-you-type picker, never a dropdown of every customer.
+  const [customerIdFilter, setCustomerIdFilter] = React.useState<number | null>(null);
+  const [customerNameFilter, setCustomerNameFilter] = React.useState("");
+  const [dateFrom, setDateFrom] = React.useState("");
+  const [dateTo, setDateTo] = React.useState("");
+  const [filtersOpen, setFiltersOpen] = React.useState(false);
+
+  // Draft filter state for the Filters panel -- only committed to the applied state above on "Done".
+  const [draftCustomerId, setDraftCustomerId] = React.useState<number | null>(null);
+  const [draftCustomerName, setDraftCustomerName] = React.useState("");
+  const [draftDateFrom, setDraftDateFrom] = React.useState("");
+  const [draftDateTo, setDraftDateTo] = React.useState("");
+
+  const activeFilterCount = (customerIdFilter ? 1 : 0) + (dateFrom || dateTo ? 1 : 0);
+
+  function handleOpenFilters() {
+    setDraftCustomerId(customerIdFilter);
+    setDraftCustomerName(customerNameFilter);
+    setDraftDateFrom(dateFrom);
+    setDraftDateTo(dateTo);
+    setFiltersOpen(true);
+  }
+  function applyFilters() {
+    setCustomerIdFilter(draftCustomerId);
+    setCustomerNameFilter(draftCustomerName);
+    setDateFrom(draftDateFrom);
+    setDateTo(draftDateTo);
+    setInvoicePage(0);
+  }
+  function clearDraftFilters() {
+    setDraftCustomerId(null);
+    setDraftCustomerName("");
+    setDraftDateFrom("");
+    setDraftDateTo("");
+  }
+  function clearAllFilters() {
+    setCustomerIdFilter(null);
+    setCustomerNameFilter("");
+    setDateFrom("");
+    setDateTo("");
+    setInvoicePage(0);
+  }
 
   const customers = useQuery({ queryKey: ["sales", "customers"], queryFn: () => apiClient.get<PagedResult<Customer>>("sales/customers?page=0&size=100") });
+  // Full, unfiltered recent-invoices window -- kept only to back the Returns tab's
+  // invoice-number lookup and the Payments tab's payment listing (neither is paginated
+  // today; unrelated to the filter below). The Invoices tab itself uses invoicesPageQuery.
   const invoices = useQuery({ queryKey: ["sales", "invoices"], queryFn: () => apiClient.get<PagedResult<SalesInvoice>>("sales/invoices?page=0&size=100") });
+  // Server-side paginated + filtered Invoices list -- the actual data source for the
+  // Invoices tab, so filtering/paging works correctly regardless of how many invoices
+  // or customers the company has (never capped at the first page like the query above).
+  const invoicesPageQuery = useQuery({
+    queryKey: ["sales", "invoices", "page", invoicePage, customerIdFilter, statusFilter, dateFrom, dateTo],
+    queryFn: () => {
+      const params = new URLSearchParams({ page: String(invoicePage), size: "20" });
+      if (customerIdFilter) params.set("customerId", String(customerIdFilter));
+      if (statusFilter !== "ALL") params.set("status", statusFilter);
+      if (dateFrom) params.set("from", dateFrom);
+      if (dateTo) params.set("to", dateTo);
+      return apiClient.get<PagedResult<SalesInvoice>>(`sales/invoices?${params.toString()}`);
+    },
+  });
   const returns = useQuery({ queryKey: ["sales", "returns"], queryFn: () => apiClient.get<PagedResult<SalesReturn>>("sales/returns?page=0&size=100") });
   const locations = useQuery({ queryKey: ["master", "locations", "sales"], queryFn: () => apiClient.get<PagedResult<Location>>("master/locations?page=0&size=100") });
   const methods = usePaymentMethodsLookup();
@@ -79,21 +145,14 @@ export function SalesClient() {
   const due = inv.reduce((sum, x) => sum + x.balanceAmount, 0);
   const todaySales = inv.filter((x) => x.invoiceDate === today()).reduce((sum, x) => sum + x.totalAmount, 0);
 
-  // Filtered Invoices
+  // Customer/status/date are already applied server-side (invoicesPageQuery); free-text
+  // search only narrows the current page by invoice number, so it stays instant/local.
   const filteredInvoices = React.useMemo(() => {
-    return inv.filter((item) => {
-      if (customerFilter !== "ALL" && String(item.customerId) !== customerFilter) return false;
-      if (statusFilter !== "ALL" && item.status !== statusFilter) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.trim().toLowerCase();
-        const matchInv = item.invoiceNumber.toLowerCase().includes(q);
-        const custName = c.find((y) => y.id === item.customerId)?.name ?? "";
-        const matchCust = custName.toLowerCase().includes(q);
-        if (!matchInv && !matchCust) return false;
-      }
-      return true;
-    });
-  }, [inv, c, customerFilter, statusFilter, searchQuery]);
+    const invoicesPage = invoicesPageQuery.data?.content ?? [];
+    const q = searchQuery.trim().toLowerCase();
+    if (!q) return invoicesPage;
+    return invoicesPage.filter((item) => item.invoiceNumber.toLowerCase().includes(q));
+  }, [invoicesPageQuery.data, searchQuery]);
 
   return (
     <div className="flex flex-col gap-5 w-full max-w-full">
@@ -129,52 +188,85 @@ export function SalesClient() {
       <div className="grid gap-3 sm:grid-cols-3">
         <Metric label="Today’s sales" value={money.format(todaySales)} />
         <Metric label="Receivables" value={money.format(due)} warn={due > 0} />
-        <Metric label="Active customers" value={String(c.length)} />
+        <Metric label="Active customers" value={String(customers.data?.totalElements ?? c.length)} />
       </div>
 
-      {/* Global Search & Filter Bar */}
+      {/* Global Search & Filter Bar -- primary Search + Status stay inline; Customer (search-as-
+          you-type, never a full dropdown) and Date range live behind the Filters panel. */}
       <Card className="shadow-xs">
         <CardContent className="p-3">
           <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
             <div className="relative flex-1">
               <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
               <Input
-                placeholder="Search by invoice number or customer name..."
+                placeholder="Search by invoice number..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="pl-9"
               />
             </div>
             <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
-              <Select value={customerFilter} onValueChange={(val) => setCustomerFilter(val ?? "ALL")}>
-                <SelectTrigger className="w-full sm:w-[180px]">
-                  <SelectValue placeholder="Filter by Customer" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="ALL">All Customers</SelectItem>
-                  {c.map((cust) => (
-                    <SelectItem key={cust.id} value={String(cust.id)}>
-                      {cust.name}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={statusFilter} onValueChange={(val) => setStatusFilter(val ?? "ALL")}>
+              <Select value={statusFilter} onValueChange={(val) => { setStatusFilter(val ?? "ALL"); setInvoicePage(0); }}>
                 <SelectTrigger className="w-full sm:w-[160px]">
                   <SelectValue placeholder="Filter by Status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="ALL">All Statuses</SelectItem>
                   <SelectItem value="PAID">Paid / Completed</SelectItem>
-                  <SelectItem value="PARTIAL">Partially Paid</SelectItem>
+                  <SelectItem value="PARTIALLY_PAID">Partially Paid</SelectItem>
                   <SelectItem value="UNPAID">Unpaid / Due</SelectItem>
                 </SelectContent>
               </Select>
+              <FiltersButton activeCount={activeFilterCount} onClick={handleOpenFilters} className="h-10" />
             </div>
           </div>
+
+          {/* Active Filter Chips */}
+          {activeFilterCount > 0 && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 border-t pt-3">
+              <span className="text-xs font-semibold text-muted-foreground">Active filters:</span>
+              {customerIdFilter && (
+                <span className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                  Customer: {customerNameFilter}
+                  <button type="button" onClick={() => { setCustomerIdFilter(null); setCustomerNameFilter(""); setInvoicePage(0); }} className="hover:opacity-75">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              {(dateFrom || dateTo) && (
+                <span className="inline-flex items-center gap-1 rounded-lg bg-primary/10 px-2 py-1 text-xs font-medium text-primary">
+                  Date: {dateFrom || "any"} – {dateTo || "any"}
+                  <button type="button" onClick={() => { setDateFrom(""); setDateTo(""); setInvoicePage(0); }} className="hover:opacity-75">
+                    <X className="h-3 w-3" />
+                  </button>
+                </span>
+              )}
+              <Button variant="ghost" size="sm" className="h-6 px-2 text-xs text-muted-foreground hover:text-foreground" onClick={clearAllFilters}>
+                Clear all
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
+
+      {/* Filters Panel -- Customer (search-as-you-type) + Date range */}
+      <FiltersPanel open={filtersOpen} onOpenChange={setFiltersOpen} activeCount={activeFilterCount} onClearAll={clearDraftFilters} onApply={applyFilters}>
+        <FilterField label="Customer">
+          <CustomerPicker
+            value={draftCustomerId}
+            label={draftCustomerName}
+            onChange={(id, name) => { setDraftCustomerId(id); setDraftCustomerName(name); }}
+          />
+        </FilterField>
+        <div className="grid grid-cols-2 gap-2">
+          <FilterField label="From date">
+            <Input type="date" value={draftDateFrom} onChange={(e) => setDraftDateFrom(e.target.value)} />
+          </FilterField>
+          <FilterField label="To date">
+            <Input type="date" value={draftDateTo} onChange={(e) => setDraftDateTo(e.target.value)} />
+          </FilterField>
+        </div>
+      </FiltersPanel>
 
       {/* Tabs View */}
       <Tabs defaultValue="invoices" className="w-full">
@@ -213,7 +305,7 @@ export function SalesClient() {
               </div>
             ) : (
               filteredInvoices.map((x) => {
-                const custName = c.find((y) => y.id === x.customerId)?.name ?? `Customer #${x.customerId}`;
+                const custName = x.customerName ?? `Customer #${x.customerId}`;
                 return (
                   <div key={x.id} className="p-4 border rounded-2xl bg-card space-y-3 shadow-xs min-w-0">
                     <div className="flex items-center justify-between gap-2 min-w-0">
@@ -255,7 +347,7 @@ export function SalesClient() {
                 <TableRow key={x.id}>
                   <TableCell className="font-medium">{x.invoiceNumber}</TableCell>
                   <TableCell>{x.invoiceDate}</TableCell>
-                  <TableCell>{c.find((y) => y.id === x.customerId)?.name ?? `Customer #${x.customerId}`}</TableCell>
+                  <TableCell>{x.customerName ?? `Customer #${x.customerId}`}</TableCell>
                   <TableCell>
                     <Status value={x.status} />
                   </TableCell>
@@ -269,6 +361,22 @@ export function SalesClient() {
                 </TableRow>
               ))}
             </Grid>
+          </div>
+
+          {/* Pagination -- server-side, so this scales regardless of invoice/customer volume */}
+          <div className="flex items-center justify-between sm:justify-end gap-2 pt-4">
+            <Button variant="outline" size="sm" disabled={invoicePage === 0} onClick={() => setInvoicePage((p) => p - 1)}>Previous</Button>
+            <span className="text-xs sm:text-sm text-muted-foreground">
+              Page {invoicePage + 1} of {Math.max(1, invoicesPageQuery.data?.totalPages ?? 1)}
+            </span>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={invoicePage + 1 >= (invoicesPageQuery.data?.totalPages ?? 1)}
+              onClick={() => setInvoicePage((p) => p + 1)}
+            >
+              Next
+            </Button>
           </div>
         </Tab>
 
@@ -546,6 +654,67 @@ export function SalesClient() {
       <WishlistDialog customer={wishlistCustomer} sellables={sellables.data ?? []} close={() => setWishlistCustomer(null)} />
       <CustomerCrmDialog customerId={crmCustomerId} close={() => setCrmCustomerId(null)} />
     </div>
+  );
+}
+
+// Search-as-you-type customer picker for the Invoices filter -- a company can have thousands
+// of customers, so this never loads/renders the full list; it debounces a query against the
+// backend's own search and resolves to a single (id, name) pair.
+function CustomerPicker({ value, label, onChange }: { value: number | null; label: string; onChange: (id: number | null, name: string) => void }) {
+  const [open, setOpen] = React.useState(false);
+  const [draft, setDraft] = React.useState("");
+  const [search, setSearch] = React.useState("");
+  const query = useQuery({
+    queryKey: ["sales", "customers", "picker", search],
+    queryFn: () => apiClient.get<PagedResult<Customer>>(`sales/customers?search=${encodeURIComponent(search)}&page=0&size=10`),
+    enabled: open && search.trim().length > 0,
+  });
+  React.useEffect(() => {
+    const t = setTimeout(() => setSearch(draft.trim()), 300);
+    return () => clearTimeout(t);
+  }, [draft]);
+  const results = (query.data?.content ?? []).filter((x) => x.active);
+  return (
+    <Popover open={open} onOpenChange={setOpen}>
+      <PopoverTrigger render={<Button type="button" variant="outline" className="w-full justify-between font-normal" />}>
+        <span className="truncate">{value ? label : "Any customer"}</span>
+        <ChevronDown />
+      </PopoverTrigger>
+      <PopoverContent className="w-72 p-2" align="start">
+        <div className="relative">
+          <Search className="absolute left-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+          <Input className="h-9 pl-8" value={draft} onChange={(e) => setDraft(e.target.value)} placeholder="Search customers by name, code or phone" autoFocus />
+        </div>
+        <div className="mt-2 max-h-56 overflow-y-auto">
+          <button
+            type="button"
+            className="flex min-h-9 w-full items-center rounded-md px-2 text-left text-sm hover:bg-muted"
+            onClick={() => { onChange(null, ""); setOpen(false); }}
+          >
+            Any customer
+          </button>
+          {!search.trim() ? (
+            <p className="p-3 text-center text-sm text-muted-foreground">Start typing to search customers.</p>
+          ) : query.isLoading ? (
+            <p className="p-3 text-center text-sm text-muted-foreground">Searching…</p>
+          ) : results.length === 0 ? (
+            <p className="p-3 text-center text-sm text-muted-foreground">No customers found.</p>
+          ) : (
+            results.map((cust) => (
+              <button
+                key={cust.id}
+                type="button"
+                className={`flex min-h-9 w-full flex-col items-start rounded-md px-2 py-1 text-left text-sm hover:bg-muted ${value === cust.id ? "bg-muted font-medium" : ""}`}
+                onClick={() => { onChange(cust.id, cust.name); setOpen(false); }}
+              >
+                <span className="truncate w-full">{cust.name}</span>
+                <span className="text-xs text-muted-foreground">{cust.code}{cust.phone ? ` · ${cust.phone}` : ""}</span>
+              </button>
+            ))
+          )}
+        </div>
+      </PopoverContent>
+    </Popover>
   );
 }
 

@@ -32,7 +32,6 @@ export type VariantFormValues = z.infer<typeof variantSchema>;
 export const priceSchema = z.object({
   variantId: z.number().nullable().optional(),
   priceListId: z.number({ error: "Price list is required" }),
-  costPrice: z.number({ error: "Cost price is required" }).min(0.01, "Must be greater than 0"),
   sellingPrice: z
     .number({ error: "Selling price is required" })
     .min(0.01, "Must be greater than 0"),

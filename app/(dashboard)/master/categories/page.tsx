@@ -355,32 +355,28 @@ export default function CategoriesPage() {
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="flex flex-col gap-4">
               <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-                <FormField
-                  control={form.control}
-                  name="code"
-                  render={({ field }) => (
-                    <FormItem>
-                      <FormLabel>Code</FormLabel>
-                      <FormControl>
-                        <Input
-                          placeholder="ELEC"
-                          {...field}
-                          disabled={dialogState?.mode === "edit"}
-                        />
-                      </FormControl>
-                      {/* erp's UpdateCategoryRequest has no `code` field --
-                          it's permanent once set. Editing it here would
-                          silently do nothing on save (confirmed live), so
-                          it's locked instead of misleadingly editable. */}
-                      {dialogState?.mode === "edit" && (
+                {/* Create mode: no Code field at all -- erp auto-generates it from the
+                    name. Edit mode: shown read-only since UpdateCategoryRequest has no
+                    `code` field (it's permanent once set; editing it here would silently
+                    do nothing on save, confirmed live), so it's informational only. */}
+                {dialogState?.mode === "edit" && (
+                  <FormField
+                    control={form.control}
+                    name="code"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Code</FormLabel>
+                        <FormControl>
+                          <Input placeholder="ELEC" {...field} disabled />
+                        </FormControl>
                         <p className="text-xs text-muted-foreground">
                           Code can&apos;t be changed after creation.
                         </p>
-                      )}
-                      <FormMessage />
-                    </FormItem>
-                  )}
-                />
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+                )}
                 <FormField
                   control={form.control}
                   name="name"

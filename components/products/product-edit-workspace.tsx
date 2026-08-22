@@ -9,6 +9,7 @@ import { apiClient } from "@/lib/api-client";
 import type { Product } from "@/lib/types/product";
 import { ProductOverviewTab } from "./product-overview-tab";
 import { ProductVariantsTab } from "./product-variants-tab";
+import { ConvertToVariantCard } from "./convert-to-variant-card";
 import { ProductPricingTab } from "./product-pricing-tab";
 import { ProductImagesTab } from "./product-images-tab";
 import { ProductBarcodesTab } from "./product-barcodes-tab";
@@ -41,7 +42,7 @@ export function ProductEditWorkspace({ productId, companyId }: { productId: numb
         </CardContent>
       </Card>
 
-      {p.hasVariants && (
+      {p.hasVariants ? (
         <Card>
           <CardHeader>
             <CardTitle>Variant combinations</CardTitle>
@@ -50,6 +51,8 @@ export function ProductEditWorkspace({ productId, companyId }: { productId: numb
             <ProductVariantsTab productId={p.id} categoryId={p.categoryId} productCode={p.code} />
           </CardContent>
         </Card>
+      ) : (
+        <ConvertToVariantCard productId={p.id} categoryId={p.categoryId} />
       )}
 
       <Card className="border-primary/40">

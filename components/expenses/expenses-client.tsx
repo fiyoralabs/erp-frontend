@@ -499,9 +499,13 @@ function CategoryDialog({
           </DialogHeader>
 
           <div className="my-5 grid gap-4">
-            <Field label="Code">
-              <Input required disabled={!!value} value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />
-            </Field>
+            {/* Create mode: no Code field -- erp auto-generates it from the name. Edit
+                mode: shown read-only, informational only (update never sends code). */}
+            {value && (
+              <Field label="Code">
+                <Input disabled value={code} onChange={(e) => setCode(e.target.value.toUpperCase())} />
+              </Field>
+            )}
             <Field label="Name">
               <Input required value={name} onChange={(e) => setName(e.target.value)} />
             </Field>
