@@ -3,9 +3,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useQueries, useQuery, useMutation } from "@tanstack/react-query";
-import { ChevronDown, ChevronLeft, Filter, LayoutGrid, List, Package, Plus, Search, Trash2, X, Barcode } from "lucide-react";
-import { useRouter } from "next/navigation";
-import { BarcodeScannerDialog } from "@/components/shared/barcode-scanner-dialog";
+import { ChevronDown, ChevronLeft, Filter, LayoutGrid, List, Package, Plus, Search, Trash2, X } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -25,55 +23,7 @@ import { useCategoriesLookup, usePriceListsLookup } from "@/lib/hooks/use-master
 
 import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 
-function useUsbBarcodeScanner(onScan: (barcode: string) => void) {
-  const bufferRef = React.useRef<{ key: string; time: number }[]>([]);
-
-  React.useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.ctrlKey || e.altKey || e.metaKey) return;
-      const now = Date.now();
-      const key = e.key;
-      if (key.length === 1) {
-        const last = bufferRef.current[bufferRef.current.length - 1];
-        if (last && now - last.time > 100) {
-          bufferRef.current = [];
-        }
-        bufferRef.current.push({ key, time: now });
-      } else if (key === "Enter") {
-        const buffer = bufferRef.current;
-        if (buffer.length >= 6) {
-          let totalDiff = 0;
-          for (let i = 1; i < buffer.length; i++) {
-            totalDiff += buffer[i].time - buffer[i - 1].time;
-          }
-          const avgDiff = totalDiff / (buffer.length - 1);
-          if (avgDiff < 50) {
-            const barcode = buffer.map((b) => b.key).join("");
-            e.preventDefault();
-            e.stopPropagation();
-            onScan(barcode);
-          }
-        }
-        bufferRef.current = [];
-      }
-    };
-    window.addEventListener("keydown", handleKeyDown, true);
-    return () => {
-      window.removeEventListener("keydown", handleKeyDown, true);
-    };
-  }, [onScan]);
-}
-
 export function ProductsListClient({ companyId: _companyId }: { companyId: number }) {
-  const router = useRouter();
-  const [isScannerOpen, setIsScannerOpen] = React.useState(false);
-
-  const handleBarcodeScan = React.useCallback((code: string) => {
-    router.push(`/products/new?code=${encodeURIComponent(code)}`);
-  }, [router]);
-
-  useUsbBarcodeScanner(handleBarcodeScan);
-
   const [page, setPage] = React.useState(0);
   const [search, setSearch] = React.useState("");
   const [debouncedSearch, setDebouncedSearch] = React.useState("");
@@ -225,9 +175,6 @@ export function ProductsListClient({ companyId: _companyId }: { companyId: numbe
           <p className="text-sm text-muted-foreground">Find and manage sellable items, variants, pricing, media and labels.</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setIsScannerOpen(true)}>
-            <Barcode className="mr-1 size-4" />Scan Barcode
-          </Button>
           <Button nativeButton={false} render={<Link href="/products/new" />}>
             <Plus className="mr-1 size-4" />Create product
           </Button>
@@ -476,11 +423,6 @@ export function ProductsListClient({ companyId: _companyId }: { companyId: numbe
         <SetsManagementClient />
       </div>
       <Sheet open={mobileFiltersOpen} onOpenChange={setMobileFiltersOpen}><SheetContent side="left" className="w-[85vw] max-w-[340px] overflow-y-auto sm:max-w-sm"><SheetHeader><SheetTitle>Filter products</SheetTitle><SheetDescription>All selected filters must match.</SheetDescription></SheetHeader><div className="px-4 pb-6">{filterContent}</div></SheetContent></Sheet>
-      <BarcodeScannerDialog
-        open={isScannerOpen}
-        onOpenChange={setIsScannerOpen}
-        onScan={handleBarcodeScan}
-      />
     </div>
   );
 }
