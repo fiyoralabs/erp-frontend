@@ -1,15 +1,47 @@
 "use client";
 import * as React from "react";
 import {useMutation,useQuery,useQueryClient} from "@tanstack/react-query";
-import {Copy,KeyRound,Loader2,MapPin,Monitor,Plus,RefreshCw,ShieldCheck,Trash2,UserCog,Users} from "lucide-react";
+import {Building2,Copy,KeyRound,Loader2,MapPin,Monitor,Plus,RefreshCw,ShieldCheck,Trash2,UserCog,Users} from "lucide-react";
 import {toast} from "sonner";
 import {apiClient,ApiRequestError,type PagedResult} from "@/lib/api-client";
 import type {ApiKey,CreatedApiKey,LocationChoice,Permission,Role,Session,User} from "@/lib/types/settings";
 import {Badge} from "@/components/ui/badge";import {Button} from "@/components/ui/button";import {Card,CardContent,CardDescription,CardHeader,CardTitle} from "@/components/ui/card";import {Dialog,DialogContent,DialogDescription,DialogFooter,DialogHeader,DialogTitle} from "@/components/ui/dialog";import {Input} from "@/components/ui/input";import {Label} from "@/components/ui/label";import {Textarea} from "@/components/ui/textarea";import {DataTable,type DataTableColumn} from "@/components/data-table/data-table";import {ConfirmDialog} from "@/components/shared/confirm-dialog";
 
-export type SettingsArea="users"|"roles"|"api-keys"|"sessions";
+export type SettingsArea="users"|"roles"|"api-keys"|"sessions"|"company";
 const err=(e:unknown)=>e instanceof ApiRequestError?e.message:e instanceof Error?e.message:"Request failed";
-export function SettingsAdminClient({area}:{area:SettingsArea}){return area==="users"?<UsersPanel/>:area==="roles"?<RolesPanel/>:area==="api-keys"?<KeysPanel/>:<SessionsPanel/>}
+export function SettingsAdminClient({area}:{area:SettingsArea}){return area==="users"?<UsersPanel/>:area==="roles"?<RolesPanel/>:area==="api-keys"?<KeysPanel/>:area==="company"?<CompanyPanel/>:<SessionsPanel/>}
+
+interface CompanyProfile{id:number;legalName:string;displayName:string;upiId:string|null}
+function CompanyPanel(){
+  const qc=useQueryClient();
+  const [draftUpiId,setDraftUpiId]=React.useState("");
+  const [touched,setTouched]=React.useState(false);
+  const profile=useQuery({queryKey:["settings","company"],queryFn:()=>apiClient.get<CompanyProfile>("company")});
+  const upiId=touched?draftUpiId:(profile.data?.upiId??"");
+  const save=useMutation({
+    mutationFn:()=>apiClient.patch<CompanyProfile>("company",{upiId:upiId.trim()||null}),
+    onSuccess:()=>{toast.success("Company UPI ID updated");setTouched(false);qc.invalidateQueries({queryKey:["settings","company"]})},
+    onError:e=>toast.error(err(e)),
+  });
+  return <div className="space-y-5">
+    <Header title="Company" description="Company-wide profile settings." icon={Building2}/>
+    <Card><CardContent className="pt-5">
+      {profile.isLoading?<p className="text-sm text-muted-foreground">Loading...</p>:<div className="space-y-5 max-w-lg">
+        <div><Label className="text-xs text-muted-foreground">Company</Label><p className="font-medium">{profile.data?.displayName}</p></div>
+        <div className="space-y-1.5">
+          <Label htmlFor="company-upi">UPI ID</Label>
+          <Input id="company-upi" placeholder="company@okhdfcbank" value={upiId} onChange={e=>{setDraftUpiId(e.target.value);setTouched(true)}}/>
+          <p className="text-xs text-muted-foreground">
+            Fallback UPI ID encoded into a receipt&apos;s payment QR whenever the specific store
+            (Master Data &rarr; Locations) has none of its own configured. If neither is set, no
+            QR is shown &mdash; never a placeholder.
+          </p>
+        </div>
+        <Button onClick={()=>save.mutate()} disabled={save.isPending||!touched}>{save.isPending&&<Loader2 className="animate-spin"/>}Save</Button>
+      </div>}
+    </CardContent></Card>
+  </div>;
+}
 function Header({title,description,icon:Icon,action}:{title:string;description:string;icon:React.ComponentType<{className?:string}>;action?:React.ReactNode}){return <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between"><div><h1 className="flex items-center gap-2 text-2xl font-semibold"><Icon className="size-6"/>{title}</h1><p className="text-sm text-muted-foreground">{description}</p></div>{action}</div>}
 
 function UsersPanel(){const qc=useQueryClient(),[page,setPage]=React.useState(0),[search,setSearch]=React.useState(""),[edit,setEdit]=React.useState<User|null|undefined>(undefined),[locationsFor,setLocationsFor]=React.useState<User|null>(null),[deactivate,setDeactivate]=React.useState<User|null>(null);const users=useQuery({queryKey:["settings","users",page,search],queryFn:()=>apiClient.get<PagedResult<User>>(`users?page=${page}&size=20${search?`&search=${encodeURIComponent(search)}`:""}`)});const roles=useQuery({queryKey:["settings","roles"],queryFn:()=>apiClient.get<Role[]>("roles")});const locations=useQuery({queryKey:["settings","locations"],queryFn:()=>apiClient.get<PagedResult<LocationChoice>>("master/locations?page=0&size=100")});const activeLocations=(locations.data?.content??[]).filter(x=>x.isActive);const deactivateM=useMutation({mutationFn:(id:number)=>apiClient.delete(`users/${id}`),onSuccess:()=>{toast.success("Employee deactivated");setDeactivate(null);qc.invalidateQueries({queryKey:["settings","users"]})},onError:e=>toast.error(err(e))});const cols:DataTableColumn<User>[]=[{key:"employee",header:"Employee",render:u=><div><p className="font-medium">{u.fullName}</p><p className="text-xs text-muted-foreground">{u.email}</p></div>},{key:"roles",header:"Roles",render:u=><div className="flex flex-wrap gap-1">{u.roles.map(r=><Badge key={r} variant="outline">{r}</Badge>)}</div>},{key:"phone",header:"Phone",render:u=>u.phone||"—"},{key:"status",header:"Status",render:u=><Badge variant={u.isActive?"default":"secondary"}>{u.status}</Badge>}];return <div className="space-y-5"><Header title="Users" description="Employee accounts, roles and location access." icon={Users} action={<Button onClick={()=>setEdit(null)}><Plus/>Add employee</Button>}/><Card><CardContent className="pt-5"><div className="mb-4 flex gap-2"><Input placeholder="Search name or email" value={search} onChange={e=>{setSearch(e.target.value);setPage(0)}}/><Button variant="outline" onClick={()=>users.refetch()}><RefreshCw/>Refresh</Button></div><DataTable columns={cols} data={users.data?.content??[]} rowKey={u=>u.id} isLoading={users.isLoading} page={page} totalPages={users.data?.totalPages??0} onPageChange={setPage} actions={u=><><Button size="sm" variant="outline" onClick={()=>setEdit(u)}><UserCog/>Edit</Button><Button size="sm" variant="outline" onClick={()=>setLocationsFor(u)}><MapPin/>Locations</Button>{u.isActive&&<Button size="sm" variant="destructive" onClick={()=>setDeactivate(u)}>Deactivate</Button>}</>}/></CardContent></Card><UserDialog value={edit} close={()=>setEdit(undefined)} roles={roles.data??[]} locations={activeLocations} onSaved={()=>qc.invalidateQueries({queryKey:["settings","users"]})}/><LocationsDialog user={locationsFor} close={()=>setLocationsFor(null)} locations={activeLocations}/><ConfirmDialog open={!!deactivate} onOpenChange={o=>!o&&setDeactivate(null)} title="Deactivate employee?" description={`${deactivate?.fullName??"This employee"} will no longer be able to sign in.`} confirmLabel="Deactivate" onConfirm={()=>deactivate&&deactivateM.mutate(deactivate.id)} isPending={deactivateM.isPending}/></div>}

@@ -30,6 +30,7 @@ interface PublicInvoiceVerification {
   taxAmount: number;
   totalAmount: number;
   creditAppliedAmount: number;
+  returnedAmount: number;
   paidAmount: number;
   balanceAmount: number;
   paymentMethod: string;
@@ -68,12 +69,13 @@ function toDisplay(v: PublicInvoiceVerification, token: string): NormalizedInvoi
     customerGstin: v.customerGstin ?? undefined,
     locationName: v.storeName,
     locationGstin: v.storeGstin ?? undefined,
-    storeUpiId: v.storeUpiId ?? "fiyoraerp@upi",
+    storeUpiId: v.storeUpiId,
     verifyToken: token,
     subtotal: v.subtotal,
     taxAmount: v.taxAmount,
     totalAmount: v.totalAmount,
     creditAppliedAmount: v.creditAppliedAmount,
+    returnedAmount: v.returnedAmount,
     paidAmount: v.paidAmount,
     balanceAmount: v.balanceAmount,
     paymentMethod: v.paymentMethod,

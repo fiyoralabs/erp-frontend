@@ -16,6 +16,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -39,6 +40,7 @@ const itemKey = (p: number, v: number | null) => `${p}:${v ?? "base"}`;
 export function SalesClient() {
   const qc = useQueryClient();
   const [action, setAction] = React.useState<Action>(null);
+  const [returnPresetInvoiceId, setReturnPresetInvoiceId] = React.useState<number | null>(null);
   const [selectedCustomer, setSelectedCustomer] = React.useState<Customer | null>(null);
   const [detail, setDetail] = React.useState<SalesInvoice | SalesReturn | null>(null);
   const [ledgerCustomer, setLedgerCustomer] = React.useState<Customer | null>(null);
@@ -310,12 +312,22 @@ export function SalesClient() {
                   <div key={x.id} className="p-4 border rounded-2xl bg-card space-y-3 shadow-xs min-w-0">
                     <div className="flex items-center justify-between gap-2 min-w-0">
                       <span className="font-medium break-all">{x.invoiceNumber}</span>
-                      <Status value={x.status} />
+                      <div className="flex items-center gap-1.5 shrink-0">
+                        {x.returnedAmount > 0 && (
+                          <Badge variant="outline" className="gap-1 text-amber-700 border-amber-300 dark:text-amber-400 dark:border-amber-500/40">
+                            <RotateCcw className="h-3 w-3" /> Returned
+                          </Badge>
+                        )}
+                        <Status value={x.status} />
+                      </div>
                     </div>
 
                     <div className="space-y-1 bg-muted/20 p-3 rounded-xl border">
                       <div className="font-medium min-w-0 break-words">{custName}</div>
                       <div className="text-xs text-muted-foreground">Date: {x.invoiceDate}</div>
+                      {x.returnedAmount > 0 && (
+                        <div className="text-xs text-amber-700 dark:text-amber-400">Returned: {money.format(x.returnedAmount)}</div>
+                      )}
                     </div>
 
                     <div className="grid grid-cols-2 gap-2 p-3 bg-muted/20 rounded-xl border text-center">
@@ -329,9 +341,12 @@ export function SalesClient() {
                       </div>
                     </div>
 
-                    <div className="flex justify-end pt-1">
+                    <div className="flex justify-end gap-2 pt-1">
                       <Button size="sm" variant="outline" onClick={() => setDetail(x)}>
                         View
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => { setReturnPresetInvoiceId(x.id); setAction("return"); }}>
+                        <RotateCcw className="h-3.5 w-3.5" /> Return
                       </Button>
                     </div>
                   </div>
@@ -349,14 +364,33 @@ export function SalesClient() {
                   <TableCell>{x.invoiceDate}</TableCell>
                   <TableCell>{x.customerName ?? `Customer #${x.customerId}`}</TableCell>
                   <TableCell>
-                    <Status value={x.status} />
+                    <div className="flex items-center gap-1.5">
+                      <Status value={x.status} />
+                      {x.returnedAmount > 0 && (
+                        <Badge variant="outline" className="gap-1 text-amber-700 border-amber-300 dark:text-amber-400 dark:border-amber-500/40">
+                          <RotateCcw className="h-3 w-3" /> Returned
+                        </Badge>
+                      )}
+                    </div>
                   </TableCell>
                   <TableCell>{money.format(x.totalAmount)}</TableCell>
-                  <TableCell className="font-medium">{money.format(x.balanceAmount)}</TableCell>
+                  <TableCell className="font-medium">
+                    {money.format(x.balanceAmount)}
+                    {x.returnedAmount > 0 && (
+                      <span className="block text-xs font-normal text-amber-700 dark:text-amber-400">
+                        -{money.format(x.returnedAmount)} returned
+                      </span>
+                    )}
+                  </TableCell>
                   <TableCell>
-                    <Button size="sm" variant="outline" onClick={() => setDetail(x)}>
-                      View
-                    </Button>
+                    <div className="flex gap-2">
+                      <Button size="sm" variant="outline" onClick={() => setDetail(x)}>
+                        View
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => { setReturnPresetInvoiceId(x.id); setAction("return"); }}>
+                        <RotateCcw className="h-3.5 w-3.5" /> Return
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -480,7 +514,7 @@ export function SalesClient() {
           title="Sales returns"
           desc="Return quantities are validated against the invoice and tracked goods are added back to Inventory."
           action={
-            <Button variant="outline" onClick={() => setAction("return")}>
+            <Button variant="outline" onClick={() => { setReturnPresetInvoiceId(null); setAction("return"); }}>
               <RotateCcw />
               New return
             </Button>
@@ -642,11 +676,12 @@ export function SalesClient() {
       />
       <ReturnDialog
         open={action === "return"}
-        invoices={inv}
-        close={() => setAction(null)}
+        presetInvoiceId={returnPresetInvoiceId}
+        close={() => { setAction(null); setReturnPresetInvoiceId(null); }}
         saved={async () => {
           await refresh();
           setAction(null);
+          setReturnPresetInvoiceId(null);
         }}
       />
       <DetailDialog value={detail} customer={detail ? c.find((x) => x.id === detail.customerId) : undefined} close={() => setDetail(null)} />
@@ -896,7 +931,7 @@ function CustomerDialog({
               <Input required value={form.name} onChange={(e) => set("name", e.target.value)} />
             </Field>
             <Field label="Phone">
-              <Input value={form.phone} onChange={(e) => set("phone", e.target.value)} />
+              <PhoneInput value={form.phone} onChange={(v) => set("phone", v)} />
             </Field>
             <Field label="Email">
               <Input type="email" value={form.email} onChange={(e) => set("email", e.target.value)} />
@@ -1132,30 +1167,74 @@ function PaymentDialog({
   );
 }
 
+// A shop can have thousands of invoices, so this never dumps them into a dropdown -- either
+// the invoice is already known (opened via the "Return" button on a specific invoice row, see
+// presetInvoiceId) or the cashier searches for it by customer (phone/name/code) and/or invoice
+// date, and picks from a small server-filtered result list.
 function ReturnDialog({
   open,
-  invoices,
+  presetInvoiceId,
   close,
   saved,
 }: {
   open: boolean;
-  invoices: SalesInvoice[];
+  presetInvoiceId: number | null;
   close: () => void;
   saved: () => Promise<void>;
 }) {
-  const [invoiceId, setInvoiceId] = React.useState("");
+  const [manualInvoice, setManualInvoice] = React.useState<SalesInvoice | null>(null);
+  const [searchCustomerId, setSearchCustomerId] = React.useState<number | null>(null);
+  const [searchCustomerName, setSearchCustomerName] = React.useState("");
+  const [searchDateFrom, setSearchDateFrom] = React.useState("");
+  const [searchDateTo, setSearchDateTo] = React.useState("");
   const [lineId, setLineId] = React.useState("");
   const [quantity, setQuantity] = React.useState("");
   const [date, setDate] = React.useState(today());
   const [reason, setReason] = React.useState("");
 
-  const invoice = invoices.find((x) => x.id === Number(invoiceId));
-  React.useEffect(() => setLineId(""), [invoiceId]);
+  // Reset everything each time the dialog opens (it stays mounted between opens, only the
+  // Dialog's own visibility toggles, so state needs an explicit reset rather than relying on
+  // unmount). presetInvoiceId's own fetched invoice is derived below, not copied into state.
+  React.useEffect(() => {
+    if (!open) return;
+    setManualInvoice(null);
+    setSearchCustomerId(null);
+    setSearchCustomerName("");
+    setSearchDateFrom("");
+    setSearchDateTo("");
+    setLineId("");
+    setQuantity("");
+    setDate(today());
+    setReason("");
+  }, [open, presetInvoiceId]);
+
+  const presetQuery = useQuery({
+    queryKey: ["sales", "returns", "preset-invoice", presetInvoiceId],
+    queryFn: () => apiClient.get<SalesInvoice>(`sales/invoices/${presetInvoiceId}`),
+    enabled: open && presetInvoiceId != null,
+  });
+  // Preset mode derives straight from the fetch (no "Change" option, so no local copy needed);
+  // search mode is purely whatever the cashier explicitly picked from the result list.
+  const selectedInvoice = presetInvoiceId != null ? (presetQuery.data ?? null) : manualInvoice;
+
+  const searchEnabled = open && presetInvoiceId == null && (searchCustomerId != null || !!searchDateFrom || !!searchDateTo);
+  const searchQuery = useQuery({
+    queryKey: ["sales", "returns", "invoice-search", searchCustomerId, searchDateFrom, searchDateTo],
+    queryFn: () => {
+      const params = new URLSearchParams({ page: "0", size: "10" });
+      if (searchCustomerId) params.set("customerId", String(searchCustomerId));
+      if (searchDateFrom) params.set("from", searchDateFrom);
+      if (searchDateTo) params.set("to", searchDateTo || searchDateFrom);
+      return apiClient.get<PagedResult<SalesInvoice>>(`sales/invoices?${params.toString()}`);
+    },
+    enabled: searchEnabled,
+  });
+  const searchResults = searchQuery.data?.content ?? [];
 
   const mutation = useMutation({
     mutationFn: () =>
       apiClient.post("sales/returns", {
-        invoiceId: Number(invoiceId),
+        invoiceId: selectedInvoice!.id,
         returnDate: date,
         reason,
         lines: [{ invoiceItemId: Number(lineId), quantity: Number(quantity), reason }],
@@ -1170,32 +1249,102 @@ function ReturnDialog({
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) close(); }}>
       <DialogContent className="w-[95vw] sm:max-w-xl max-h-[92vh] overflow-y-auto p-4 sm:p-6 border shadow-2xl rounded-2xl">
-        <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }}>
-          <DialogHeader>
-            <DialogTitle>Post sales return</DialogTitle>
-            <DialogDescription>Select the exact invoice line. The backend prevents returning more than was sold and restores its product variant.</DialogDescription>
-          </DialogHeader>
+        <DialogHeader>
+          <DialogTitle>Post sales return</DialogTitle>
+          <DialogDescription>
+            {selectedInvoice
+              ? "Select the exact invoice line. The backend prevents returning more than was sold and restores its product variant."
+              : "Find the invoice by customer (name, code or phone) and/or invoice date."}
+          </DialogDescription>
+        </DialogHeader>
 
-          <div className="my-5 grid gap-4 sm:grid-cols-2">
-            <Field label="Invoice">
-              <Picker value={invoiceId} set={setInvoiceId} items={invoices.map((x) => [String(x.id), x.invoiceNumber])} />
-            </Field>
-            <Field label="Invoice line">
-              <Picker value={lineId} set={setLineId} items={(invoice?.lines ?? []).map((x) => [String(x.id), `${x.productName} ${x.variantName ?? ""} — sold ${x.quantity}`])} />
-            </Field>
-            <Field label="Return quantity">
-              <Input required type="number" min=".001" step=".001" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
-            </Field>
-            <Field label="Return date">
-              <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
-            </Field>
-            <Field label="Reason" className="sm:col-span-2">
-              <Textarea required value={reason} onChange={(e) => setReason(e.target.value)} />
-            </Field>
+        {!selectedInvoice ? (
+          <div className="my-5 space-y-4">
+            <div className="grid gap-4 sm:grid-cols-3">
+              <Field label="Customer" className="sm:col-span-1">
+                <CustomerPicker
+                  value={searchCustomerId}
+                  label={searchCustomerName}
+                  onChange={(id, name) => { setSearchCustomerId(id); setSearchCustomerName(name); }}
+                />
+              </Field>
+              <Field label="From date">
+                <Input type="date" value={searchDateFrom} onChange={(e) => setSearchDateFrom(e.target.value)} />
+              </Field>
+              <Field label="To date">
+                <Input type="date" value={searchDateTo} onChange={(e) => setSearchDateTo(e.target.value)} />
+              </Field>
+            </div>
+
+            <div className="rounded-xl border divide-y max-h-72 overflow-y-auto">
+              {!searchEnabled ? (
+                <p className="p-4 text-center text-sm text-muted-foreground">Pick a customer and/or a date to find their invoice.</p>
+              ) : searchQuery.isLoading ? (
+                <p className="p-4 text-center text-sm text-muted-foreground">Searching…</p>
+              ) : searchResults.length === 0 ? (
+                <p className="p-4 text-center text-sm text-muted-foreground">No invoices found.</p>
+              ) : (
+                searchResults.map((inv2) => (
+                  <button
+                    key={inv2.id}
+                    type="button"
+                    className="flex w-full items-center justify-between gap-3 p-3 text-left text-sm hover:bg-muted"
+                    onClick={() => { setManualInvoice(inv2); setLineId(""); }}
+                  >
+                    <div className="min-w-0">
+                      <div className="font-medium">{inv2.invoiceNumber}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {inv2.invoiceDate} · {inv2.customerName ?? `Customer #${inv2.customerId}`}
+                      </div>
+                    </div>
+                    <div className="font-mono text-xs shrink-0">{money.format(inv2.totalAmount)}</div>
+                  </button>
+                ))
+              )}
+            </div>
+
+            <DialogFooter>
+              <Button variant="outline" onClick={close}>
+                Cancel
+              </Button>
+            </DialogFooter>
           </div>
+        ) : (
+          <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }}>
+            <div className="my-5 space-y-4">
+              <div className="flex items-center justify-between rounded-xl border bg-muted/30 p-3 text-sm">
+                <div>
+                  <div className="font-medium">{selectedInvoice.invoiceNumber}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {selectedInvoice.invoiceDate} · {selectedInvoice.customerName ?? `Customer #${selectedInvoice.customerId}`}
+                  </div>
+                </div>
+                {presetInvoiceId == null && (
+                  <Button type="button" size="sm" variant="ghost" onClick={() => { setManualInvoice(null); setLineId(""); }}>
+                    Change
+                  </Button>
+                )}
+              </div>
 
-          <Footer busy={mutation.isPending} close={close} label="Post return" />
-        </form>
+              <div className="grid gap-4 sm:grid-cols-2">
+                <Field label="Invoice line">
+                  <Picker value={lineId} set={setLineId} items={(selectedInvoice.lines ?? []).map((x) => [String(x.id), `${x.productName} ${x.variantName ?? ""} — sold ${x.quantity}`])} />
+                </Field>
+                <Field label="Return quantity">
+                  <Input required type="number" min=".001" step=".001" value={quantity} onChange={(e) => setQuantity(e.target.value)} />
+                </Field>
+                <Field label="Return date">
+                  <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
+                </Field>
+                <Field label="Reason" className="sm:col-span-2">
+                  <Textarea required value={reason} onChange={(e) => setReason(e.target.value)} />
+                </Field>
+              </div>
+            </div>
+
+            <Footer busy={mutation.isPending} close={close} label="Post return" />
+          </form>
+        )}
       </DialogContent>
     </Dialog>
   );

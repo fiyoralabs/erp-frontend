@@ -64,6 +64,7 @@ const emptyValues: LocationFormValues = {
   country: "",
   postalCode: "",
   gstin: "",
+  upiId: "",
   isDefault: false,
   priceLists: [],
 };
@@ -158,6 +159,7 @@ export default function LocationsPage() {
         country: row.country ?? "",
         postalCode: row.postalCode ?? "",
         gstin: row.gstin ?? "",
+        upiId: row.upiId ?? "",
         isDefault: row.isDefault,
         isActive: row.isActive,
         priceLists: undefined,
@@ -590,6 +592,24 @@ export default function LocationsPage() {
                       </FormControl>
                       <p className="text-xs text-muted-foreground">
                         Printed on this store&apos;s sales invoices.
+                      </p>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+                <FormField
+                  control={form.control}
+                  name="upiId"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>UPI ID</FormLabel>
+                      <FormControl>
+                        <Input placeholder="shopname@okhdfcbank" {...field} value={field.value ?? ""} />
+                      </FormControl>
+                      <p className="text-xs text-muted-foreground">
+                        Encoded into the payment QR on this store&apos;s receipts. Leave blank to
+                        use the company&apos;s UPI ID instead (Settings &rarr; Company); if neither
+                        is set, no QR is shown.
                       </p>
                       <FormMessage />
                     </FormItem>

@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { UserCircle, Users, ShieldCheck, KeyRound, Monitor } from "lucide-react";
+import { UserCircle, Users, ShieldCheck, KeyRound, Monitor, Building2 } from "lucide-react";
 import { Card, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { getCurrentPermissions } from "@/lib/authorization";
@@ -45,6 +45,14 @@ const sections = [
     description: "Active logins and devices",
     implemented: true,
     requiredPermissions: ["SESSION_VIEW"],
+  },
+  {
+    title: "Company",
+    href: "/settings/company",
+    icon: Building2,
+    description: "Company-wide profile settings",
+    implemented: true,
+    requiredPermissions: ["MASTER_VIEW"],
   },
 ];
 

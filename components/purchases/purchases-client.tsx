@@ -914,7 +914,7 @@ function ActionDialog({
   }, [action, suppliers, orders, receipts, invoices]);
 
   const mutSupplier = useMutation({
-    mutationFn: () => apiClient.post<Supplier>("purchases/suppliers", { code, name, contactPerson: contact || null, phone: phone || null, email: email || null, gstin: gstin || null }),
+    mutationFn: () => apiClient.post<Supplier>("suppliers", { code, name, contactPerson: contact || null, phone: phone || null, email: email || null, gstNumber: gstin || null }),
     onSuccess: async () => {
       toast.success("Supplier created");
       await saved();
@@ -1112,7 +1112,7 @@ function DetailDialog({
                 {supplierObj?.contactPerson && <div><span className="text-muted-foreground">Contact: </span><strong>{supplierObj.contactPerson}</strong></div>}
                 {supplierObj?.phone && <div><span className="text-muted-foreground">Phone: </span><strong>{supplierObj.phone}</strong></div>}
                 {supplierObj?.email && <div className="break-all"><span className="text-muted-foreground">Email: </span><strong>{supplierObj.email}</strong></div>}
-                {supplierObj?.gstin && <div><span className="text-muted-foreground">GSTIN: </span><strong className="font-mono">{supplierObj.gstin}</strong></div>}
+                {supplierObj?.gstNumber && <div><span className="text-muted-foreground">GSTIN: </span><strong className="font-mono">{supplierObj.gstNumber}</strong></div>}
               </div>
             </div>
 

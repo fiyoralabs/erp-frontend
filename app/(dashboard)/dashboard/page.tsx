@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { ArrowDownToLine, ArrowRight, ArrowUpFromLine, IndianRupee, ShoppingCart, Wallet } from "lucide-react";
+import { ArrowDownToLine, ArrowRight, ArrowUpFromLine, IndianRupee, RotateCcw, ShoppingCart, Wallet } from "lucide-react";
 import { serverApiGet } from "@/lib/server-api";
 import type {
   DashboardOverview,
@@ -99,6 +99,13 @@ export default async function DashboardPage({
             value={formatCurrency(overview.salesTotal)}
             tone="success"
             icon={IndianRupee}
+            href="/sales"
+          />
+          <StatTile
+            label="Returns"
+            value={formatCurrency(overview.salesReturns)}
+            tone="danger"
+            icon={RotateCcw}
             href="/sales"
           />
           <StatTile
