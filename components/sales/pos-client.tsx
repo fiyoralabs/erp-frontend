@@ -40,6 +40,7 @@ import { Button } from "@/components/ui/button";
 import { SalesInvoiceDialog } from "@/components/sales/sales-invoice-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { PhoneInput } from "@/components/ui/phone-input";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -183,6 +184,9 @@ export function POSClient() {
   const [mobileCartOpen, setMobileCartOpen] = React.useState(false);
   const [isCameraScannerOpen, setIsCameraScannerOpen] = React.useState(false);
   const [isPaymentOpen, setIsPaymentOpen] = React.useState(false);
+  // No customer selected doesn't block checkout -- posts as a walk-in sale server-side -- but
+  // the cashier gets one confirmation before it does, so it's a deliberate choice, not a miss.
+  const [walkInConfirmOpen, setWalkInConfirmOpen] = React.useState(false);
   const [paymentMethod, setPaymentMethod] = React.useState<"CASH" | "UPI" | "CARD" | "NETBANKING">("UPI");
   const [tenderedCash, setTenderedCash] = React.useState("");
   const [discountInput, setDiscountInput] = React.useState("");
@@ -822,7 +826,9 @@ export function POSClient() {
   const postInvoiceMutation = useMutation({
     mutationFn: async () => {
       if (!activeLocation) throw new Error("No active store location selected");
-      if (!selectedCustomer) throw new Error("Please select or add a customer before checkout");
+      // No customer selected is allowed -- posts as a walk-in sale (the cashier already saw a
+      // confirmation before reaching here); the backend resolves a shared per-company "Walk-in
+      // Customer" record when customerId is null, same as omitting it would.
       if (cart.length === 0) throw new Error("Cart is empty");
       if (discountAmount > DISCOUNT_SELF_SERVICE_LIMIT && !canOverrideDiscount) {
         throw new Error(`Discounts above ₹${DISCOUNT_SELF_SERVICE_LIMIT} require Admin, Owner, or Manager approval`);
@@ -834,7 +840,7 @@ export function POSClient() {
       const linesDiscountPct = cartSubtotal > 0 ? (discountAmount / cartSubtotal) * 100 : 0;
 
       const payload = {
-        customerId: selectedCustomer.id,
+        customerId: selectedCustomer?.id ?? null,
         locationId: activeLocation.id,
         invoiceDate,
         dueDate: invoiceDate,
@@ -862,6 +868,7 @@ export function POSClient() {
         balanceAmount: number;
         status: string;
         verifyToken?: string | null;
+        storeUpiId?: string | null;
         lines: Array<{
           productName: string;
           variantName?: string | null;
@@ -944,9 +951,9 @@ export function POSClient() {
         id: invoice.id,
         invoiceNumber: invoice.invoiceNumber,
         invoiceDate: invoice.invoiceDate,
-        customerName: selectedCustomer.name,
-        customerPhone: selectedCustomer.phone ?? undefined,
-        customerGstin: selectedCustomer.gstin ?? undefined,
+        customerName: selectedCustomer?.name ?? "Walk-in Customer",
+        customerPhone: selectedCustomer?.phone ?? undefined,
+        customerGstin: selectedCustomer?.gstin ?? undefined,
         subtotal: invoice.subtotal,
         taxAmount: invoice.taxAmount,
         totalAmount: invoice.totalAmount,
@@ -959,7 +966,10 @@ export function POSClient() {
         paymentMethod,
         status: status ?? invoice.status,
         locationName: activeLocation.name,
-        locationUpiId: activeLocation.upiId ?? undefined,
+        // Backend-resolved (location UPI ID, falling back to the company's) -- not read
+        // directly from activeLocation, so it stays correct even when the location has none
+        // of its own configured.
+        locationUpiId: invoice.storeUpiId ?? undefined,
         locationGstin: activeLocation.gstin ?? undefined,
         lines: invoice.lines.map((line) => ({
           productName: line.productName,
@@ -1277,16 +1287,17 @@ export function POSClient() {
 
         <Button
           onClick={() => {
-            if (!selectedCustomer) {
-              toast.error("Please select or add a customer first");
-              return;
-            }
             if (cart.length === 0) {
               toast.error("Cart is empty");
               return;
             }
             if (discountAmount > DISCOUNT_SELF_SERVICE_LIMIT && !canOverrideDiscount) {
               toast.error(`Discounts above ₹${DISCOUNT_SELF_SERVICE_LIMIT} require Admin, Owner, or Manager approval`);
+              return;
+            }
+            if (!selectedCustomer) {
+              setMobileCartOpen(false);
+              setWalkInConfirmOpen(true);
               return;
             }
             setTenderedCash("");
@@ -1614,7 +1625,7 @@ export function POSClient() {
               className="h-9 px-3 text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white gap-1 shadow-md"
               onClick={() => {
                 if (!selectedCustomer) {
-                  toast.error("Please select or add a customer first");
+                  setWalkInConfirmOpen(true);
                   return;
                 }
                 setTenderedCash("");
@@ -1666,13 +1677,7 @@ export function POSClient() {
             </div>
             <div className="space-y-1">
               <Label htmlFor="cphone" className="text-xs">Phone Number *</Label>
-              <Input
-                id="cphone"
-                placeholder="+91 98765 43210"
-                value={newCustPhone}
-                onChange={(e) => setNewCustPhone(e.target.value)}
-                className="text-xs"
-              />
+              <PhoneInput id="cphone" value={newCustPhone} onChange={setNewCustPhone} />
             </div>
             <div className="space-y-1">
               <Label htmlFor="cemail" className="text-xs">Email Address (Optional)</Label>
@@ -1891,6 +1896,37 @@ export function POSClient() {
               }}
             >
               Add anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Walk-in Sale Confirmation -- no customer selected; the sale still posts, just as a
+          walk-in, once the cashier explicitly confirms that's intended. */}
+      <Dialog open={walkInConfirmOpen} onOpenChange={setWalkInConfirmOpen}>
+        <DialogContent className="sm:max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="text-base font-bold flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-amber-500" /> No customer selected
+            </DialogTitle>
+            <DialogDescription className="text-xs">
+              This sale will be recorded as a walk-in sale with no customer attached. You can still
+              add a customer later from the invoice if needed.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" size="sm" onClick={() => setWalkInConfirmOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              size="sm"
+              onClick={() => {
+                setWalkInConfirmOpen(false);
+                setTenderedCash("");
+                setIsPaymentOpen(true);
+              }}
+            >
+              Continue as walk-in
             </Button>
           </DialogFooter>
         </DialogContent>

@@ -49,7 +49,10 @@ export function SalesInvoiceDialog({ open, invoice, customer, location, onClose 
 
   return (
     <Dialog open={open} onOpenChange={(v) => { if (!v) onClose(); }}>
-      <DialogContent className="w-[95vw] sm:max-w-3xl max-h-[92vh] overflow-y-auto p-0 border-none bg-transparent shadow-2xl">
+      <DialogContent
+        showCloseButton={false}
+        className="w-[95vw] sm:max-w-3xl max-h-[92vh] overflow-y-auto p-0 border-none bg-transparent shadow-2xl"
+      >
         <div className="bg-card border rounded-2xl overflow-hidden shadow-2xl text-foreground">
           {/* Top Invoice Actions Toolbar */}
           <div className="p-3 sm:p-4 border-b bg-muted/40 flex flex-col gap-2.5 sm:flex-row sm:items-center sm:justify-between">

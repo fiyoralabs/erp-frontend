@@ -9,7 +9,8 @@
 export interface DashboardOverview {
   from: string;
   to: string;
-  salesTotal: number;
+  salesTotal: number; // net of returns for the period
+  salesReturns: number;
   purchaseTotal: number;
   expenseTotal: number;
   outstandingReceivables: number;

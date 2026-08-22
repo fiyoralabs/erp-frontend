@@ -5,7 +5,7 @@ export interface Supplier {
   contactPerson?: string | null;
   phone?: string | null;
   email?: string | null;
-  gstin?: string | null;
+  gstNumber?: string | null;
   address?: string | null;
   outstandingBalance: number;
   isActive: boolean;

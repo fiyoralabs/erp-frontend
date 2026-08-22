@@ -2,12 +2,13 @@
 
 import * as React from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { FilePlus2, Loader2, Paperclip, Plus, Search, Tags } from "lucide-react";
+import { FilePlus2, Loader2, Pause, Paperclip, Play, Plus, Repeat, Search, Tags } from "lucide-react";
 import { toast } from "sonner";
 import { apiClient, ApiRequestError, type PagedResult } from "@/lib/api-client";
 import { localDateInputValue } from "@/lib/date";
 import type { Location, PaymentMethod } from "@/lib/types/master";
-import type { Expense, ExpenseCategory } from "@/lib/types/expense";
+import type { DayOfWeekName, Expense, ExpenseCategory, RecurringExpenseFrequency, RecurringExpenseTemplate } from "@/lib/types/expense";
+import { recurringExpenseTemplateSchema } from "@/lib/validation/expense";
 import { usePaymentMethodsLookup } from "@/lib/hooks/use-master-data";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,19 @@ const today = localDateInputValue;
 const money = new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" });
 const errorMessage = (e: unknown) => (e instanceof ApiRequestError || e instanceof Error ? e.message : "Something went wrong");
 
+const WEEKDAYS: DayOfWeekName[] = ["MONDAY", "TUESDAY", "WEDNESDAY", "THURSDAY", "FRIDAY", "SATURDAY", "SUNDAY"];
+const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
+const titleCase = (s: string) => s.charAt(0) + s.slice(1).toLowerCase();
+
+function frequencyLabel(t: RecurringExpenseTemplate): string {
+  switch (t.frequency) {
+    case "DAILY": return "Daily";
+    case "WEEKLY": return `Weekly · ${t.dayOfWeek ? titleCase(t.dayOfWeek) : "—"}`;
+    case "MONTHLY": return `Monthly · day ${t.dayOfMonth ?? "—"}`;
+    case "YEARLY": return `Yearly · ${MONTHS[(t.monthOfYear ?? 1) - 1]} ${t.dayOfMonth ?? "—"}`;
+  }
+}
+
 export function ExpensesClient() {
   const qc = useQueryClient();
   const [categoryDialog, setCategoryDialog] = React.useState(false);
@@ -31,6 +45,8 @@ export function ExpensesClient() {
   const [expenseDialog, setExpenseDialog] = React.useState(false);
   const [detailId, setDetailId] = React.useState<number | null>(null);
   const [attachmentExpense, setAttachmentExpense] = React.useState<Expense | null>(null);
+  const [recurringDialog, setRecurringDialog] = React.useState(false);
+  const [editRecurring, setEditRecurring] = React.useState<RecurringExpenseTemplate | null>(null);
 
   // Filter State
   const [searchQuery, setSearchQuery] = React.useState("");
@@ -68,10 +84,15 @@ export function ExpensesClient() {
     queryFn: () => apiClient.get<Expense>(`expenses/${detailId}`),
     enabled: detailId !== null,
   });
+  const recurring = useQuery({
+    queryKey: ["expense", "recurring"],
+    queryFn: () => apiClient.get<PagedResult<RecurringExpenseTemplate>>("expenses/recurring?page=0&size=100"),
+  });
 
   const cats = (categories.data?.content ?? []).filter((x) => x.active);
   const rows = expenses.data?.content ?? [];
   const locs = (locations.data?.content ?? []).filter((x) => x.isActive);
+  const recurringRows = recurring.data?.content ?? [];
 
   // Filter expenses by search query (expense number, vendor name, or invoice number)
   const filteredRows = React.useMemo(() => {
@@ -95,6 +116,16 @@ export function ExpensesClient() {
       qc.invalidateQueries({ queryKey: ["expense", "categories"] }),
     ]);
 
+  const pauseResume = useMutation({
+    mutationFn: (t: RecurringExpenseTemplate) =>
+      apiClient.post(`expenses/recurring/${t.id}/${t.status === "ACTIVE" ? "pause" : "resume"}`, {}),
+    onSuccess: async (_data, t) => {
+      toast.success(t.status === "ACTIVE" ? "Paused -- no further expenses will post until resumed" : "Resumed");
+      await qc.invalidateQueries({ queryKey: ["expense", "recurring"] });
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+
   return (
     <div className="flex flex-col gap-5 w-full max-w-full">
       {/* Header & Main Actions */}
@@ -116,6 +147,16 @@ export function ExpensesClient() {
           >
             <Tags /> New category
           </Button>
+          <Button
+            variant="outline"
+            className="w-full sm:w-auto"
+            onClick={() => {
+              setEditRecurring(null);
+              setRecurringDialog(true);
+            }}
+          >
+            <Repeat /> New recurring expense
+          </Button>
           <Button onClick={() => setExpenseDialog(true)} className="w-full sm:w-auto bg-[#0F3D3E] text-white hover:bg-[#0c3132]">
             <Plus /> Post expense
           </Button>
@@ -134,6 +175,7 @@ export function ExpensesClient() {
         <div className="border-b overflow-x-auto scrollbar-none">
           <TabsList className="flex h-auto flex-wrap w-max sm:w-auto">
             <TabsTrigger value="expenses">Expense register</TabsTrigger>
+            <TabsTrigger value="recurring">Recurring</TabsTrigger>
             <TabsTrigger value="categories">Categories</TabsTrigger>
           </TabsList>
         </div>
@@ -193,13 +235,7 @@ export function ExpensesClient() {
                             <span className="font-medium break-all">{x.expenseNumber}</span>
                             <span className="block text-xs text-muted-foreground">{x.invoiceNumber ?? "No vendor invoice"}</span>
                           </div>
-                          {x.source === "INVENTORY_LOSS" ? (
-                            <Badge variant="destructive">Inventory loss</Badge>
-                          ) : (
-                            <Badge variant="secondary" className="bg-emerald-50 text-emerald-800 border-emerald-200">
-                              {x.vendorName ?? "Manual expense"}
-                            </Badge>
-                          )}
+                          <SourceBadge x={x} />
                         </div>
 
                         <div className="space-y-1 bg-muted/20 p-3 rounded-xl border">
@@ -248,11 +284,7 @@ export function ExpensesClient() {
                       <TableCell>{cats.find((c) => c.id === x.expenseCategoryId)?.name ?? `Category #${x.expenseCategoryId}`}</TableCell>
                       <TableCell>{locs.find((l) => l.id === x.locationId)?.name ?? `Location #${x.locationId}`}</TableCell>
                       <TableCell>
-                        {x.source === "INVENTORY_LOSS" ? (
-                          <Badge variant="destructive">Inventory loss</Badge>
-                        ) : (
-                          x.vendorName ?? "Manual expense"
-                        )}
+                        <SourceBadge x={x} />
                       </TableCell>
                       <TableCell>{x.paymentMethodName ?? "Accounts payable"}</TableCell>
                       <TableCell className="font-medium">{money.format(x.amount)}</TableCell>
@@ -268,6 +300,104 @@ export function ExpensesClient() {
                       </TableCell>
                     </TableRow>
                   ))}
+                </Grid>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* --- RECURRING TAB --- */}
+        <TabsContent value="recurring" className="mt-4">
+          <Card className="shadow-xs border-slate-200/80">
+            <CardHeader>
+              <CardTitle>Recurring expenses</CardTitle>
+              <CardDescription>
+                Rent, wages, and other schedules that post automatically. Editing or pausing one only changes what happens from
+                here on -- expenses already posted stay exactly as they were.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {/* Mobile Cards (<md) */}
+              <div className="md:hidden space-y-3">
+                {recurringRows.length === 0 ? (
+                  <div className="py-8 text-center text-sm text-muted-foreground border rounded-xl bg-muted/10 p-4">
+                    No recurring expenses set up yet.
+                  </div>
+                ) : (
+                  recurringRows.map((t) => {
+                    const catName = cats.find((c) => c.id === t.expenseCategoryId)?.name ?? `Category #${t.expenseCategoryId}`;
+                    const locName = locs.find((l) => l.id === t.locationId)?.name ?? `Location #${t.locationId}`;
+                    return (
+                      <div key={t.id} className="p-4 border rounded-2xl bg-card space-y-3 shadow-xs">
+                        <div className="flex items-center justify-between gap-2">
+                          <span className="font-medium break-words">{t.name}</span>
+                          <Badge
+                            variant="secondary"
+                            className={t.status === "ACTIVE" ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-amber-50 text-amber-800 border-amber-200"}
+                          >
+                            {t.status === "ACTIVE" ? "Active" : "Paused"}
+                          </Badge>
+                        </div>
+                        <div className="space-y-1 bg-muted/20 p-3 rounded-xl border text-xs text-muted-foreground">
+                          <div>Category: <strong className="font-medium text-foreground">{catName}</strong></div>
+                          <div>Location: <strong className="font-medium text-foreground">{locName}</strong></div>
+                          <div>Schedule: <strong className="font-medium text-foreground">{frequencyLabel(t)}</strong></div>
+                          <div>Next: <strong className="font-medium text-foreground">{t.status === "ACTIVE" ? t.nextRunDate : "—"}</strong></div>
+                        </div>
+                        <div className="flex items-center justify-between pt-1 border-t">
+                          <span className="font-medium">{money.format(t.amount)}</span>
+                          <div className="flex gap-1.5">
+                            <Button size="sm" variant="outline" onClick={() => { setEditRecurring(t); setRecurringDialog(true); }}>
+                              Edit
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => pauseResume.mutate(t)} disabled={pauseResume.isPending}>
+                              {t.status === "ACTIVE" ? <Pause className="h-3.5 w-3.5" /> : <Play className="h-3.5 w-3.5" />}
+                              {t.status === "ACTIVE" ? "Pause" : "Resume"}
+                            </Button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+
+              {/* Desktop Table (≥md) */}
+              <div className="hidden md:block">
+                <Grid heads={["Name", "Category", "Location", "Schedule", "Next", "Amount", "Status", "Actions"]}>
+                  {recurringRows.map((t) => {
+                    const catName = cats.find((c) => c.id === t.expenseCategoryId)?.name ?? `Category #${t.expenseCategoryId}`;
+                    const locName = locs.find((l) => l.id === t.locationId)?.name ?? `Location #${t.locationId}`;
+                    return (
+                      <TableRow key={t.id}>
+                        <TableCell className="font-medium">{t.name}</TableCell>
+                        <TableCell>{catName}</TableCell>
+                        <TableCell>{locName}</TableCell>
+                        <TableCell>{frequencyLabel(t)}</TableCell>
+                        <TableCell>{t.status === "ACTIVE" ? t.nextRunDate : "—"}</TableCell>
+                        <TableCell className="font-medium">{money.format(t.amount)}</TableCell>
+                        <TableCell>
+                          <Badge
+                            variant="secondary"
+                            className={t.status === "ACTIVE" ? "bg-emerald-50 text-emerald-800 border-emerald-200" : "bg-amber-50 text-amber-800 border-amber-200"}
+                          >
+                            {t.status === "ACTIVE" ? "Active" : "Paused"}
+                          </Badge>
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex gap-1">
+                            <Button size="sm" variant="outline" onClick={() => { setEditRecurring(t); setRecurringDialog(true); }}>
+                              Edit
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => pauseResume.mutate(t)} disabled={pauseResume.isPending}>
+                              {t.status === "ACTIVE" ? <Pause /> : <Play />}
+                              {t.status === "ACTIVE" ? "Pause" : "Resume"}
+                            </Button>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    );
+                  })}
                 </Grid>
               </div>
             </CardContent>
@@ -371,6 +501,18 @@ export function ExpensesClient() {
           setExpenseDialog(false);
         }}
       />
+      <RecurringDialog
+        open={recurringDialog}
+        value={editRecurring}
+        categories={cats}
+        locations={locs}
+        methods={(methods.data?.content ?? []).filter((x) => x.isActive)}
+        close={() => setRecurringDialog(false)}
+        saved={async () => {
+          await qc.invalidateQueries({ queryKey: ["expense", "recurring"] });
+          setRecurringDialog(false);
+        }}
+      />
       <AttachmentDialog
         expense={attachmentExpense}
         close={() => setAttachmentExpense(null)}
@@ -399,6 +541,22 @@ function Metric({ label, value, warn }: { label: string; value: string; warn?: b
         <p className={warn ? "text-2xl font-semibold text-amber-600" : "text-2xl font-semibold"}>{value}</p>
       </CardContent>
     </Card>
+  );
+}
+
+function SourceBadge({ x }: { x: Expense }) {
+  if (x.source === "INVENTORY_LOSS") return <Badge variant="destructive">Inventory loss</Badge>;
+  if (x.source === "RECURRING") {
+    return (
+      <Badge variant="secondary" className="bg-sky-50 text-sky-800 border-sky-200 gap-1">
+        <Repeat className="h-3 w-3" /> {x.vendorName ?? "Recurring"}
+      </Badge>
+    );
+  }
+  return (
+    <Badge variant="secondary" className="bg-emerald-50 text-emerald-800 border-emerald-200">
+      {x.vendorName ?? "Manual expense"}
+    </Badge>
   );
 }
 
@@ -631,6 +789,195 @@ function ExpenseDialog({
             </Button>
             <Button type="submit" disabled={mutation.isPending} className="bg-[#0F3D3E] text-white hover:bg-[#0c3132]">
               {mutation.isPending && <Loader2 className="animate-spin" />}Post expense
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+function RecurringDialog({
+  open,
+  value,
+  categories,
+  locations,
+  methods,
+  close,
+  saved,
+}: {
+  open: boolean;
+  value: RecurringExpenseTemplate | null;
+  categories: ExpenseCategory[];
+  locations: Location[];
+  methods: PaymentMethod[];
+  close: () => void;
+  saved: () => Promise<void>;
+}) {
+  const [category, setCategory] = React.useState("");
+  const [location, setLocation] = React.useState("");
+  const [name, setName] = React.useState("");
+  const [amount, setAmount] = React.useState("");
+  const [method, setMethod] = React.useState("payable");
+  const [vendor, setVendor] = React.useState("");
+  const [remarks, setRemarks] = React.useState("");
+  const [frequency, setFrequency] = React.useState<RecurringExpenseFrequency>("MONTHLY");
+  const [dayOfMonth, setDayOfMonth] = React.useState("1");
+  const [dayOfWeek, setDayOfWeek] = React.useState<DayOfWeekName>("MONDAY");
+  const [monthOfYear, setMonthOfYear] = React.useState("1");
+  const [startDate, setStartDate] = React.useState(today());
+  const [endDate, setEndDate] = React.useState("");
+
+  // Resets all fields the moment the dialog opens for a (possibly different) record --
+  // done during render, not in an effect, so it commits in the same pass instead of
+  // causing an extra render (see react-hooks/set-state-in-effect).
+  const openKey = open ? (value ? `edit-${value.id}` : "new") : null;
+  const [lastOpenKey, setLastOpenKey] = React.useState<string | null>(null);
+  if (openKey !== null && openKey !== lastOpenKey) {
+    setLastOpenKey(openKey);
+    setCategory(value ? String(value.expenseCategoryId) : "");
+    setLocation(value ? String(value.locationId) : "");
+    setName(value?.name ?? "");
+    setAmount(value ? String(value.amount) : "");
+    setMethod(value?.paymentMethodCode ?? "payable");
+    setVendor(value?.vendorName ?? "");
+    setRemarks(value?.remarks ?? "");
+    setFrequency(value?.frequency ?? "MONTHLY");
+    setDayOfMonth(value?.dayOfMonth ? String(value.dayOfMonth) : "1");
+    setDayOfWeek(value?.dayOfWeek ?? "MONDAY");
+    setMonthOfYear(value?.monthOfYear ? String(value.monthOfYear) : "1");
+    setStartDate(value?.startDate ?? today());
+    setEndDate(value?.endDate ?? "");
+  }
+
+  const showDayOfWeek = frequency === "WEEKLY";
+  const showMonthOfYear = frequency === "YEARLY";
+  const showDayOfMonth = frequency === "MONTHLY" || frequency === "YEARLY";
+
+  const mutation = useMutation({
+    mutationFn: () => {
+      const parsed = recurringExpenseTemplateSchema.safeParse({
+        expenseCategoryId: category ? Number(category) : undefined,
+        locationId: location ? Number(location) : undefined,
+        name,
+        amount: amount ? Number(amount) : undefined,
+        paymentMethodCode: method === "payable" ? "" : method,
+        vendorName: vendor,
+        remarks,
+        frequency,
+        dayOfMonth: showDayOfMonth ? Number(dayOfMonth) : null,
+        dayOfWeek: showDayOfWeek ? dayOfWeek : null,
+        monthOfYear: showMonthOfYear ? Number(monthOfYear) : null,
+        startDate,
+        endDate,
+      });
+      if (!parsed.success) {
+        throw new Error(parsed.error.issues[0]?.message ?? "Check the form for errors");
+      }
+      const p = parsed.data;
+      const payload = {
+        expenseCategoryId: p.expenseCategoryId,
+        locationId: p.locationId,
+        name: p.name,
+        amount: p.amount,
+        paymentMethodCode: p.paymentMethodCode || null,
+        vendorName: p.vendorName || null,
+        remarks: p.remarks || null,
+        frequency: p.frequency,
+        dayOfMonth: p.dayOfMonth ?? null,
+        dayOfWeek: p.dayOfWeek ?? null,
+        monthOfYear: p.monthOfYear ?? null,
+        endDate: p.endDate || null,
+      };
+      return value
+        ? apiClient.put<RecurringExpenseTemplate>(`expenses/recurring/${value.id}`, payload)
+        : apiClient.post<RecurringExpenseTemplate>("expenses/recurring", { ...payload, startDate: p.startDate });
+    },
+    onSuccess: async () => {
+      toast.success(value ? "Recurring expense updated" : "Recurring expense created");
+      await saved();
+    },
+    onError: (e) => toast.error(errorMessage(e)),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={(v) => { if (!v) close(); }}>
+      <DialogContent className="w-[95vw] sm:max-w-2xl max-h-[92vh] overflow-y-auto p-4 sm:p-6 border shadow-2xl rounded-2xl">
+        <form onSubmit={(e) => { e.preventDefault(); mutation.mutate(); }}>
+          <DialogHeader>
+            <DialogTitle>{value ? "Edit recurring expense" : "New recurring expense"}</DialogTitle>
+            <DialogDescription>
+              {value
+                ? "Changes apply from the next occurrence onward -- expenses already posted from this schedule are never changed."
+                : "Automatically posts a new expense on this schedule, e.g. monthly rent or weekly wages."}
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="my-5 grid gap-4 sm:grid-cols-2">
+            <Field label="Name" className="sm:col-span-2">
+              <Input required placeholder="e.g. Shop Rent" value={name} onChange={(e) => setName(e.target.value)} />
+            </Field>
+            <Field label="Category">
+              <Picker value={category} set={setCategory} items={categories.map((x) => [String(x.id), x.name])} />
+            </Field>
+            <Field label="Location">
+              <Picker value={location} set={setLocation} items={locations.map((x) => [String(x.id), x.name])} />
+            </Field>
+            <Field label="Amount">
+              <Input required type="number" min=".01" step=".01" value={amount} onChange={(e) => setAmount(e.target.value)} />
+            </Field>
+            <Field label="Settlement">
+              <Picker
+                value={method}
+                set={setMethod}
+                items={[["payable", "Accounts payable (unpaid)"], ...methods.map((x) => [x.code, x.name] as [string, string])]}
+              />
+            </Field>
+            <Field label="Vendor">
+              <Input value={vendor} onChange={(e) => setVendor(e.target.value)} />
+            </Field>
+            {!value && (
+              <Field label="Start date">
+                <Input required type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} />
+              </Field>
+            )}
+            <Field label="End date (optional)">
+              <Input type="date" value={endDate} onChange={(e) => setEndDate(e.target.value)} />
+            </Field>
+
+            <Field label="Frequency">
+              <Picker
+                value={frequency}
+                set={(v) => setFrequency(v as RecurringExpenseFrequency)}
+                items={[["DAILY", "Daily"], ["WEEKLY", "Weekly"], ["MONTHLY", "Monthly"], ["YEARLY", "Yearly"]]}
+              />
+            </Field>
+            {showDayOfWeek && (
+              <Field label="Day of week">
+                <Picker value={dayOfWeek} set={(v) => setDayOfWeek(v as DayOfWeekName)} items={WEEKDAYS.map((d) => [d, titleCase(d)])} />
+              </Field>
+            )}
+            {showMonthOfYear && (
+              <Field label="Month">
+                <Picker value={monthOfYear} set={setMonthOfYear} items={MONTHS.map((m, i) => [String(i + 1), m])} />
+              </Field>
+            )}
+            {showDayOfMonth && (
+              <Field label="Day of month">
+                <Input required type="number" min="1" max="31" value={dayOfMonth} onChange={(e) => setDayOfMonth(e.target.value)} />
+              </Field>
+            )}
+            <Field label="Remarks" className="sm:col-span-2">
+              <Textarea value={remarks} onChange={(e) => setRemarks(e.target.value)} />
+            </Field>
+          </div>
+
+          <DialogFooter className="flex flex-row items-center justify-end gap-2 pt-2">
+            <Button type="button" variant="outline" onClick={close}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={mutation.isPending} className="bg-[#0F3D3E] text-white hover:bg-[#0c3132]">
+              {mutation.isPending && <Loader2 className="animate-spin" />}Save
             </Button>
           </DialogFooter>
         </form>

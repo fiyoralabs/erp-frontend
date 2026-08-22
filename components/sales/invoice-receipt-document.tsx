@@ -59,12 +59,13 @@ export interface NormalizedInvoiceDisplay {
   customerGstin?: string;
   locationName: string;
   locationGstin?: string;
-  storeUpiId: string;
+  storeUpiId: string | null;
   verifyToken?: string;
   subtotal: number;
   taxAmount: number;
   totalAmount: number;
   creditAppliedAmount: number;
+  returnedAmount: number;
   paidAmount: number;
   balanceAmount: number;
   paymentMethod: string;
@@ -117,6 +118,7 @@ export function normalizeInvoiceForDisplay(
   const taxAmount = ("taxAmount" in invoice && typeof invoice.taxAmount === "number") ? invoice.taxAmount : 0;
   const totalAmount = invoice.totalAmount ?? 0;
   const creditAppliedAmount = ("creditAppliedAmount" in invoice && typeof invoice.creditAppliedAmount === "number") ? invoice.creditAppliedAmount : 0;
+  const returnedAmount = ("returnedAmount" in invoice && typeof invoice.returnedAmount === "number") ? invoice.returnedAmount : 0;
   const paidAmount = ("paidAmount" in invoice && typeof invoice.paidAmount === "number")
     ? invoice.paidAmount
     : ("payments" in invoice && Array.isArray((invoice as any).payments) && (invoice as any).payments.length > 0)
@@ -133,7 +135,13 @@ export function normalizeInvoiceForDisplay(
     ? (invoice as SalesInvoice).payments.map((p) => p.paymentMethodName || p.paymentMethodCode).join(", ")
     : "Cash / Direct";
 
-  const storeUpiId = ("locationUpiId" in invoice && invoice.locationUpiId) ? invoice.locationUpiId : location?.upiId ?? "fiyoraerp@upi";
+  // Backend already resolves location-then-company for real SalesInvoice/POSInvoiceData rows
+  // (SalesInvoiceServiceImpl.resolveStoreUpiId) -- never guessed client-side, and never a
+  // placeholder: null means genuinely unconfigured, and the QR just doesn't render for that.
+  const storeUpiId =
+    ("locationUpiId" in invoice && invoice.locationUpiId) ? invoice.locationUpiId
+    : ("storeUpiId" in invoice && invoice.storeUpiId) ? invoice.storeUpiId
+    : null;
   const locationGstin = ("locationGstin" in invoice && invoice.locationGstin) ? invoice.locationGstin : location?.gstin ?? undefined;
   const verifyToken = ("verifyToken" in invoice && invoice.verifyToken) ? invoice.verifyToken : undefined;
 
@@ -156,13 +164,14 @@ export function normalizeInvoiceForDisplay(
     isReturn, id, invoiceNumber, invoiceDate, status, isPaid,
     customerName, customerPhone, customerGstin,
     locationName, locationGstin, storeUpiId, verifyToken,
-    subtotal, taxAmount, totalAmount, creditAppliedAmount, paidAmount, balanceAmount,
+    subtotal, taxAmount, totalAmount, creditAppliedAmount, returnedAmount, paidAmount, balanceAmount,
     paymentMethod, tenderedCash, changeDue, previousBalance, lines,
   };
 }
 
 /** The actual receipt document body -- store header, line items, totals, signatory footer. No toolbar, no modal chrome. */
 export function InvoiceReceiptDocument({ data }: { data: NormalizedInvoiceDisplay }) {
+  const showUpiQr = !data.isReturn && !data.isPaid && !!data.storeUpiId;
   return (
     <div className="p-4 sm:p-8 space-y-4 sm:space-y-6 bg-white text-slate-900">
       {/* Store & Header Section */}
@@ -194,15 +203,22 @@ export function InvoiceReceiptDocument({ data }: { data: NormalizedInvoiceDispla
             <h2 className="text-lg sm:text-xl font-black text-[#0F3D3E] tracking-tight">
               {data.isReturn ? "CREDIT NOTE" : "TAX INVOICE"}
             </h2>
-            <Badge
-              className={
-                data.isPaid
-                  ? "bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] uppercase font-bold"
-                  : "bg-amber-50 text-amber-800 border border-amber-200 text-[10px] uppercase font-bold"
-              }
-            >
-              {data.status.replaceAll("_", " ")}
-            </Badge>
+            <div className="flex items-center justify-end gap-1.5 flex-wrap">
+              <Badge
+                className={
+                  data.isPaid
+                    ? "bg-emerald-50 text-emerald-800 border border-emerald-200 text-[10px] uppercase font-bold"
+                    : "bg-amber-50 text-amber-800 border border-amber-200 text-[10px] uppercase font-bold"
+                }
+              >
+                {data.status.replaceAll("_", " ")}
+              </Badge>
+              {!data.isReturn && data.returnedAmount > 0 && (
+                <Badge className="bg-amber-50 text-amber-800 border border-amber-200 text-[10px] uppercase font-bold">
+                  Item(s) Returned
+                </Badge>
+              )}
+            </div>
           </div>
         </div>
       </div>
@@ -290,18 +306,22 @@ export function InvoiceReceiptDocument({ data }: { data: NormalizedInvoiceDispla
         </Table>
       </div>
 
-      {/* Footer Totals & Dynamic UPI QR */}
-      <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 pt-4 border-t border-slate-200">
-        <div className="flex flex-col items-center justify-center p-3 border border-slate-200 rounded-xl bg-slate-50 w-fit self-center sm:self-auto">
-          <QRCodeSVG
-            value={`upi://pay?pa=${data.storeUpiId}&pn=${encodeURIComponent(data.locationName)}&am=${data.totalAmount}&cu=INR`}
-            size={72}
-            level="L"
-          />
-          <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">
-            Dynamic UPI QR Code
-          </span>
-        </div>
+      {/* Footer Totals & Dynamic UPI QR -- the payment QR only makes sense while there's still
+          something to collect (not a paid invoice, not a return) AND a UPI ID is actually
+          configured (location, falling back to company) -- no placeholder, just no QR. */}
+      <div className={`flex flex-col sm:flex-row sm:items-end gap-4 pt-4 border-t border-slate-200 ${showUpiQr ? "sm:justify-between" : "sm:justify-end"}`}>
+        {showUpiQr && (
+          <div className="flex flex-col items-center justify-center p-3 border border-slate-200 rounded-xl bg-slate-50 w-fit self-center sm:self-auto">
+            <QRCodeSVG
+              value={`upi://pay?pa=${data.storeUpiId}&pn=${encodeURIComponent(data.locationName)}&am=${data.totalAmount}&cu=INR`}
+              size={72}
+              level="L"
+            />
+            <span className="text-[9px] font-bold text-slate-500 uppercase tracking-widest mt-1">
+              Dynamic UPI QR Code
+            </span>
+          </div>
+        )}
 
         <div className="w-full sm:w-auto sm:min-w-[280px] space-y-1.5 text-xs text-right">
           {data.subtotal > 0 && (
@@ -332,6 +352,13 @@ export function InvoiceReceiptDocument({ data }: { data: NormalizedInvoiceDispla
             <div className="flex justify-between gap-2 text-emerald-700 font-medium">
               <span>Store Credit Applied</span>
               <span className="font-mono">-{money.format(data.creditAppliedAmount)}</span>
+            </div>
+          )}
+
+          {data.returnedAmount > 0 && (
+            <div className="flex justify-between gap-2 text-amber-700 font-medium">
+              <span>Returned</span>
+              <span className="font-mono">-{money.format(data.returnedAmount)}</span>
             </div>
           )}
 
