@@ -5,7 +5,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { Loader2, Plus, Trash2 } from "lucide-react";
+import { Camera, Loader2, Plus, Trash2 } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,7 @@ import {
 import { DataTable, type DataTableColumn } from "@/components/data-table/data-table";
 import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 import { ComboboxField } from "@/components/shared/combobox-field";
+import { BarcodeScannerDialog } from "@/components/shared/barcode-scanner-dialog";
 import { apiClient, ApiRequestError } from "@/lib/api-client";
 import { barcodeSchema, type BarcodeFormValues } from "@/lib/validation/product";
 import { BARCODE_TYPES, type Barcode, type Product, type Variant } from "@/lib/types/product";
@@ -49,6 +50,7 @@ function errorMessage(err: unknown): string {
 export function ProductBarcodesTab({ productId }: { productId: number }) {
   const qc = useQueryClient();
   const [createOpen, setCreateOpen] = React.useState(false);
+  const [scannerOpen, setScannerOpen] = React.useState(false);
   const [deleteTarget, setDeleteTarget] = React.useState<Barcode | null>(null);
 
   const productQuery = useQuery({ queryKey: ["products", productId], queryFn: () => apiClient.get<Product>(`products/${productId}`) });
@@ -192,7 +194,24 @@ export function ProductBarcodesTab({ productId }: { productId: number }) {
                   <FormItem>
                     <FormLabel>Barcode</FormLabel>
                     <FormControl>
-                      <Input placeholder="8901234567890" {...field} />
+                      <div className="relative flex items-center">
+                        <Input
+                          placeholder="Enter barcode"
+                          className="pr-10"
+                          {...field}
+                        />
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Scan barcode"
+                          title="Scan barcode"
+                          className="absolute right-1 top-1/2 -translate-y-1/2 size-7 text-muted-foreground hover:text-foreground rounded-lg transition-colors"
+                          onClick={() => setScannerOpen(true)}
+                        >
+                          <Camera className="size-4" />
+                        </Button>
+                      </div>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -253,6 +272,14 @@ export function ProductBarcodesTab({ productId }: { productId: number }) {
           </Form>
         </DialogContent>
       </Dialog>
+
+      <BarcodeScannerDialog
+        open={scannerOpen}
+        onOpenChange={setScannerOpen}
+        onScan={(code) => {
+          form.setValue("barcode", code, { shouldValidate: true, shouldDirty: true });
+        }}
+      />
 
       <ConfirmDialog
         open={deleteTarget !== null}

@@ -10,6 +10,7 @@ interface BarcodeScannerDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onScan: (barcode: string) => void;
+  title?: string;
 }
 
 const SUPPORTED_FORMATS = [
@@ -23,9 +24,15 @@ const SUPPORTED_FORMATS = [
   Html5QrcodeSupportedFormats.QR_CODE,
 ];
 
-export function BarcodeScannerDialog({ open, onOpenChange, onScan }: BarcodeScannerDialogProps) {
+export function BarcodeScannerDialog({
+  open,
+  onOpenChange,
+  onScan,
+  title = "Scan Barcode",
+}: BarcodeScannerDialogProps) {
   const scannerRef = React.useRef<Html5Qrcode | null>(null);
-  const containerId = "product-camera-barcode-reader";
+  const rawId = React.useId();
+  const containerId = React.useMemo(() => `barcode-scanner-${rawId.replace(/:/g, "_")}`, [rawId]);
 
   const [isLoading, setIsLoading] = React.useState(true);
   const [errorMsg, setErrorMsg] = React.useState<string | null>(null);
@@ -47,11 +54,30 @@ export function BarcodeScannerDialog({ open, onOpenChange, onScan }: BarcodeScan
         scannerRef.current = null;
       }
     }
+
+    // Direct hardware track cleanup safety net
+    try {
+      const container = document.getElementById(containerId);
+      if (container) {
+        const videos = container.querySelectorAll("video");
+        videos.forEach((video) => {
+          if (video.srcObject && "getTracks" in (video.srcObject as MediaStream)) {
+            (video.srcObject as MediaStream).getTracks().forEach((track) => track.stop());
+          }
+        });
+        container.innerHTML = "";
+      }
+    } catch {
+      // Ignore
+    }
+
     setTorchOn(false);
     setHasTorch(false);
-  }, []);
+  }, [containerId]);
 
   const startScanner = React.useCallback(async () => {
+    if (typeof window === "undefined") return;
+
     setIsLoading(true);
     setErrorMsg(null);
     setScannedCode(null);
@@ -68,6 +94,9 @@ export function BarcodeScannerDialog({ open, onOpenChange, onScan }: BarcodeScan
       setIsLoading(false);
       return;
     }
+
+    // Clean container inner content before mounting
+    element.innerHTML = "";
 
     try {
       const html5Qrcode = new Html5Qrcode(containerId, {
@@ -107,8 +136,8 @@ export function BarcodeScannerDialog({ open, onOpenChange, onScan }: BarcodeScan
           }
         }
 
-        // Wait a short moment to show confirmation then trigger callback
-        await new Promise((r) => setTimeout(r, 600));
+        // Wait a short moment to show visual confirmation
+        await new Promise((r) => setTimeout(r, 450));
 
         // Stop camera tracks and clean up scanner
         await stopScanner();
@@ -124,7 +153,7 @@ export function BarcodeScannerDialog({ open, onOpenChange, onScan }: BarcodeScan
           () => {}
         );
       } catch {
-        // Fallback to front/user camera
+        // Fallback to front/user camera or default camera
         await html5Qrcode.start(
           { facingMode: "user" },
           config,
@@ -153,7 +182,7 @@ export function BarcodeScannerDialog({ open, onOpenChange, onScan }: BarcodeScan
         msg.includes("denied")
       ) {
         setErrorMsg(
-          "Camera access is blocked or permission was denied. Please allow camera access in your browser settings to scan barcodes."
+          "Camera access is required to scan a barcode.\n\nPlease allow camera access in your browser settings."
         );
       } else if (msg.includes("NotFound") || msg.includes("DevicesNotFoundError")) {
         setErrorMsg("No camera device was found on this device.");
@@ -211,16 +240,16 @@ export function BarcodeScannerDialog({ open, onOpenChange, onScan }: BarcodeScan
 
   return (
     <Dialog open={open} onOpenChange={(val) => { if (!val) handleClose(); }}>
-      <DialogContent className="w-full max-w-[calc(100%-2rem)] sm:max-w-md p-6 flex flex-col gap-4 overflow-hidden rounded-xl border bg-card shadow-lg">
+      <DialogContent className="w-full max-w-[calc(100%-2rem)] sm:max-w-md p-6 flex flex-col gap-4 overflow-hidden rounded-xl border bg-card shadow-xl z-[60]">
         <div className="flex items-center justify-between pb-2 border-b">
-          <DialogTitle className="text-lg font-semibold">Scan Product Barcode</DialogTitle>
-          <Button variant="ghost" size="icon-sm" onClick={handleClose}>
+          <DialogTitle className="text-lg font-semibold">{title}</DialogTitle>
+          <Button variant="ghost" size="icon-sm" onClick={handleClose} aria-label="Close">
             <X className="h-4 w-4" />
           </Button>
         </div>
 
         <DialogDescription className="sr-only">
-          Point your camera at a barcode to scan it.
+          Point the camera at the barcode
         </DialogDescription>
 
         <div className="relative w-full aspect-[4/3] rounded-lg overflow-hidden bg-black border border-border">
@@ -237,7 +266,7 @@ export function BarcodeScannerDialog({ open, onOpenChange, onScan }: BarcodeScan
               <div className="h-12 w-12 rounded-full bg-white/10 text-white flex items-center justify-center">
                 <CameraOff className="h-6 w-6" />
               </div>
-              <p className="text-xs text-white/80 max-w-xs">{errorMsg}</p>
+              <p className="text-xs text-white/80 max-w-xs whitespace-pre-line">{errorMsg}</p>
               <div className="flex items-center gap-2 pt-1">
                 <Button variant="outline" size="sm" onClick={startScanner} className="gap-1.5 text-xs bg-transparent text-white border-white/30 hover:bg-white/10 hover:text-white">
                   <RefreshCw className="h-3.5 w-3.5" /> Try Again
@@ -274,6 +303,7 @@ export function BarcodeScannerDialog({ open, onOpenChange, onScan }: BarcodeScan
               size="icon"
               className="absolute bottom-3 right-3 z-30 h-9 w-9 rounded-full bg-black/40 text-white hover:bg-black/60 hover:text-white"
               onClick={toggleTorch}
+              aria-label="Toggle flashlight"
             >
               {torchOn ? <ZapOff className="h-4 w-4 text-amber-400" /> : <Zap className="h-4 w-4" />}
             </Button>
@@ -285,13 +315,13 @@ export function BarcodeScannerDialog({ open, onOpenChange, onScan }: BarcodeScan
               <CheckCircle2 className="h-10 w-10 text-emerald-400 animate-bounce" />
               <p className="text-sm font-semibold text-white">Barcode Detected</p>
               <code className="text-xs bg-black/40 text-emerald-200 px-3 py-1 rounded-md font-mono">{scannedCode}</code>
-              <p className="text-[11px] text-emerald-300/80">Opening Add Product...</p>
+              <p className="text-[11px] text-emerald-300/80">Scanned successfully</p>
             </div>
           )}
         </div>
 
         <div className="text-center text-xs text-muted-foreground py-1">
-          {scannedCode ? "Processing..." : "Point your camera at a barcode to scan it automatically."}
+          {scannedCode ? "Processing..." : "Point the camera at the barcode"}
         </div>
 
         <div className="-mx-6 -mb-6 mt-2 flex justify-end gap-2 border-t bg-muted/30 p-4">
