@@ -84,6 +84,31 @@ export interface VariantAttributeValue {
   attributeId: number;
   attributeName: string;
   value: string;
+  // false/undefined = attributeId is a category attribute id; true = a
+  // product-level attribute id owned by this product only.
+  productLevel?: boolean;
+}
+
+// Product-level (single-product-scoped) variant attributes -- same shape as
+// master/types.ts's CategoryAttribute but owned by one product instead of shared
+// across a whole category, so there's no required/variant/filterable flag: a
+// product attribute's only purpose is generating this one product's variants.
+export type ProductAttributeDataType = "SELECT" | "TEXT" | "NUMBER" | "BOOLEAN";
+
+export interface ProductAttributeOption {
+  id: number;
+  value: string;
+  displayOrder: number;
+  isActive: boolean;
+}
+
+export interface ProductAttribute {
+  id: number;
+  code: string | null;
+  name: string;
+  dataType: ProductAttributeDataType;
+  displayOrder: number;
+  options: ProductAttributeOption[];
 }
 
 export interface ProductImage {

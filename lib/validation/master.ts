@@ -129,6 +129,22 @@ export const categoryAttributeSchema = z.object({
 });
 export type CategoryAttributeFormValues = z.infer<typeof categoryAttributeSchema>;
 
+// Same shape as categoryAttributeSchema minus required/variant/filterable --
+// a product-level attribute's only purpose is generating that one product's
+// variants, so those category-wide flags don't apply.
+export const productAttributeSchema = z.object({
+  code: z.string().max(30).regex(/^[a-zA-Z0-9_-]+$/, "Use letters, numbers, hyphens, or underscores").optional().or(z.literal("")),
+  name: z.string().min(1, "Name is required").max(100),
+  dataType: z.enum(["SELECT", "TEXT", "NUMBER", "BOOLEAN"]),
+  displayOrder: z.number().int(),
+  optionText: z.string().optional(),
+}).superRefine((value, context) => {
+  if (value.dataType === "SELECT" && !(value.optionText ?? "").split(",").some((item) => item.trim())) {
+    context.addIssue({ code: "custom", path: ["optionText"], message: "Add at least one comma-separated option" });
+  }
+});
+export type ProductAttributeFormValues = z.infer<typeof productAttributeSchema>;
+
 export const locationConfigurationSchema = z.object({
   // Currency and timezone are used later to format/print real amounts and
   // dates on receipts and reports -- unlike City, garbage here silently

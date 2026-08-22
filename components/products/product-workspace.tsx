@@ -24,7 +24,22 @@ import {
   useUnitsLookup,
 } from "@/lib/hooks/use-master-data";
 
-type Combination = { key: string; values: { attributeId: number; value: string }[]; sku: string; enabled: boolean };
+// A pickable variant group -- either a shared category attribute (groupKey
+// "c:<id>") or a product-specific attribute defined inline on this form
+// (groupKey "p:<clientKey>"). The product doesn't have an id yet at this point,
+// so product-level attributes are tracked by a client-generated key instead of a
+// real database id until the whole product is submitted.
+type AttributeGroup = {
+  groupKey: string;
+  name: string;
+  required: boolean;
+  productLevel: boolean;
+  attributeId: number | null;
+  clientKey: string | null;
+  options: { id: number | string; value: string; isActive: boolean }[];
+};
+type ProductAttributeDraft = { clientKey: string; name: string; optionText: string };
+type Combination = { key: string; values: { groupKey: string; value: string }[]; sku: string; enabled: boolean };
 type Money = { costPrice: string; sellingPrice: string; mrp: string };
 type SetupResponse = { product: Product; variants: Variant[]; prices: Price[]; barcodes: Barcode[] };
 
@@ -53,10 +68,10 @@ function skuPart(value: string) {
   return value.toUpperCase().replace(/[^A-Z0-9]+/g, "-").replace(/^-|-$/g, "");
 }
 
-function cartesian(groups: { attributeId: number; values: string[] }[]) {
+function cartesian(groups: { groupKey: string; values: string[] }[]) {
   if (!groups.length || groups.some((g) => !g.values.length)) return [];
-  return groups.reduce<{ attributeId: number; value: string }[][]>(
-    (rows, group) => rows.flatMap((row) => group.values.map((value) => [...row, { attributeId: group.attributeId, value }])),
+  return groups.reduce<{ groupKey: string; value: string }[][]>(
+    (rows, group) => rows.flatMap((row) => group.values.map((value) => [...row, { groupKey: group.groupKey, value }])),
     [[]]
   );
 }
@@ -81,10 +96,11 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
     isActive: true,
   });
 
-  const [selected, setSelected] = React.useState<Record<number, Set<string>>>({});
+  const [selected, setSelected] = React.useState<Record<string, Set<string>>>({});
   const [combinations, setCombinations] = React.useState<Combination[]>([]);
   const [prices, setPrices] = React.useState<Record<string, Money>>({});
   const [files, setFiles] = React.useState<File[]>([]);
+  const [productAttributeDrafts, setProductAttributeDrafts] = React.useState<ProductAttributeDraft[]>([]);
 
   const categories = useCategoriesLookup();
   const units = useUnitsLookup();
@@ -97,7 +113,18 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
     queryFn: () => apiClient.get<CategoryAttribute[]>(`master/categories/${form.categoryId}/attributes`),
   });
 
-  const variantAttributes = (attributes.data ?? []).filter((a) => a.variant);
+  const categoryVariantAttributes = (attributes.data ?? []).filter((a) => a.variant);
+  const attributeGroups: AttributeGroup[] = React.useMemo(() => [
+    ...categoryVariantAttributes.map((a): AttributeGroup => ({
+      groupKey: `c:${a.id}`, name: a.name, required: a.required, productLevel: false,
+      attributeId: a.id, clientKey: null, options: a.options,
+    })),
+    ...productAttributeDrafts.filter((d) => d.name.trim()).map((d): AttributeGroup => ({
+      groupKey: `p:${d.clientKey}`, name: d.name, required: false, productLevel: true,
+      attributeId: null, clientKey: d.clientKey,
+      options: d.optionText.split(",").map((v) => v.trim()).filter(Boolean).map((value, index) => ({ id: `${d.clientKey}-${index}`, value, isActive: true })),
+    })),
+  ], [categoryVariantAttributes, productAttributeDrafts]);
   const activePriceLists = (priceLists.data?.content ?? []).filter((p) => p.isActive);
   const categoryOptions = categoryHierarchy(categories.data?.content ?? []);
 
@@ -123,15 +150,15 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
   }, [form.categoryId]);
 
   function generate() {
-    const missing = variantAttributes.filter((a) => a.required && (selected[a.id]?.size ?? 0) === 0);
+    const missing = attributeGroups.filter((a) => a.required && (selected[a.groupKey]?.size ?? 0) === 0);
     if (missing.length) {
       toast.error(`Select a value for required attribute: ${missing[0].name}`);
       return;
     }
-    const groups = variantAttributes.map((a) => ({ attributeId: a.id, values: Array.from(selected[a.id] ?? []) })).filter((g) => g.values.length > 0);
+    const groups = attributeGroups.map((a) => ({ groupKey: a.groupKey, values: Array.from(selected[a.groupKey] ?? []) })).filter((g) => g.values.length > 0);
     const rows = cartesian(groups);
     const next = rows.map((values) => {
-      const key = values.map((v) => `${v.attributeId}:${v.value}`).join("|");
+      const key = values.map((v) => `${v.groupKey}:${v.value}`).join("|");
       return {
         key,
         values,
@@ -200,7 +227,26 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
           allowNegativeStock: form.allowNegativeStock,
           isActive: form.isActive,
         },
-        variants: enabled.map((combo) => ({ clientKey: combo.key, sku: combo.sku, attributeValues: combo.values, prices: makePrices(combo.key), isActive: true })),
+        productAttributes: productAttributeDrafts.filter((d) => d.name.trim()).map((d) => ({
+          clientKey: d.clientKey,
+          attribute: {
+            name: d.name.trim(),
+            dataType: "SELECT",
+            options: d.optionText.split(",").map((v) => v.trim()).filter(Boolean).map((value, index) => ({ value, displayOrder: index, isActive: true })),
+          },
+        })),
+        variants: enabled.map((combo) => ({
+          clientKey: combo.key,
+          sku: combo.sku,
+          attributeValues: combo.values.map((value) => {
+            const group = attributeGroups.find((g) => g.groupKey === value.groupKey)!;
+            return group.productLevel
+              ? { productLevel: true, productAttributeClientKey: group.clientKey, value: value.value }
+              : { productLevel: false, attributeId: group.attributeId, value: value.value };
+          }),
+          prices: makePrices(combo.key),
+          isActive: true,
+        })),
         prices: form.hasVariants ? [] : makePrices("simple"),
         generateBarcodes: true,
       });
@@ -365,60 +411,82 @@ export function ProductWorkspace({ companyId }: { companyId: number }) {
         <CardContent className="space-y-5">
           {!form.hasVariants ? (
             <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Simple product—one sellable SKU and one automatic barcode.</p>
-          ) : variantAttributes.length === 0 ? (
-            <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Choose a category with variant attributes, or configure them in Master Data → Categories.</p>
           ) : (
             <>
-              {variantAttributes.map((a) => (
-                <div key={a.id}>
-                  <div className="mb-2 flex items-center gap-2 font-medium">
-                    {a.name}
-                    {a.required && <Badge>Required</Badge>}
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    {a.options
-                      .filter((o) => o.isActive)
-                      .map((o) => {
-                        const checked = selected[a.id]?.has(o.value) ?? false;
-                        return (
-                          <label key={o.id} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3">
-                            <Checkbox
-                              checked={checked}
-                              onCheckedChange={(v) =>
-                                setSelected((current) => {
-                                  const next = { ...current, [a.id]: new Set(current[a.id] ?? []) };
-                                  if (v) next[a.id].add(o.value);
-                                  else next[a.id].delete(o.value);
-                                  return next;
-                                })
-                              }
-                            />
-                            {o.value}
-                          </label>
-                        );
-                      })}
-                  </div>
+              <div className="rounded-lg border border-dashed p-4">
+                <div className="mb-2 flex items-center justify-between">
+                  <span className="text-sm font-medium">Product-specific attributes (optional)</span>
+                  <Button variant="outline" size="sm" onClick={() => setProductAttributeDrafts((rows) => [...rows, { clientKey: `pa-${Date.now()}-${rows.length}`, name: "", optionText: "" }])}>
+                    <Plus className="size-4" />Add attribute
+                  </Button>
                 </div>
-              ))}
-              <Button variant="secondary" onClick={generate}>
-                <Sparkles />
-                Generate combinations
-              </Button>
-              <div className="grid gap-2">
-                {combinations.map((combo, index) => (
-                  <div key={combo.key} className="grid items-center gap-3 rounded-lg border p-3 md:grid-cols-[auto_1fr_1fr]">
-                    <Checkbox checked={combo.enabled} onCheckedChange={(v) => setCombinations((rows) => rows.map((r, i) => (i === index ? { ...r, enabled: !!v } : r)))} />
-                    <div className="flex flex-wrap gap-1">
-                      {combo.values.map((v) => (
-                        <Badge variant="outline" key={`${v.attributeId}-${v.value}`}>
-                          {v.value}
-                        </Badge>
-                      ))}
-                    </div>
-                    <Input value={combo.sku} onChange={(e) => setCombinations((rows) => rows.map((r, i) => (i === index ? { ...r, sku: e.target.value } : r)))} />
+                <p className="mb-3 text-xs text-muted-foreground">Only apply to this one product -- for options shared across the whole category, use Master Data → Categories → Attributes instead.</p>
+                {productAttributeDrafts.map((draft, index) => (
+                  <div key={draft.clientKey} className="mb-2 grid gap-2 sm:grid-cols-[1fr_2fr_auto]">
+                    <Input placeholder="Attribute name (e.g. Material)" value={draft.name} onChange={(e) => setProductAttributeDrafts((rows) => rows.map((r, i) => (i === index ? { ...r, name: e.target.value } : r)))} />
+                    <Input placeholder="Options, comma-separated (e.g. Leather, Canvas)" value={draft.optionText} onChange={(e) => setProductAttributeDrafts((rows) => rows.map((r, i) => (i === index ? { ...r, optionText: e.target.value } : r)))} />
+                    <Button variant="ghost" size="icon" className="text-destructive" onClick={() => setProductAttributeDrafts((rows) => rows.filter((_, i) => i !== index))}><Trash2 /></Button>
                   </div>
                 ))}
               </div>
+
+              {attributeGroups.length === 0 ? (
+                <p className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">Choose a category with variant attributes, or add a product-specific attribute above.</p>
+              ) : (
+                <>
+                  {attributeGroups.map((a) => (
+                    <div key={a.groupKey}>
+                      <div className="mb-2 flex items-center gap-2 font-medium">
+                        {a.name}
+                        {a.productLevel && <Badge variant="secondary">Product-specific</Badge>}
+                        {a.required && <Badge>Required</Badge>}
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        {a.options
+                          .filter((o) => o.isActive)
+                          .map((o) => {
+                            const checked = selected[a.groupKey]?.has(o.value) ?? false;
+                            return (
+                              <label key={o.id} className="flex min-h-11 cursor-pointer items-center gap-2 rounded-lg border px-3">
+                                <Checkbox
+                                  checked={checked}
+                                  onCheckedChange={(v) =>
+                                    setSelected((current) => {
+                                      const next = { ...current, [a.groupKey]: new Set(current[a.groupKey] ?? []) };
+                                      if (v) next[a.groupKey].add(o.value);
+                                      else next[a.groupKey].delete(o.value);
+                                      return next;
+                                    })
+                                  }
+                                />
+                                {o.value}
+                              </label>
+                            );
+                          })}
+                      </div>
+                    </div>
+                  ))}
+                  <Button variant="secondary" onClick={generate}>
+                    <Sparkles />
+                    Generate combinations
+                  </Button>
+                  <div className="grid gap-2">
+                    {combinations.map((combo, index) => (
+                      <div key={combo.key} className="grid items-center gap-3 rounded-lg border p-3 md:grid-cols-[auto_1fr_1fr]">
+                        <Checkbox checked={combo.enabled} onCheckedChange={(v) => setCombinations((rows) => rows.map((r, i) => (i === index ? { ...r, enabled: !!v } : r)))} />
+                        <div className="flex flex-wrap gap-1">
+                          {combo.values.map((v) => (
+                            <Badge variant="outline" key={v.groupKey}>
+                              {v.value}
+                            </Badge>
+                          ))}
+                        </div>
+                        <Input value={combo.sku} onChange={(e) => setCombinations((rows) => rows.map((r, i) => (i === index ? { ...r, sku: e.target.value } : r)))} />
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
             </>
           )}
         </CardContent>
